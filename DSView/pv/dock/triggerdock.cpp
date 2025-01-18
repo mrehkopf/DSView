@@ -33,6 +33,7 @@
 #include <QSplitter>
 #include <QInputMethodEvent>
 #include <QApplication>
+#include <QFontDatabase>
 #include <math.h>
 #include <libsigrok.h>
 
@@ -564,11 +565,7 @@ void TriggerDock::setup_adv_tab()
     _value0_ext32_lineEdit_list.clear();
     _value1_ext32_lineEdit_list.clear();
 
-   // QFont font("Monaco");
-   // font.setStyleHint(QFont::Monospace);
-   // font.setFixedPitch(true);
-
-    QFont font = this->font();
+    QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     font.setPointSizeF(AppConfig::Instance().appOptions.fontSize);
 
     _stage_tabWidget = new QTabWidget(_widget);
@@ -709,6 +706,7 @@ void TriggerDock::setup_adv_tab()
         stage_layout->addLayout(stage_glayout);
         stage_layout->addSpacing(20);
         QLabel *stage_note_label = new QLabel(_stage_tabWidget);
+        stage_note_label->setFont(font);
         _stage_note_label_list.push_back(stage_note_label);
         stage_layout->addWidget(stage_note_label);
         stage_layout->addStretch(1);
@@ -903,6 +901,8 @@ void TriggerDock::setup_adv_tab()
     serial_glayout->addWidget(hex_wid, row++, 1, 1, 3);
 
     _serial_note_label = new QLabel(_serial_groupBox);
+    _serial_note_label->setFont(font);
+
     serial_layout->addLayout(serial_glayout);
     serial_layout->addSpacing(20);
     serial_layout->addWidget(_serial_note_label);
@@ -1079,7 +1079,6 @@ void TriggerDock::UpdateFont()
 {
     QFont font = this->font();
     font.setPointSizeF(AppConfig::Instance().appOptions.fontSize);
-    ui::set_form_font(this, font);
     font.setPointSizeF(font.pointSizeF() + 1);
     this->parentWidget()->setFont(font);
     
