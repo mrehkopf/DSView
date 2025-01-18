@@ -453,6 +453,12 @@ public:
 
     void apply_samplerate();
 
+    void ProcessPowerEvent(bool bEnterSleep);
+
+    inline void set_capture_work_time(uint64_t tm){
+        _capture_work_time = tm;
+    }
+
 private:
     void set_cur_samplelimits(uint64_t samplelimits);
     void set_cur_snap_samplerate(uint64_t samplerate);
@@ -621,6 +627,7 @@ private:
     IDecoderPannel  *_decoder_pannel;
     sr_status       _dso_status;
     bool            _dso_status_valid;
+    uint64_t        _capture_work_time;
    
 private:
 	// TODO: This should not be necessary. Multiple concurrent

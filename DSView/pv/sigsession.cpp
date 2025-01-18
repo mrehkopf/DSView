@@ -104,6 +104,7 @@ namespace pv
         _is_triged = false;
         _dso_status_valid = false;
         _is_task_end = false;
+        _capture_work_time = 0;
 
         _data_list.push_back(new SessionData());
         _data_list.push_back(new SessionData());
@@ -205,7 +206,7 @@ namespace pv
         struct ds_device_base_info *dev = (array + count - 1);
         ds_device_handle dev_handle = dev->handle;
 
-        free(array);
+        g_free(array);
 
         if (set_device(dev_handle))
         {
@@ -257,42 +258,53 @@ namespace pv
         // The current device changed.
         _callback->trigger_message(DSV_MSG_CURRENT_DEVICE_CHANGED);
 
-        if (ds_get_last_error() == SR_ERR_DEVICE_FIRMWARE_VERSION_LOW)
-        {
-            QString strMsg = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_TO_RECONNECT_FOR_FIRMWARE), 
-                    "Please reconnect the device!");
-            _callback->delay_prop_msg(strMsg);
-            return false;
-        }
+        int lastError = ds_get_last_error();
+        bool ret = true;
 
-        if (ds_get_last_error() == SR_ERR_FIRMWARE_NOT_EXIST)
+        switch (lastError)
         {
-            QString strMsg = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_FIRMWARE_NOT_EXIST), 
-                    "Firmware not exist!");
-            _callback->delay_prop_msg(strMsg);
-            return false;
-        }
-
-        if (ds_get_last_error() == SR_ERR_DEVICE_USB_IO_ERROR)
-        {
-            QString strMsg = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DEVICE_USB_IO_ERROR), 
-                    "USB io error!");
-            _callback->delay_prop_msg(strMsg);
-            return false;
-        }
-
-        if (ds_get_last_error() == SR_ERR_DEVICE_IS_EXCLUSIVE)
-        {
-            QString strMsg = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DEVICE_BUSY_SWITCH_FAILED), 
-                        "Device is busy!");
-            if (old_dev != NULL_HANDLE)
-                MsgBox::Show(strMsg);
-            else
+            case SR_ERR_DEVICE_FIRMWARE_VERSION_LOW:{
+                QString strMsg = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_TO_RECONNECT_FOR_FIRMWARE), 
+                        "Please reconnect the device!");
                 _callback->delay_prop_msg(strMsg);
-            return false;
+                ret = false;
+                break;
+            }
+            case SR_ERR_FIRMWARE_NOT_EXIST:{
+                QString strMsg = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_FIRMWARE_NOT_EXIST), 
+                    "Firmware not exist!");
+                _callback->delay_prop_msg(strMsg);
+                ret = false;
+                break;
+            }
+            case SR_ERR_DEVICE_USB_IO_ERROR:{
+                QString strMsg = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DEVICE_USB_IO_ERROR), 
+                    "USB io error!");
+                _callback->delay_prop_msg(strMsg);
+                ret = false;
+                break;
+            }
+            case SR_ERR_DEVICE_IS_EXCLUSIVE:{
+                QString strMsg = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DEVICE_BUSY_SWITCH_FAILED), 
+                        "Device is busy!");
+                if (old_dev != NULL_HANDLE)
+                    MsgBox::Show(strMsg);
+                else
+                    _callback->delay_prop_msg(strMsg);
+                ret = false;
+                break;
+            }
+            case SR_ERR_DEVICE_NO_DRIVER:
+            {
+                QString strMsg = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DEVICE_NO_DRIVER), 
+                    "No driver!");
+                _callback->delay_prop_msg(strMsg);
+                ret = false;
+                break;
+            }
         }
 
-        return true;
+        return ret;
     }
 
     bool SigSession::set_file(QString name)
@@ -1463,6 +1475,14 @@ namespace pv
 
                 // Post a message to start all decode tasks.
                 if (mode == LOGIC){
+                    auto logic_data = _capture_data->get_logic();
+                    if (is_loop_mode() && logic_data->get_loop_offset() > 0){
+                        uint64_t milliseconds = _capture_work_time / 1000000;
+                        QDateTime sessionTime = QDateTime::currentDateTime();
+                        sessionTime = sessionTime.addMSecs(-milliseconds);
+                        set_session_time(sessionTime);
+                    }
+
                     _callback->trigger_message(DSV_MSG_REV_END_PACKET);
                 }
                 else{
@@ -2584,6 +2604,19 @@ namespace pv
     void SigSession::apply_samplerate()
     {
         on_load_config_end();
+    }
+
+    void SigSession::ProcessPowerEvent(bool bEnterSleep)
+    {
+        if (bEnterSleep){
+            if (_is_working && _device_agent.is_hardware()){
+                stop_capture();
+            }
+            ds_close_all_device();
+        }
+        else{
+            ds_reload_device_list();
+        }
     }
 
 } // namespace pv

@@ -35,11 +35,13 @@
 #include <QtWidgets>
 #include <qmath.h>
 #include <string.h>
+#include <winuser.h> 
 
 #include "log.h"
 #include "mainframe.h"
 #include "dsvdef.h"
 #include "appcontrol.h"
+#include "mainwindow.h"
 
 #define FIXED_WIDTH(widget) (widget->minimumWidth() >= widget->maximumWidth())
 #define FIXED_HEIGHT(widget) (widget->minimumHeight() >= widget->maximumHeight())
@@ -49,11 +51,72 @@
 #define WINDOW_STATUS_NORMAL    2
 #define WINDOW_STATUS_MIN       3
 
+typedef HPOWERNOTIFY(WINAPI* PFN_REGISTER_SUSPEND_RESUME_NOTIFICATION)(HANDLE, DWORD);
+typedef BOOL(WINAPI* PFN_UNREGISTER_SUSPEND_RESUME_NOTIFICATION)(HPOWERNOTIFY);
+typedef HIMC (WINAPI* FN_ImmAssociateContext)(HWND,HIMC);
+ 
 namespace pv {
 
 namespace
 {
     bool g_enable_ncclient = true;
+    HPOWERNOTIFY g_hPowerNotification = NULL;
+    HMODULE g_hUser32 = NULL;
+    PFN_REGISTER_SUSPEND_RESUME_NOTIFICATION fnRegisterSuspendResumeNotification = NULL;
+    PFN_UNREGISTER_SUSPEND_RESUME_NOTIFICATION fnUnregisterSuspendResumeNotification = NULL;
+}
+
+static bool InitCapturePowerEvent(HWND hWnd)
+{
+    g_hUser32 = LoadLibrary(L"user32.dll");
+    if (g_hUser32 == NULL) {
+        dsv_info("ERROR: Failed to load user32.dll");
+        return false;
+    }
+
+    fnRegisterSuspendResumeNotification = (PFN_REGISTER_SUSPEND_RESUME_NOTIFICATION)GetProcAddress(g_hUser32, 
+                    "RegisterSuspendResumeNotification");
+
+    if (fnRegisterSuspendResumeNotification == NULL){
+        dsv_info("ERROR: failed to get RegisterSuspendResumeNotification address");
+        FreeLibrary(g_hUser32);
+        g_hUser32 = NULL;
+        return false;
+    }
+
+    fnUnregisterSuspendResumeNotification = (PFN_UNREGISTER_SUSPEND_RESUME_NOTIFICATION)GetProcAddress(g_hUser32, 
+                "UnregisterSuspendResumeNotification");
+
+    if (fnUnregisterSuspendResumeNotification == NULL){
+        dsv_info("ERROR: failed to get UnregisterSuspendResumeNotification address");
+        FreeLibrary(g_hUser32);
+        g_hUser32 = NULL;
+        return false;
+    }
+
+    g_hPowerNotification = fnRegisterSuspendResumeNotification(hWnd, DEVICE_NOTIFY_WINDOW_HANDLE);
+
+    if (g_hPowerNotification == NULL){
+        dsv_info("ERROR: failed to call RegisterSuspendResumeNotification().");
+        FreeLibrary(g_hUser32);
+        g_hUser32 = NULL;
+        return false;
+    }
+
+    return true;
+}
+
+static void UninitCapturePowerEvent()
+{
+    if (g_hPowerNotification != NULL){
+        fnUnregisterSuspendResumeNotification(g_hPowerNotification);
+        g_hPowerNotification = NULL;
+    }
+
+    if (g_hUser32 != NULL){
+        FreeLibrary(g_hUser32);
+        g_hUser32 = NULL;
+    }
 }
 
 //-----------------------------WinNativeWidget 
@@ -117,6 +180,19 @@ WinNativeWidget::WinNativeWidget(const int x, const int y, const int width,
         _shadow->createWinId();
         _shadow->SetCallback(this);
     }
+
+    InitCapturePowerEvent(_hWnd);
+
+    //Disabled the IMME.
+    HMODULE hImm32Dll = LoadLibraryW(L"imm32.dll");
+    if (hImm32Dll != NULL){
+        FN_ImmAssociateContext fnImm = (FN_ImmAssociateContext)GetProcAddress(hImm32Dll, "ImmAssociateContext");
+
+        if (fnImm){
+            fnImm(_hWnd, NULL);
+        }        
+        FreeLibrary(hImm32Dll);
+    }   
 }
 
 WinNativeWidget::~WinNativeWidget()
@@ -138,6 +214,8 @@ void WinNativeWidget::SetChildWidget(MainFrame *w)
     else if (_shadow != NULL){
         _shadow->hideShadow();
         _shadow->close(); //Set null, the applictoin will exit.
+
+        UninitCapturePowerEvent();     
     }
 }
 
@@ -163,7 +241,7 @@ LRESULT CALLBACK WinNativeWidget::WndProc(HWND hWnd, UINT message, WPARAM wParam
     }
 
     switch (message)
-    {
+    { 
         case WM_SYSCOMMAND:
         {
             if (wParam == SC_KEYMENU)
@@ -349,10 +427,12 @@ LRESULT CALLBACK WinNativeWidget::WndProc(HWND hWnd, UINT message, WPARAM wParam
                     QSize minimum = gw->minimumSize();
                     QSize sizeHint = gw->minimumSizeHint();
 
+                    bool bNormal = self->IsNormalsized();
+
                     MINMAXINFO *mmi = reinterpret_cast<MINMAXINFO*>(lParam);
                     mmi->ptMinTrackSize.x = qFloor(qMax(minimum.width(), sizeHint.width()) * k);
                     mmi->ptMinTrackSize.y = qFloor(qMax(minimum.height(), sizeHint.height()) * k);
-                    mmi->ptMaxTrackSize.x = maxWidth;
+                    mmi->ptMaxTrackSize.x = bNormal ? maxWidth * 5 : maxWidth;
                     mmi->ptMaxTrackSize.y = maxHeight;
                 }                
             } 
@@ -371,6 +451,30 @@ LRESULT CALLBACK WinNativeWidget::WndProc(HWND hWnd, UINT message, WPARAM wParam
             if (self->_childWindow != NULL){
                 return SendMessage(self->_childWindow, message, wParam, lParam);
             }
+            break;
+        }
+        case WM_POWERBROADCAST:
+        { 
+            if (self->_childWidget != NULL)
+            {
+                pv::MainFrame *frame = dynamic_cast<pv::MainFrame*>(self->_childWidget);
+                pv::MainWindow *mainWnd = dynamic_cast<pv::MainWindow*>(frame->GetMainWindow());
+ 
+                switch (wParam)
+                {
+                    case PBT_APMSUSPEND:{
+                        dsv_info("WM_POWERBROADCAST: windows enters sleep.");
+                        mainWnd->OnWindowsPowerEvent(true);
+                        break;
+                    }
+                    case PBT_APMRESUMEAUTOMATIC:{
+                        dsv_info("WM_POWERBROADCAST: windows be awaked.");
+                        mainWnd->OnWindowsPowerEvent(false);
+                        break;
+                    }
+                }
+            }
+            
             break;
         }
     }

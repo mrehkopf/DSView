@@ -80,7 +80,8 @@ enum {
 	SR_ERR_FIRMWARE_NOT_EXIST 	= 10, /**< The firmware file is not exist.*/
 	SR_ERR_DEVICE_IS_EXCLUSIVE 	= 11, /**< The device is exclusive by other process.*/
 	SR_ERR_DEVICE_FIRMWARE_VERSION_LOW = 12, /**< The firmware version is too low.*/
-	SR_ERR_DEVICE_USB_IO_ERROR = 13, /**< THe use io error.*/
+	SR_ERR_DEVICE_USB_IO_ERROR = 13, /**< The usb io error.*/
+	SR_ERR_DEVICE_NO_DRIVER = 14, /**< The device have no driver.*/
 
 	/*
 	 * Note: When adding entries here, don't forget to also update the
@@ -532,6 +533,8 @@ struct sr_output {
 	void *priv;
 
 	uint64_t start_sample_index;
+
+	char time_string[30];
 };
 
 /** Generic option struct used by various subsystems. */
@@ -1403,7 +1406,7 @@ SR_API void ds_set_user_data_dir(const char *dir);
 
 /**
  * Get the device list, if the field _handle is 0, the list visited to end.
- * User need call free() to release the buffer. If the list is empty, the out_list is null.
+ * User need call g_free() to release the buffer. If the list is empty, the out_list is null.
  */
 SR_API int ds_get_device_list(struct ds_device_base_info** out_list, int *out_count);
 
@@ -1477,6 +1480,10 @@ SR_API int ds_is_collecting();
 SR_API int ds_release_actived_device();
 
 SR_API int ds_get_last_error();
+
+SR_API int ds_reload_device_list();
+
+SR_API int ds_close_all_device();
 
 /*---config -----------------------------------------------*/
 SR_API int ds_get_actived_device_config(const struct sr_channel *ch,

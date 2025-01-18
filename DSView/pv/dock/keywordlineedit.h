@@ -27,7 +27,7 @@
 #include <QMouseEvent>
 #include <QWidget>
 #include <QDialog>
-#include <QSpinBox>
+#include <QWheelEvent>
 
 class IKeywordActive{
 public:

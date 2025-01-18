@@ -68,6 +68,7 @@ struct sr_lib_context
 	int transaction_id;
 	int transaction_command;
 	int last_error;
+	int is_reloading_list;
 };
 
 static void hotplug_event_listen_callback(struct libusb_context *ctx, struct libusb_device *dev, int event);
@@ -80,6 +81,7 @@ static void post_event_async(int event);
 static void send_event(int event);
 static void make_demo_device_to_list();
 static void process_attach_event(int isEvent);
+static void process_detach_event();
 static struct libusb_device* get_new_attached_usb_device();
 static struct libusb_device* get_new_detached_usb_device();
 
@@ -104,6 +106,7 @@ static struct sr_lib_context lib_ctx = {
 	.transaction_id = 0,
 	.transaction_command = DEV_TRANS_NONE,
 	.last_error = SR_OK,
+	.is_reloading_list = 0,
 };
 
 /**
@@ -278,10 +281,6 @@ SR_API void ds_set_datafeed_callback(ds_datafeed_callback_t cb)
 	lib_ctx.data_forward_callback = cb;
 }
 
-/**
- * Get the device list, if the field _handle is 0, the list visited to end.
- * User need call free() to release the buffer. If the list is empty, the out_list is null.
- */
 SR_API int ds_get_device_list(struct ds_device_base_info **out_list, int *out_count)
 {
 	int num;
@@ -305,7 +304,7 @@ SR_API int ds_get_device_list(struct ds_device_base_info **out_list, int *out_co
 		return SR_OK;
 	}
 
-	buf = malloc(sizeof(struct ds_device_base_info) * (num + 1));
+	buf = g_try_malloc0(sizeof(struct ds_device_base_info) * (num + 1));
 	if (buf == NULL)
 	{	
 		sr_err("%s,ERROR:failed to alloc memory.", __func__);
@@ -601,13 +600,17 @@ SR_API int ds_remove_device(ds_device_handle handle)
 	if (handle == NULL_HANDLE)
 		return SR_ERR_ARG;
 
-	if (lib_ctx.actived_device_instance != NULL && lib_ctx.actived_device_instance->handle == handle && ds_is_collecting())
+	if (lib_ctx.actived_device_instance != NULL 
+		&& lib_ctx.actived_device_instance->handle == handle 
+			&& ds_is_collecting())
 	{
 		sr_err("Device is collecting, can't remove it.");
 		return SR_ERR_CALL_STATUS;
 	}
 
-	if (lib_ctx.actived_device_instance != NULL && lib_ctx.is_delay_destory_actived_device && lib_ctx.actived_device_instance->handle == handle)
+	if (lib_ctx.actived_device_instance != NULL 
+		&& lib_ctx.is_delay_destory_actived_device 
+			&& lib_ctx.actived_device_instance->handle == handle)
 	{
 		sr_info("The current device is delayed for destruction, handle:%p", lib_ctx.actived_device_instance->handle);
 		destroy_device_instance(lib_ctx.actived_device_instance);
@@ -1111,6 +1114,10 @@ SR_PRIV int sr_usb_device_is_exists(libusb_device *usb_dev)
 	struct sr_dev_inst *dev;
 	int bFind = 0;
 
+	if (lib_ctx.is_reloading_list){
+		return 0;
+	}
+
 	if (usb_dev == NULL)
 	{
 		sr_err("sr_usb_device_is_exists(), @usb_dev is null.");
@@ -1320,8 +1327,12 @@ static void process_attach_event(int isEvent)
 	struct sr_dev_driver **drivers;
 	GSList *dev_list;
 	GSList *l;
+	GSList *l_check;
 	struct sr_dev_driver *dr;
+	struct sr_dev_inst *sdi;
+	struct sr_dev_inst *new_sdi;
 	int num = 0;
+	int bFind;
 
 	if (isEvent){
 		sr_info("Process device attach event.");
@@ -1336,14 +1347,31 @@ static void process_attach_event(int isEvent)
 		if (dr->driver_type == DRIVER_TYPE_HARDWARE)
 		{
 			dev_list = dr->scan(NULL);
-			if (dev_list != NULL)
-			{
-				pthread_mutex_lock(&lib_ctx.mutext);
 
+			if (dev_list != NULL){
+				pthread_mutex_lock(&lib_ctx.mutext);
+				  
 				for (l = dev_list; l; l = l->next)
 				{
-					lib_ctx.device_list = g_slist_append(lib_ctx.device_list, l->data);
-					num++;
+					bFind = 0;
+					new_sdi = l->data;
+
+					for (l_check = lib_ctx.device_list; l_check; l_check = l_check->next)
+					{
+						sdi = l_check->data;
+						if (sdi->handle == new_sdi->handle){
+							bFind = 1;
+							break;
+						}
+					}
+
+					if (!bFind){
+						lib_ctx.device_list = g_slist_append(lib_ctx.device_list, l->data);
+						num++;
+					}
+					else{
+						sr_dev_inst_free(new_sdi); //Not append to list, so free it.						
+					}					
 				}
 				pthread_mutex_unlock(&lib_ctx.mutext);
 				g_slist_free(dev_list);
@@ -1707,4 +1735,40 @@ SR_PRIV void ds_set_last_error(int error)
 SR_API int ds_get_last_error()
 {
 	return lib_ctx.last_error;
+}
+
+SR_API int ds_reload_device_list()
+{
+	sr_info("Reload device list.");
+
+	lib_ctx.is_reloading_list = 1;
+	lib_ctx.is_delay_destory_actived_device = 0;
+	lib_ctx.detach_device_handle = NULL;
+	lib_ctx.detach_event_flag = 0;
+	process_attach_event(0);
+	lib_ctx.is_reloading_list = 0;
+
+	return SR_OK;
+}
+
+SR_API int ds_close_all_device()
+{
+	sr_info("Close all device.");
+
+	GSList *l;
+	struct sr_dev_inst *dev;
+
+	pthread_mutex_lock(&lib_ctx.mutext);
+
+	for (l = lib_ctx.device_list; l; l = l->next)
+	{
+		dev = l->data;
+		if (dev->dev_type == DEV_TYPE_USB){
+			close_device_instance(dev);
+		}	
+	}
+
+	pthread_mutex_unlock(&lib_ctx.mutext);
+
+	return SR_OK;
 }
