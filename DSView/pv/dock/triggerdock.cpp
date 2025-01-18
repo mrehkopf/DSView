@@ -152,7 +152,6 @@ void TriggerDock::retranslateUi()
     _serial_edge_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_CLOCK_FLAG), "Clock Flag: "));
     _serial_data_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DATA_CHANNEL), "Data Channel: "));
     _serial_value_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DATA_VALUE), "Data Value: "));
-    _serial_groupBox->setTitle(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SERIAL_TRIGGER), "Serial Trigger"));
     _serial_hex_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SERIAL_HEX), "Hex: "));
     _serial_hex_ck_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SERIAL_INPUT_AS_HEX), "Input hex"));
 
@@ -172,10 +171,6 @@ void TriggerDock::retranslateUi()
 
     for (int i = 0; i < _contiguous_label_list.length(); i++){
         _contiguous_label_list.at(i)->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_CONTIGUOUS), "Contiguous"));
-    }
-
-    for (int i = 0; i < _stage_groupBox_list.length(); i++){
-        _stage_groupBox_list.at(i)->setTitle(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STAGE), "Stage")+QString::number(i));
     }
 
     for (int i = 0; i < _stage_note_label_list.length(); i++){
@@ -714,6 +709,7 @@ void TriggerDock::setup_adv_tab()
         QGroupBox *stage_groupBox = new QGroupBox(_stage_tabWidget);
         stage_groupBox->setContentsMargins(5, 15, 5, 5);
         stage_groupBox->setFlat(true);
+        stage_groupBox->setStyleSheet("margin-top: 0px");
         stage_groupBox->setLayout(stage_layout);
         _stage_groupBox_list.push_back(stage_groupBox);
 
@@ -723,6 +719,7 @@ void TriggerDock::setup_adv_tab()
     _serial_groupBox = new QGroupBox(_widget);
     _serial_groupBox->setContentsMargins(5, 15, 5, 5);
     _serial_groupBox->setFlat(true);
+    _serial_groupBox->setStyleSheet("margin-top: 0px");
 
     _serial_start_label = new QLabel(_serial_groupBox);
     _serial_start_lineEdit = new PopupLineEdit("X X X X X X X X X X X X X X X X", _serial_groupBox);
