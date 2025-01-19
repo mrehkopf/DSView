@@ -63,7 +63,7 @@ const int View::RulerHeight = 50;
 const int View::MaxScrollValue = INT_MAX / 2;
 const int View::HeightUnit = 20; // also serves as minimum signal height
 
-const int View::SignalMargin = 7;
+const int View::SignalMargin = 3;
 const int View::SignalSnapGridSize = 10;
 
 const QColor View::CursorAreaColour(220, 231, 243);
@@ -642,7 +642,7 @@ void View::update_scroll()
     int total_height = 0;
     for (auto t : traces) {
         if (t->enabled())
-            total_height += t->get_totalHeight() + SignalMargin;
+            total_height += t->get_totalHeight() + 2 * SignalMargin;
     }
 
     // Make sure we can scroll the last signal past the status bar
@@ -781,7 +781,7 @@ void View::signals_changed(const Trace* eventTrace)
                 max_height = (v + 1) * HeightUnit;
             }
             if (height < 2*actualMargin) {
-                actualMargin /= 2;
+                //actualMargin /= 2;
                 _signalHeight = max((double)HeightUnit, (_time_viewport->height()
                                           - 2 * actualMargin * label_size) * 1.0 / total_rows);
             }
@@ -989,12 +989,9 @@ void View::v_scroll_value_changed(int value)
     std::vector<Trace*> traces;
     get_traces(ALL_VIEW, traces);
 
-    int y_offset = -value + (traces[0]->get_totalHeight() / 2) + (SignalMargin / 2); // Start from negative scroll value to move traces up
-
     for (auto t : traces) {
         if (t->enabled()) {
-            t->set_v_offset(y_offset);
-            y_offset += t->get_totalHeight() + SignalMargin;
+            t->update_v_scroll(-value);
         }
     }
 
