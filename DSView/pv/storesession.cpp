@@ -1341,6 +1341,7 @@ bool StoreSession::gen_decoders_json(QJsonArray &array)
         dec_obj["label"] = QString(s->get_name().toUtf8().data());
         dec_obj["stacked decoders"] = stack_array;
         dec_obj["view_index"] = s->get_view_index();
+        dec_obj["colour"] = QJsonValue::fromVariant(s->get_colour());
 
         auto rows = stack->get_rows_gshow();
         for (auto i = rows.begin(); i != rows.end(); i++) {
@@ -1419,6 +1420,10 @@ bool StoreSession::load_decoders(dock::ProtocolDock *widget, QJsonArray &dec_arr
             _session->get_decoder_trace(dec_index)->set_view_index(chan_view_index);
         }
 
+        if (dec_obj.contains("colour")) {
+            QColor col = QColor(dec_obj["colour"].toString());
+            _session->set_decoder_base_colour(dec_index, col);
+        }
         std::list<int> bind_indexs;
 
         std::vector<view::DecodeTrace*> &aft_dsigs = _session->get_decode_signals();

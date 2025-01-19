@@ -425,6 +425,9 @@ public:
     void set_trace_name(view::Trace *trace, QString name);
     void set_decoder_row_label(int index, QString label);
 
+    void set_trace_colour(view::Trace* trace, QColor colour);
+    void set_decoder_base_colour(int index, QColor colour);
+
     inline void set_decoder_pannel(IDecoderPannel *pannel){
         _decoder_pannel = pannel;
     }
