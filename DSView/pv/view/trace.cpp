@@ -344,9 +344,15 @@ QRect Trace::get_view_rect()
     return QRect(0, 0, _view->viewport()->width(), _view->viewport()->height());
 }
 
-QColor Trace::get_text_colour()
+int Trace::compute_colour_luminance(QColor colour)
 {
-	return (_colour.lightness() > 64) ? Qt::black : Qt::white;
+    const double rY = 0.299, gY = 0.587, bY = 0.114;
+    return (int)(rY * colour.red() + gY * colour.green() + bY * colour.blue());
+}
+
+QColor Trace::get_text_colour(QColor fore)
+{
+	return compute_colour_luminance(_colour.isValid() ? _colour : fore) > 128 ? Qt::black : Qt::white;
 }
 
 void Trace::on_text_changed(const QString &text)

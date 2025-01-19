@@ -308,8 +308,11 @@ protected:
 	 * @remarks This colour is computed by comparing the lightness
 	 * of the trace colour against a threshold to determine whether
 	 * white or black would be more visible.
+     * Default foreground is passed to enable decision when trace colour is
+     * invalid ("default").
 	 */
-	QColor get_text_colour();
+    QColor get_text_colour(QColor fore);
+    int compute_colour_luminance(QColor colour);
 
     /**
      * Paints optoins for different trace type.

@@ -2514,6 +2514,18 @@ namespace pv
         }
     }
 
+    void SigSession::set_trace_colour(view::Trace *trace, QColor colour) {
+        assert(trace);
+        trace->set_colour(colour);
+    }
+
+    void SigSession::set_decoder_base_colour(int index, QColor colour) {
+        auto trace = get_decoder_trace(index);
+        if (trace != NULL) {
+            trace->set_colour(colour);
+        }
+    }
+
     view::Trace* SigSession::get_channel_by_index(int orgIndex)
     {
         for(auto t : _signals){

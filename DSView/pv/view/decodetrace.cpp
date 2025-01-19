@@ -118,7 +118,7 @@ DecodeTrace::DecodeTrace(pv::SigSession *session,
 {
     assert(decoder_stack);
 
-    _colour = DecodeColours[index % countof(DecodeColours)];
+    _colour = QColor("default");
  
     _decode_start = 0;
     _decode_end  = INT64_MAX; 
@@ -288,7 +288,7 @@ void DecodeTrace::paint_mid(QPainter &p, int left, int right, QColor fore, QColo
                                 double last_x = -1;
 
                                 for(Annotation *a : annotations){
-                                    draw_annotation(*a, p, get_text_colour(),
+                                    draw_annotation(*a, p, get_text_colour(fore),
                                         annotation_height, left, right,
                                         samples_per_pixel, pixels_offset, y,
                                         0, min_annWidth, fore, back, last_x);
@@ -332,12 +332,9 @@ void DecodeTrace::draw_annotation(const pv::data::decode::Annotation &a,
         pixels_offset, (double)left);
     const double end = min(a.end_sample() / samples_per_pixel -
         pixels_offset, (double)right);
-
-    const size_t colour = ((base_colour + a.type()) % MaxAnnType) % countof(Colours);
-	const QColor &fill = Colours[colour];
-	const QColor &outline = OutlineColours[colour];
-
-	if (start > right + DrawPadding || end < left - DrawPadding){
+    const QColor &fill = _colour.isValid() ? _colour : fore;
+    const QColor &outline = compute_colour_luminance(fill) > 128 ? fill.darker() : fill.lighter();
+    if (start > right + DrawPadding || end < left - DrawPadding){
 		return;
     }
 
@@ -480,7 +477,6 @@ void DecodeTrace::draw_range(const pv::data::decode::Annotation &a, QPainter &p,
 		QPointF(start + cap_width, bottom)
 	};
 
-    p.setPen(back);
     p.drawConvexPolygon(pts, countof(pts));
 
 	if (annotations.empty())
