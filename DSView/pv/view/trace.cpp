@@ -350,9 +350,9 @@ int Trace::compute_colour_luminance(QColor colour)
     return (int)(rY * colour.red() + gY * colour.green() + bY * colour.blue());
 }
 
-QColor Trace::get_text_colour(QColor fore)
+QColor Trace::get_text_colour(QColor colour)
 {
-	return compute_colour_luminance(_colour.isValid() ? _colour : fore) > 128 ? Qt::black : Qt::white;
+	return compute_colour_luminance(colour) > 128 ? Qt::black : Qt::white;
 }
 
 void Trace::on_text_changed(const QString &text)

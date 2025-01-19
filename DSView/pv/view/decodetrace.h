@@ -147,13 +147,13 @@ protected:
 private: 
  
     void draw_annotation(const pv::data::decode::Annotation &a, QPainter &p,
-        QColor text_colour, int text_height, int left, int right,
+        int text_height, int left, int right,
         double samples_per_pixel, double pixels_offset, int y,
-        size_t base_colour, double min_annWidth, QColor fore, QColor back, double &last_x);
+        int local_row, double min_annWidth, QColor fore, QColor back, double &last_x);
 
     void draw_nodetail(QPainter &p,
         int text_height, int left, int right, int y,
-        size_t base_colour, QColor fore, QColor back);
+        int local_row, QColor fore, QColor back);
 
 	void draw_instant(const pv::data::decode::Annotation &a, QPainter &p,
 		QColor fill, QColor outline, QColor text_color, int h, double x,
@@ -169,6 +169,8 @@ private:
     void draw_unshown_row(QPainter &p, int y, int h, int left,
                           int right, QString info, QColor fore, QColor back);
  
+    void generate_annotation_colours(QColor baseColour, int local_row,
+        const pv::data::decode::Annotation& a, QColor *fill, QColor *outline);
 
 signals:
     void decoded_progress(int progress);
