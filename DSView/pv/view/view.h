@@ -97,7 +97,7 @@ public:
     static const int StatusHeight = 20;
     static const int DsoStatusHeight = 55;
 
-    static const int ForeAlpha = 200;
+    static const int ForeAlpha = 255;
     static const int BackAlpha = 100;
     static const QColor Red;
     static const QColor Orange;
