@@ -38,7 +38,8 @@
 #include <QPainterPath> 
 #include <math.h>
 #include <QWheelEvent>
- 
+#include <QScrollBar>
+
 #include "../config/appconfig.h"
 #include "../dsvdef.h"
 #include "../appcontrol.h"
@@ -1724,14 +1725,28 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
                 Qt::AlignLeft | Qt::AlignTop, _mm_duty).width());
             typical_width = typical_width + 100;
 
-            const double width = _view.get_view_width();
-            const double height = _view.viewport()->height();
+            const double width = _view.get_view_width() - _view.verticalScrollBar()->geometry().width();
+            const double height = _view.get_view_height() - _view.horizontalScrollBar()->geometry().height() - View::StatusHeight;
             const double left = _view.hover_point().x();
             const double top = _view.hover_point().y();
             const double right = left + typical_width;
             const double bottom = top + 100;
-            QPointF org_pos = QPointF(right > width ? left - typical_width : left, bottom > height ? top - 80 : top);
-            QRectF measure_rect = QRectF(org_pos.x(), org_pos.y(), (double)typical_width, 80.0);
+            double hover_x, hover_y;
+            if(right > width) {
+                hover_x = left - typical_width - MouseEdgeClearance;
+            } else {
+                hover_x = left + MousePointerClearance;
+            }
+            if(bottom > height) {
+                hover_y = top - 100 - MousePointerClearance;
+                if(right <= width) {
+                    hover_x = left + MouseEdgeClearance;
+                }
+            } else {
+                hover_y = top + MousePointerClearance;
+            }
+            QPointF org_pos = QPointF(hover_x, hover_y);
+            QRectF measure_rect = QRectF(org_pos.x(), org_pos.y(), (double)typical_width, 100.0);
             QRectF measure1_rect = QRectF(org_pos.x(), org_pos.y(), (double)typical_width, 20.0);
             QRectF measure2_rect = QRectF(org_pos.x(), org_pos.y()+20, (double)typical_width, 20.0);
             QRectF measure3_rect = QRectF(org_pos.x(), org_pos.y()+40, (double)typical_width, 20.0);
