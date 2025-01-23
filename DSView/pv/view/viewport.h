@@ -77,6 +77,8 @@ public:
     static const double DragDamping;
     static const int SnapMinSpace = 10;
     static const int WaitLoopTime = 400;
+    static const int MousePointerClearance = 25;
+    static const int MouseEdgeClearance = 3;
     enum ActionType {
         NO_ACTION,
 
