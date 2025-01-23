@@ -86,6 +86,7 @@ Viewport::Viewport(View &parent, View_type type) :
     _mm_period = View::Unknown_Str;
     _mm_freq = View::Unknown_Str;
     _mm_duty = View::Unknown_Str;
+    _mm_samples = View::Unknown_Str;
     _measure_en = true;
     _edge_hit = false;
     _transfer_started = false;
@@ -1574,6 +1575,7 @@ void Viewport::clear_dso_xm()
     _mm_period = View::Unknown_Str;
     _mm_freq = View::Unknown_Str;
     _mm_duty = View::Unknown_Str;
+    _mm_samples = View::Unknown_Str;
 
     set_action(NO_ACTION);
 }
@@ -1601,7 +1603,7 @@ void Viewport::measure()
                         _mm_width = _view.get_ruler()->format_real_time(_nxt_sample - _cur_sample, sample_rate);
                         _mm_period = _thd_sample != 0 ? _view.get_ruler()->format_real_time(_thd_sample - _cur_sample, sample_rate) : View::Unknown_Str;
                         _mm_freq = _thd_sample != 0 ? _view.get_ruler()->format_real_freq(_thd_sample - _cur_sample, sample_rate) : View::Unknown_Str;
-
+                        _mm_samples = _thd_sample != 0 ? _view.get_ruler()->format_samples(_thd_sample - _cur_sample) : View::Unknown_Str;
                         _cur_preX = _view.index2pixel(_cur_sample);
                         _cur_aftX = _view.index2pixel(_nxt_sample);
                         _cur_thdX = _view.index2pixel(_thd_sample);
@@ -1617,6 +1619,7 @@ void Viewport::measure()
                         _mm_period = View::Unknown_Str;
                         _mm_freq = View::Unknown_Str;
                         _mm_duty = View::Unknown_Str;
+                        _mm_samples = View::Unknown_Str;
                     }
                 }
                 else if (_action_type == LOGIC_EDGE) {
@@ -1726,27 +1729,35 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
             const double left = _view.hover_point().x();
             const double top = _view.hover_point().y();
             const double right = left + typical_width;
-            const double bottom = top + 80;
+            const double bottom = top + 100;
             QPointF org_pos = QPointF(right > width ? left - typical_width : left, bottom > height ? top - 80 : top);
             QRectF measure_rect = QRectF(org_pos.x(), org_pos.y(), (double)typical_width, 80.0);
             QRectF measure1_rect = QRectF(org_pos.x(), org_pos.y(), (double)typical_width, 20.0);
             QRectF measure2_rect = QRectF(org_pos.x(), org_pos.y()+20, (double)typical_width, 20.0);
             QRectF measure3_rect = QRectF(org_pos.x(), org_pos.y()+40, (double)typical_width, 20.0);
             QRectF measure4_rect = QRectF(org_pos.x(), org_pos.y()+60, (double)typical_width, 20.0);
+            QRectF measure5_rect = QRectF(org_pos.x(), org_pos.y()+80, (double)typical_width, 20.0);
 
             p.setPen(Qt::NoPen);
             p.setBrush(View::LightBlue);
             p.drawRect(measure_rect);
 
             p.setPen(active_color);
-            p.drawText(measure1_rect, Qt::AlignRight | Qt::AlignVCenter,
-                       L_S(STR_PAGE_DLG, S_ID(IDS_DLG_WIDTH), "Width: ") + _mm_width);
-            p.drawText(measure2_rect, Qt::AlignRight | Qt::AlignVCenter,
-                       L_S(STR_PAGE_DLG, S_ID(IDS_DLG_PERIOD), "Period: ") + _mm_period);
-            p.drawText(measure3_rect, Qt::AlignRight | Qt::AlignVCenter,
-                       L_S(STR_PAGE_DLG, S_ID(IDS_DLG_FREQUENCY), "Frequency: ") + _mm_freq);
-            p.drawText(measure4_rect, Qt::AlignRight | Qt::AlignVCenter,
-                      L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DUTY_CYCLE), "Duty Cycle: ") + _mm_duty);
+            p.drawText(measure1_rect, Qt::AlignLeft | Qt::AlignVCenter,
+                       L_S(STR_PAGE_DLG, S_ID(IDS_DLG_WIDTH), "Width: "));
+            p.drawText(measure1_rect, Qt::AlignRight | Qt::AlignVCenter,_mm_width);
+            p.drawText(measure2_rect, Qt::AlignLeft | Qt::AlignVCenter,
+                       L_S(STR_PAGE_DLG, S_ID(IDS_DLG_PERIOD), "Period: "));
+            p.drawText(measure2_rect, Qt::AlignRight | Qt::AlignVCenter, _mm_period);
+            p.drawText(measure3_rect, Qt::AlignLeft | Qt::AlignVCenter,
+                       L_S(STR_PAGE_DLG, S_ID(IDS_DLG_FREQUENCY), "Frequency: "));
+            p.drawText(measure3_rect, Qt::AlignRight | Qt::AlignVCenter, _mm_freq);
+            p.drawText(measure4_rect, Qt::AlignLeft | Qt::AlignVCenter,
+                      L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DUTY_CYCLE), "Duty Cycle: "));
+            p.drawText(measure4_rect, Qt::AlignRight | Qt::AlignVCenter, _mm_duty);
+            p.drawText(measure5_rect, Qt::AlignLeft | Qt::AlignVCenter,
+                      L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SAMPLES_MEAS), "Samples: "));
+            p.drawText(measure5_rect, Qt::AlignRight | Qt::AlignCenter, _mm_samples);
         }
     } 
 
@@ -2017,6 +2028,8 @@ QString Viewport::get_measure(QString option)
         return _mm_freq;
     else if (option.compare("duty") == 0)
         return _mm_duty;
+    else if (option.compare("samples") == 0)
+        return _mm_samples;
     else
         return View::Unknown_Str;
 }

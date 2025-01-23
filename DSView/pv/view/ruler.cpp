@@ -202,6 +202,10 @@ QString Ruler::format_real_freq(uint64_t delta_index, uint64_t sample_rate)
     return format_freq(delta_period);
 }
 
+QString Ruler::format_samples(uint64_t delta_index) {
+    return QString::number(delta_index);
+}
+
 TimeMarker* Ruler::get_grabbed_cursor()
 {
     return _grabbed_marker;
