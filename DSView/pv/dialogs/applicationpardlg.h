@@ -55,6 +55,8 @@ namespace pv
 
         void bind_font_size_list(QComboBox *box, float size);
 
+        void bind_ruler_time_unit(QComboBox* box, QString v);
+
     private:
         QStringList _font_name_list; 
     };

@@ -104,6 +104,18 @@ void ApplicationParamDlg::bind_font_size_list(QComboBox *box, float size)
     box->setCurrentIndex(selDex);
 }
 
+void ApplicationParamDlg::bind_ruler_time_unit(QComboBox *box, QString v)
+{
+    box->addItem(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_TIME), "Time"), RULER_UNIT_TIME);
+    box->addItem(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SAMPLES), "Samples"), RULER_UNIT_SAMPLES);
+    for(int i=0; i<box->count(); i++) {
+        if(box->itemData(i).toString() == v) {
+            box->setCurrentIndex(i);
+            break;
+        }
+    }
+}
+
 bool ApplicationParamDlg::ShowDlg(QWidget *parent)
 {
     DSDialog dlg(parent, true, true);
@@ -136,6 +148,8 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     ftCbSize->setFixedWidth(50);
     bind_font_size_list(ftCbSize, app.appOptions.fontSize);
    
+    QComboBox *unitsCb = new DsComboBox();
+    bind_ruler_time_unit(unitsCb, app.appOptions.rulerTimeUnits);
     // Logic group
     QGroupBox *logicGroup = new QGroupBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_GROUP_LOGIC), "Logic"));
     QGridLayout *logicLay = new QGridLayout();
@@ -148,6 +162,8 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     logicLay->addWidget(ck_abortData, 1, 1, Qt::AlignRight);
     logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_AUTO_SCROLL_LATEAST_DATA), "Auto scoll latest")), 2, 0, Qt::AlignLeft); 
     logicLay->addWidget(ck_autoScrollLatestData, 2, 1, Qt::AlignRight);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_RULER_UNITS), "Ruler / Cursor units")), 3, 0, Qt::AlignLeft);
+    logicLay->addWidget(unitsCb, 3, 1, Qt::AlignRight);
     lay->addWidget(logicGroup);
 
     //Scope group
@@ -205,6 +221,10 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
         }
         if (app.appOptions.autoScrollLatestData != ck_autoScrollLatestData->isChecked()){
             app.appOptions.autoScrollLatestData = ck_autoScrollLatestData->isChecked();
+            bAppChanged = true;
+        }
+        if (app.appOptions.rulerTimeUnits != unitsCb->currentData().toString()) {
+            app.appOptions.rulerTimeUnits = unitsCb->currentData().toString();
             bAppChanged = true;
         }
  

@@ -34,7 +34,10 @@
 #define THEME_STYLE_LIGHT  "light"
 
 #define APP_NAME  "DSView"
-  
+
+#define RULER_UNIT_SAMPLES "Samples"
+#define RULER_UNIT_TIME    "Time"
+
 //--------------------api---
 QString GetIconPath();
 QString GetAppDataDir();
@@ -72,6 +75,7 @@ struct AppOptions
     bool  swapBackBufferAlways;
     bool  autoScrollLatestData;
     float fontSize;
+    QString rulerTimeUnits;
 
     std::vector<StringPair> m_protocolFormats;
 };

@@ -124,6 +124,7 @@ static void _loadApp(AppOptions &o, QSettings &st)
     getFiled("fontSize", st, o.fontSize, 9.0);
     getFiled("autoScrollLatestData", st, o.autoScrollLatestData, true);
     getFiled("version", st, o.version, 1);
+    getFiled("rulerTimeUnits", st, o.rulerTimeUnits, "Time");
 
     o.warnofMultiTrig = true;
 
@@ -161,6 +162,8 @@ static void _saveApp(AppOptions &o, QSettings &st)
     setFiled("fontSize", st, o.fontSize);
     setFiled("autoScrollLatestData", st, o.autoScrollLatestData);
     setFiled("version", st, APP_CONFIG_VERSION);
+    setFiled("rulerTimeUnits", st, o.rulerTimeUnits);
+
 
     QString fmt =  FormatArrayToString(o.m_protocolFormats);
     setFiled("protocalFormats", st, fmt);
