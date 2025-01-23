@@ -103,7 +103,7 @@ public:
 	 * @param prefix The SI prefix to paint time value with.
 	 */
 	virtual void paint_label(QPainter &p, const QRect &rect,
-        unsigned int prefix, bool has_hoff) = 0;
+        unsigned int prefix, bool has_hoff, bool show_samples) = 0;
 
 	inline void set_order(int order){
 		assert( order > 0);
