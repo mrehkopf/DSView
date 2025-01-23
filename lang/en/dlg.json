@@ -628,6 +628,22 @@
         "text": "Duty Cycle: "
     },
     {
+        "id": "IDS_DLG_SAMPLES_MEAS",
+        "text": "Samples: "
+    },
+    {
+        "id": "IDS_DLG_SAMPLES",
+        "text": "Samples"
+    },
+    {
+        "id": "IDS_DLG_TIME",
+        "text": "Time"
+    },
+    {
+        "id": "IDS_DLG_RULER_UNITS",
+        "text": "Ruler / Cursor units"
+    },
+    {
         "id": "IDS_DLG_MEASURE",
         "text": "Measure"
     },
