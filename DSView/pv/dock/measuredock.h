@@ -150,6 +150,7 @@ private:
     QLabel *_period_label;
     QLabel *_freq_label;
     QLabel *_duty_label;
+    QLabel *_samples_label;
     QLabel *_add_dec_label;
     QGridLayout *_dist_layout;
     QGroupBox *_dist_groupBox;
@@ -173,6 +174,7 @@ private:
     QLabel *_p_label;
     QLabel *_f_label;
     QLabel *_d_label;
+    QLabel *_s_label;
     bool    _bSetting;
 };
 

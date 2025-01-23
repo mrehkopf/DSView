@@ -201,6 +201,7 @@ private:
     QString     _mm_period;
     QString     _mm_freq;
     QString     _mm_duty;
+    QString     _mm_samples;
 
     uint64_t    _edge_rising;
     uint64_t    _edge_falling;

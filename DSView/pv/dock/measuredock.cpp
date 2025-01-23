@@ -68,11 +68,13 @@ MeasureDock::MeasureDock(QWidget *parent, View &view, SigSession *session) :
     _period_label = new QLabel(_widget);
     _freq_label = new QLabel(_widget);
     _duty_label = new QLabel(_widget);
+    _samples_label = new QLabel(_widget);
 
     _w_label = new QLabel(_widget);
     _p_label = new QLabel(_widget);
     _f_label = new QLabel(_widget);
     _d_label = new QLabel(_widget);
+    _s_label = new QLabel(_widget);
 
     QGridLayout *mouse_layout = new QGridLayout();
     mouse_layout->setVerticalSpacing(5);
@@ -88,6 +90,9 @@ MeasureDock::MeasureDock(QWidget *parent, View &view, SigSession *session) :
     mouse_layout->addWidget(_f_label, 2, 3);
     mouse_layout->addWidget(_freq_label, 2, 4);    
  
+    mouse_layout->addWidget(_s_label, 3, 0);
+    mouse_layout->addWidget(_samples_label, 3, 1);
+
     _mouse_groupBox->setLayout(mouse_layout);
     mouse_layout->setContentsMargins(5, 15, 5, 5);
 
@@ -188,6 +193,7 @@ void MeasureDock::retranslateUi()
     _p_label->setText("P:");
     _f_label->setText("F:");
     _d_label->setText("D:");
+    _s_label->setText("S:");
 }
 
 void MeasureDock::reStyle()
@@ -241,6 +247,7 @@ void MeasureDock::measure_updated()
     _period_label->setText(_view.get_measure("period"));
     _freq_label->setText(_view.get_measure("frequency"));
     _duty_label->setText(_view.get_measure("duty"));
+    _samples_label->setText(_view.get_measure("samples"));
     adjusLabelSize();
 }
 
@@ -979,6 +986,7 @@ void MeasureDock::adjust_form_size(QWidget *wid)
     _period_label->setFixedWidth(mouse_info_label_width);
     _freq_label->setFixedWidth(mouse_info_label_width);
     _duty_label->setFixedWidth(mouse_info_label_width);
+    _samples_label->setFixedWidth(mouse_info_label_width);
    
     auto groups = wid->findChildren<QGroupBox*>();
     for(auto o : groups)
