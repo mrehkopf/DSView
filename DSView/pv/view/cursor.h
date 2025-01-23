@@ -75,10 +75,10 @@ public:
 	 * @param prefix The index of the SI prefix to use.
 	 */
     void paint_label(QPainter &p, const QRect &rect,
-        unsigned int prefix, bool has_hoff);
+        unsigned int prefix, bool has_hoff, bool show_samples);
 
     void paint_fix_label(QPainter &p, const QRect &rect,
-        unsigned int prefix, QChar label, QColor color, bool has_hoff);
+        unsigned int prefix, QChar label, QColor color, bool has_hoff, bool show_samples);
 
 public: 
 	inline uint64_t get_key(){
@@ -90,7 +90,7 @@ public:
 	}
 
 private:
-	void compute_text_size(QPainter &p, unsigned int prefix);
+	void compute_text_size(QPainter &p, unsigned int prefix, bool show_samples);
 
 private:
 	QSizeF 		_text_size;

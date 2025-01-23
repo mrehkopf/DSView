@@ -434,10 +434,13 @@ void Ruler::draw_logic_tick_mark(QPainter &p)
         return;
     }
 
+    AppConfig &app = AppConfig::Instance();
+
     const double SpacingIncrement = 32.0;
     const double MinValueSpacing = 16.0;
     const int ValueMargin = 5;
-    const double abs_min_period = 10.0 / _view.session().cur_snap_samplerate();
+    const uint64_t samplerate = _view.session().cur_snap_samplerate();
+    const double abs_min_period = 10.0 / samplerate;
 
     double min_width = SpacingIncrement;
     double typical_width;
@@ -446,6 +449,8 @@ void Ruler::draw_logic_tick_mark(QPainter &p)
     int64_t offset = _view.offset();
 
     const uint64_t cur_period_scale = ceil((scale * min_width) / abs_min_period);
+
+    const bool isShowSamples = app.appOptions.rulerTimeUnits == RULER_UNIT_SAMPLES;
 
     // Find tick spacing, and number formatting that does not cause
     // value to collide.
@@ -456,9 +461,18 @@ void Ruler::draw_logic_tick_mark(QPainter &p)
     const unsigned int prefix = (order - FirstSIPrefixPower) / 3;
     _cur_prefix = prefix;
     assert(prefix < countof(SIPrefixes));
-    typical_width = p.boundingRect(0, 0, INT_MAX, INT_MAX,
-        AlignLeft | AlignTop, format_time(offset * scale,
-        prefix)).width() + MinValueSpacing;
+    /* Previously, here the bounding box width of the actual printed time was
+       used for space calculations. Since the width fluctuates based on the
+       numbers comprising the timestamp, this method could lead to undesired
+       flickering of the ruler as it rapidly switched between two scales
+       while scrolling.
+       Instead, now the string length of the formatted time, multiplied by a
+       fixed character width (of character "8") is used now which is stable. */
+    typical_width = p.boundingRect(0, 0, INT_MAX, INT_MAX, AlignLeft | AlignTop, "8").width()
+                  * (isShowSamples ? format_samples((double)(offset + _view.get_view_width())
+                                                     * scale * (double)samplerate).length()
+                                   : format_time(offset * scale, prefix).length())
+                  + MinValueSpacing;
     do
     {
         tick_period += _min_period;
@@ -496,8 +510,10 @@ void Ruler::draw_logic_tick_mark(QPainter &p)
 
     const double inc_text_width = p.boundingRect(0, 0, INT_MAX, INT_MAX,
                                                  AlignLeft | AlignTop,
-                                                 format_time(minor_tick_period,
-                                                             minor_prefix)).width() + MinValueSpacing;
+                                                 isShowSamples ? "8"
+                                                               : format_time(minor_tick_period,
+                                                                             minor_prefix)
+                                                 ).width() + MinValueSpacing;
     do {
         const double t = t0 + division * minor_tick_period;
         const double major_t = t0 + floor(division / MinPeriodScale) * tick_period;
@@ -509,7 +525,8 @@ void Ruler::draw_logic_tick_mark(QPainter &p)
             // Draw a major tick
             p.drawText(x, 2 * ValueMargin, 0, text_height,
                 AlignCenter | AlignTop | TextDontClip,
-                format_time(t, prefix));
+                isShowSamples ? format_samples(round(t * (double)samplerate))
+                              : format_time(t, prefix));
             p.drawLine(QPoint(x, major_tick_y1),
                 QPoint(x, tick_y2));
         }
@@ -519,13 +536,15 @@ void Ruler::draw_logic_tick_mark(QPainter &p)
             if (minor_tick_period / scale > 2 * typical_width)
                 p.drawText(x, 2 * ValueMargin, 0, text_height,
                     AlignCenter | AlignTop | TextDontClip,
-                    format_time(t, prefix));
+                    isShowSamples ? format_samples(round(t * (double)samplerate))
+                                  : format_time(t, prefix));
             //else if ((tick_period / scale > width() / 4) && (minor_tick_period / scale > inc_text_width))
             else if (minor_tick_period / scale > 1.1 * inc_text_width ||
                      tick_period / scale > _view.get_view_width())
                 p.drawText(x, 2 * ValueMargin, 0, minor_tick_y1 + ValueMargin,
                     AlignCenter | AlignTop | TextDontClip,
-                    format_time(t - major_t, minor_prefix));
+                    isShowSamples ? format_samples(round((t - major_t) * (double)samplerate))
+                                  : format_time(t - major_t, minor_prefix));
             p.drawLine(QPoint(x, minor_tick_y1),
                 QPoint(x, tick_y2));
         }
@@ -540,7 +559,7 @@ void Ruler::draw_logic_tick_mark(QPainter &p)
 
     for (auto cursor : cursor_list)
     {
-        cursor->paint_label(p, rect(), prefix, bWorkStoped);
+        cursor->paint_label(p, rect(), prefix, bWorkStoped, isShowSamples);
     }
 
     if (cursor_list.size()) {
@@ -548,17 +567,17 @@ void Ruler::draw_logic_tick_mark(QPainter &p)
         int index = 1;
 
         while (i != cursor_list.end()) {
-            (*i)->paint_label(p, rect(), prefix, bWorkStoped);
+            (*i)->paint_label(p, rect(), prefix, bWorkStoped, isShowSamples);
             index++;
             i++;
         }
     }
 
     if (_view.trig_cursor_shown()) {
-        _view.get_trig_cursor()->paint_fix_label(p, rect(), prefix, 'T', _view.get_trig_cursor()->get_color(), false);
+        _view.get_trig_cursor()->paint_fix_label(p, rect(), prefix, 'T', _view.get_trig_cursor()->get_color(), false, isShowSamples);
     }
     if (_view.search_cursor_shown()) {
-        _view.get_search_cursor()->paint_fix_label(p, rect(), prefix, 'S', _view.get_search_cursor()->get_color(), true);
+        _view.get_search_cursor()->paint_fix_label(p, rect(), prefix, 'S', _view.get_search_cursor()->get_color(), true, isShowSamples);
     }
 }
 
@@ -666,15 +685,15 @@ void Ruler::draw_osc_tick_mark(QPainter &p)
         bool bWorkStoped = _view.session().is_stopped_status();
 
         for (auto cursor : cursor_list) {
-            cursor->paint_label(p, rect(), prefix, bWorkStoped);
+            cursor->paint_label(p, rect(), prefix, bWorkStoped, false);
         }
     }
     
     if (_view.trig_cursor_shown()) {
-        _view.get_trig_cursor()->paint_fix_label(p, rect(), prefix, 'T', _view.get_trig_cursor()->get_color(), false);
+        _view.get_trig_cursor()->paint_fix_label(p, rect(), prefix, 'T', _view.get_trig_cursor()->get_color(), false, false);
     }
     if (_view.search_cursor_shown()) {
-        _view.get_search_cursor()->paint_fix_label(p, rect(), prefix, 'S', _view.get_search_cursor()->get_color(), true);
+        _view.get_search_cursor()->paint_fix_label(p, rect(), prefix, 'S', _view.get_search_cursor()->get_color(), true, false);
     }
 }
 
