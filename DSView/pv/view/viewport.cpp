@@ -644,7 +644,7 @@ void Viewport::mousePressEvent(QMouseEvent *event)
 	assert(event);
     
 	_mouse_down_point = event->pos();
-	_mouse_down_offset = _view.x_offset();
+	_mouse_down_offset = QPoint(_view.x_offset(), _view.y_offset());
     _drag_strength = 0;
     _elapsed_time.restart();
 
@@ -796,7 +796,7 @@ void Viewport:: mouseMoveEvent(QMouseEvent *event)
     if (event->buttons() & Qt::LeftButton) {
         if (_type == TIME_VIEW) {
             if (_action_type == NO_ACTION) {
-                int64_t x = _mouse_down_offset + (_mouse_down_point - event->pos()).x();
+                int64_t x = _mouse_down_offset.x() + (_mouse_down_point - event->pos()).x();
                 _view.set_scale_offset(_view.scale(), x);
             }
             _drag_strength = (_mouse_down_point - event->pos()).x();
@@ -809,6 +809,12 @@ void Viewport:: mouseMoveEvent(QMouseEvent *event)
                     break;
                 }
             }
+        }
+    }
+
+    if (event->buttons() & Qt::MiddleButton) {
+        if (_action_type == NO_ACTION) {
+            _view.verticalScrollBar()->setValue(_mouse_down_offset.y() + _mouse_down_point.y() - event->pos().y());
         }
     }
 
@@ -1407,7 +1413,11 @@ void Viewport::wheelEvent(QWheelEvent *event)
                 _view.zoom(-zoom_scale, x);
             }
 #else
+        if(event->modifiers() & Qt::ControlModifier) {
+            _view.verticalScrollBar()->setValue(_view.verticalScrollBar()->value() - delta);
+        } else {
             _view.zoom(zoom_scale, x);
+        }
 #endif
         }
         else

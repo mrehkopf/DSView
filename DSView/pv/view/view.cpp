@@ -87,6 +87,7 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
     _maxscale(1e9),
     _minscale(1e-15),
 	_x_offset(0),
+    _y_offset(0),
     _preOffset(0),
 	_updating_scroll(false),
     _trig_hoff(0),
@@ -985,6 +986,9 @@ void View::h_scroll_value_changed(int value)
 
 void View::v_scroll_value_changed(int value)
 {
+    // Track vertical offset
+    _y_offset = value;
+
     // Update vertical positions of all traces based on scroll value
     std::vector<Trace*> traces;
     get_traces(ALL_VIEW, traces);

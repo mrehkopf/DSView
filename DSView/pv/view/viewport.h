@@ -179,7 +179,7 @@ private:
     uint64_t    _sample_received;
     QPoint      _mouse_point;
     QPoint      _mouse_down_point;
-    int64_t     _mouse_down_offset;
+    QPoint      _mouse_down_offset;
     double      _curScale;
     int64_t     _curOffset;
     int         _curSignalHeight;
