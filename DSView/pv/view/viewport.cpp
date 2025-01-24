@@ -294,11 +294,11 @@ void Viewport::paintSignals(QPainter &p, QColor fore, QColor back)
     } 
     else {
         if (_view.scale() != _curScale ||
-            _view.offset() != _curOffset ||
+            _view.x_offset() != _curOffset ||
             _view.get_signalHeight() != _curSignalHeight ||
             _need_update) {
             _curScale = _view.scale();
-            _curOffset = _view.offset();
+            _curOffset = _view.x_offset();
             _curSignalHeight = _view.get_signalHeight();
 
             _pixmap = QPixmap(size());
@@ -644,7 +644,7 @@ void Viewport::mousePressEvent(QMouseEvent *event)
 	assert(event);
     
 	_mouse_down_point = event->pos();
-	_mouse_down_offset = _view.offset();
+	_mouse_down_offset = _view.x_offset();
     _drag_strength = 0;
     _elapsed_time.restart();
 
@@ -1076,7 +1076,7 @@ void Viewport::onLogicMouseRelease(QMouseEvent *event)
         case LOGIC_ZOOM:
         {
             if (event->pos().x() != _mouse_down_point.x()) {
-                int64_t newOffset = _view.offset() + (min(event->pos().x(), _mouse_down_point.x()));
+                int64_t newOffset = _view.x_offset() + (min(event->pos().x(), _mouse_down_point.x()));
                 const double newScale = max(min(_view.scale() * abs(event->pos().x() - _mouse_down_point.x()) / _view.get_view_width(),
                                                 _view.get_maxscale()), _view.get_minscale());
                 newOffset = floor(newOffset * (_view.scale() / newScale));
@@ -1417,7 +1417,7 @@ void Viewport::wheelEvent(QWheelEvent *event)
 
             // Horizontal scrolling is interpreted as moving left/right
             if (!(event->modifiers() & Qt::ShiftModifier))
-                _view.set_scale_offset(_view.scale(), _view.offset() - delta);
+                _view.set_scale_offset(_view.scale(), _view.x_offset() - delta);
         }
     }
 
@@ -2097,7 +2097,7 @@ void Viewport::on_trigger_timer()
 
 void Viewport::on_drag_timer()
 {   
-    const int64_t offset = _view.offset();
+    const int64_t offset = _view.x_offset();
     const double scale = _view.scale();
 
     if (_view.session().is_stopped_status()

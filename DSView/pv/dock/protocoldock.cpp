@@ -623,7 +623,7 @@ void ProtocolDock::nav_table_view()
 
     auto decoder_stack = decoder_model->getDecoderStack();
     if (decoder_stack) {
-        uint64_t offset = _view.offset() * (decoder_stack->samplerate() * _view.scale());
+        uint64_t offset = _view.x_offset() * (decoder_stack->samplerate() * _view.scale());
         std::map<const pv::data::decode::Row, bool> rows = decoder_stack->get_rows_lshow();
         int column = _model_proxy.filterKeyColumn();
         for (std::map<const pv::data::decode::Row, bool>::const_iterator i = rows.begin();

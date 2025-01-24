@@ -196,8 +196,8 @@ void DecodeTrace::paint_back(QPainter &p, int left, int right, QColor fore, QCol
 
     // --draw decode region control
     const double samples_per_pixel = _session->cur_snap_samplerate() * _view->scale();
-    const double startX = _decode_start/samples_per_pixel - _view->offset();
-    const double endX = _decode_end/samples_per_pixel - _view->offset();
+    const double startX = _decode_start/samples_per_pixel - _view->x_offset();
+    const double endX = _decode_end/samples_per_pixel - _view->x_offset();
     const double regionY = get_y() - _totalHeight*0.5 - ControlRectWidth;
 
     p.setBrush(View::Blue);
@@ -265,7 +265,7 @@ void DecodeTrace::paint_mid(QPainter &p, int left, int right, QColor fore, QColo
     if (samplerate == 0.0)
         samplerate = 1.0;
 
-    const int64_t pixels_offset = _view->offset();
+    const int64_t pixels_offset = _view->x_offset();
     const double samples_per_pixel = samplerate * scale;
 
     uint64_t start_sample = (uint64_t)max((left + pixels_offset) *

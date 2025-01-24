@@ -136,11 +136,11 @@ public:
 	/**
      * Returns the pixels offset of the left edge of the view
 	 */
-    inline int64_t offset(){
-        return _offset;
+    inline int64_t x_offset(){
+        return _x_offset;
     }
 
-    /**
+	/**
      * trigger position fix
      */
     inline double trig_hoff(){
@@ -455,7 +455,7 @@ private:
     double      _minscale;
 
     /// The pixels offset of the left edge of the view
-    int64_t     _offset;
+    int64_t     _x_offset;
     int64_t     _preOffset;
     int         _spanY;
     int         _signalHeight;
