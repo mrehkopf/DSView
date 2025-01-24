@@ -715,7 +715,7 @@ void DsoSignal::paint_back(QPainter &p, int left, int right, QColor fore, QColor
     const double samplerate = session->cur_snap_samplerate();
     const double samples_per_pixel = samplerate * _view->scale();
     const double shown_rate = min(samples_per_pixel * width * 1.0 / sample_len, 1.0);
-    const double start = _view->offset() * samples_per_pixel;
+    const double start = _view->x_offset() * samples_per_pixel;
     const double shown_offset = min(start / sample_len, 1.0) * width;
     const double shown_len = max(shown_rate * width, 6.0);
     const QPointF left_edge[] =  {QPoint(shown_offset + 3, UpMargin/2 - 6),
@@ -782,7 +782,7 @@ void DsoSignal::paint_mid(QPainter &p, int left, int right, QColor fore, QColor 
 
         const double scale = _view->scale();
         assert(scale > 0);
-        const int64_t offset = _view->offset();
+        const int64_t offset = _view->x_offset();
 
         if (_data->empty() || !_data->has_data(index))
             return;

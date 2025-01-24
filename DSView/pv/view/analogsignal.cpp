@@ -161,7 +161,7 @@ bool AnalogSignal::measure(const QPointF &p)
 
     const double scale = _view->scale();
     assert(scale > 0);
-    const int64_t pixels_offset = _view->offset();
+    const int64_t pixels_offset = _view->x_offset();
     const double samplerate = _view->session().cur_snap_samplerate();
     const double samples_per_pixel = samplerate * scale;
 
@@ -198,7 +198,7 @@ QPointF AnalogSignal::get_point(uint64_t index, float &value)
 
     const double scale = _view->scale();
     assert(scale > 0);
-    const int64_t pixels_offset = _view->offset();
+    const int64_t pixels_offset = _view->x_offset();
     const double samplerate = _view->session().cur_snap_samplerate();
     const double samples_per_pixel = samplerate * scale;
 
@@ -410,7 +410,7 @@ void AnalogSignal::paint_mid(QPainter &p, int left, int right, QColor fore, QCol
     const double scale = _view->scale();
 
     assert(scale > 0);
-    const int64_t offset = _view->offset();
+    const int64_t offset = _view->x_offset();
 
     const int order = _data->get_ch_order(get_index());
     if (order == -1)

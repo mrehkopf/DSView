@@ -86,7 +86,7 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
     _preScale(1e-6),
     _maxscale(1e9),
     _minscale(1e-15),
-	_offset(0),
+	_x_offset(0),
     _preOffset(0),
 	_updating_scroll(false),
     _trig_hoff(0),
@@ -289,7 +289,7 @@ bool View::zoom(double steps, int offset)
 
     bool ret = true;
     _preScale = _scale;
-    _preOffset = _offset;
+    _preOffset = _x_offset;
 
     if (_device_agent->get_work_mode() != DSO) {
         _scale *= std::pow(3.0/2.0, -steps);
@@ -315,10 +315,10 @@ bool View::zoom(double steps, int offset)
         }
     }
 
-    _offset = floor((_offset + offset) * (_preScale / _scale) - offset);
-    _offset = max (min(_offset, get_max_offset()), get_min_offset());
+    _x_offset = floor((_x_offset + offset) * (_preScale / _scale) - offset);
+    _x_offset = max (min(_x_offset, get_max_offset()), get_min_offset());
 
-    if (_scale != _preScale || _offset != _preOffset) {
+    if (_scale != _preScale || _x_offset != _preOffset) {
         _header->update();
         _ruler->update();
         viewport_update();
@@ -346,18 +346,18 @@ void View::timebase_changed()
         scale = _session->cur_view_time() / width;
     }
 
-    set_scale_offset(scale, this->offset());
+    set_scale_offset(scale, this->x_offset());
 }
 
 void View::set_scale_offset(double scale, int64_t offset)
 {
     _preScale = _scale;
-    _preOffset = _offset;
+    _preOffset = _x_offset;
 
     _scale = max(min(scale, _maxscale), _minscale);
-    _offset = floor(max(min(offset, get_max_offset()), get_min_offset()));
+    _x_offset = floor(max(min(offset, get_max_offset()), get_min_offset()));
 
-    if (_scale != _preScale || _offset != _preOffset) {
+    if (_scale != _preScale || _x_offset != _preOffset) {
         update_scroll();
         _header->update();
         _ruler->update();
@@ -601,7 +601,7 @@ void View::normalize_layout()
 void View::get_scroll_layout(int64_t &length, int64_t &offset)
 {
     length = ceil(_session->cur_snap_sampletime() / _scale);
-    offset = _offset;
+    offset = _x_offset;
 }
 
 void View::update_scroll()
@@ -631,7 +631,7 @@ void View::update_scroll()
 	} else {
 		horizontalScrollBar()->setRange(0, MaxScrollValue);
 		horizontalScrollBar()->setSliderPosition(
-            _offset * 1.0  / length * MaxScrollValue);
+            _x_offset * 1.0  / length * MaxScrollValue);
 	}
 
     // Set up vertical scrollbar
@@ -676,10 +676,10 @@ void View::update_scale_offset()
     }
 
     _scale = max(min(_scale, _maxscale), _minscale);
-    _offset = max(min(_offset, get_max_offset()), get_min_offset());
+    _x_offset = max(min(_x_offset, get_max_offset()), get_min_offset());
 
     _preScale = _scale;
-    _preOffset = _offset;
+    _preOffset = _x_offset;
 
     _ruler->update();
     viewport_update();
@@ -866,8 +866,8 @@ bool View::eventFilter(QObject *object, QEvent *event)
 		const QMouseEvent *const mouse_event = (QMouseEvent*)event;
         if (object == _ruler || object == _time_viewport || object == _fft_viewport) {
             //_hover_point = QPoint(mouse_event->x(), 0);
-            double cur_periods = (mouse_event->pos().x() + _offset) * _scale / _ruler->get_min_period();
-            int integer_x = round(cur_periods) * _ruler->get_min_period() / _scale - _offset;
+            double cur_periods = (mouse_event->pos().x() + _x_offset) * _scale / _ruler->get_min_period();
+            int integer_x = round(cur_periods) * _ruler->get_min_period() / _scale - _x_offset;
             double cur_deviate_x = qAbs(mouse_event->pos().x() - integer_x);
             if (_device_agent->get_work_mode() == LOGIC &&
                 cur_deviate_x < 10)
@@ -962,22 +962,22 @@ void View::h_scroll_value_changed(int value)
 	if (_updating_scroll)
 		return;
 
-    _preOffset = _offset;
+    _preOffset = _x_offset;
 
 	const int range = horizontalScrollBar()->maximum();
 	if (range < MaxScrollValue)
-        _offset = value;
+        _x_offset = value;
 	else 
     {
         int64_t length = 0;
         int64_t offset = 0;
 		get_scroll_layout(length, offset);
-        _offset = floor(value * 1.0 / MaxScrollValue * length);
+        _x_offset = floor(value * 1.0 / MaxScrollValue * length);
 	}
 
-    _offset = max(min(_offset, get_max_offset()), get_min_offset());
+    _x_offset = max(min(_x_offset, get_max_offset()), get_min_offset());
 
-    if (_offset != _preOffset) {
+    if (_x_offset != _preOffset) {
         _ruler->update();
         viewport_update();
     }
@@ -1444,7 +1444,7 @@ double View::index2pixel(uint64_t index, bool has_hoff)
 {
     const uint64_t rateValue = session().cur_snap_samplerate();
     const double scaleValue = scale();
-    const int64_t offsetValue = offset();    
+    const int64_t offsetValue = x_offset();    
     const double hoffValue = trig_hoff();
 
     double pixels = 0;
@@ -1474,7 +1474,7 @@ uint64_t View::pixel2index(double pixel)
 {   
     const uint64_t rateValue = session().cur_snap_samplerate();
     const double scaleValue = scale();
-    const int64_t offsetValue = offset();    
+    const int64_t offsetValue = x_offset();    
     const double hoffValue = trig_hoff();
  
     const double samples_per_pixel = rateValue * scaleValue;

@@ -446,7 +446,7 @@ void Ruler::draw_logic_tick_mark(QPainter &p)
     double typical_width;
     double tick_period = 0;
     double scale = _view.scale();
-    int64_t offset = _view.offset();
+    int64_t offset = _view.x_offset();
 
     const uint64_t cur_period_scale = ceil((scale * min_width) / abs_min_period);
 

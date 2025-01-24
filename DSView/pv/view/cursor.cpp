@@ -56,8 +56,8 @@ QRect Cursor::get_label_rect(const QRect &rect, bool &visible, bool has_hoff)
 {
     const double samples_per_pixel = _view.session().cur_snap_samplerate() * _view.scale();
     const double cur_offset = _index / samples_per_pixel;
-    if (cur_offset < _view.offset() ||
-        cur_offset > (_view.offset() + _view.width())) {
+    if (cur_offset < _view.x_offset() ||
+        cur_offset > (_view.x_offset() + _view.width())) {
         visible = false;
         return QRect(-1, -1, 0, 0);
     }

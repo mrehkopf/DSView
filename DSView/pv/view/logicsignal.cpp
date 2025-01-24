@@ -118,7 +118,7 @@ void LogicSignal::paint_mid_align(QPainter &p, int left, int right, QColor fore,
     const int y = get_y() + _totalHeight * 0.5;
     const double scale = _view->scale();
     assert(scale > 0);
-    const int64_t offset = _view->offset();
+    const int64_t offset = _view->x_offset();
 
     const int high_offset = y - _totalHeight + 0.5f;
     const int low_offset = y + 0.5f;
@@ -297,7 +297,7 @@ bool LogicSignal::measure(const QPointF &p, uint64_t &index0, uint64_t &index1, 
             return false;
 
         const uint64_t end = _data->get_ring_sample_count() - 1;
-        uint64_t index = _data->samplerate() * _view->scale() * (_view->offset() + p.x());
+        uint64_t index = _data->samplerate() * _view->scale() * (_view->x_offset() + p.x());
         
         if (index > end){
             return false;
@@ -350,7 +350,7 @@ bool LogicSignal::is_by_edge(const QPointF &p, uint64_t &index, int radius)
             return false;
 
         const uint64_t end = _data->get_ring_sample_count() - 1;
-        const double pos = _data->samplerate() * _view->scale() * (_view->offset() + p.x());
+        const double pos = _data->samplerate() * _view->scale() * (_view->x_offset() + p.x());
         index = floor(pos + 0.5);
         if (index > end)
             return false;
@@ -403,7 +403,7 @@ bool LogicSignal::edge(const QPointF &p, uint64_t &index, int radius)
             return false;
 
         const uint64_t end = _data->get_ring_sample_count() - 1;
-        const double pos = _data->samplerate() * _view->scale() * (_view->offset() + p.x());
+        const double pos = _data->samplerate() * _view->scale() * (_view->x_offset() + p.x());
         index = floor(pos + 0.5);
         if (index > end)
             return false;
@@ -445,7 +445,7 @@ bool LogicSignal::edges(const QPointF &p, uint64_t start, uint64_t &rising, uint
     uint64_t end;
     const float gap = abs(p.y() - get_y());
     if (gap < get_totalHeight() * 0.5) {
-        end = _data->samplerate() * _view->scale() * (_view->offset() + p.x());
+        end = _data->samplerate() * _view->scale() * (_view->x_offset() + p.x());
         return edges(end, start, rising, falling);
     }
     return false;
