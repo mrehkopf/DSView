@@ -990,13 +990,13 @@ void Viewport::onLogicMouseRelease(QMouseEvent *event)
                     if(abs(_drag_strength) > MinorDragRateUp) {
                         if (abs(_drag_strength) < MinorDragOffsetUp) {
                             // small swipe, continue at same speed and decelerate
-                            _drag_timer.start(DragTimerInterval);
+                            _drag_timer.start(DragTimerIntervalMs);
                             set_action(LOGIC_MOVE);
                         }
                         else {
                             // fast swipe, give extra boost for increased scroll distance
                             _drag_strength *= 5;
-                            _drag_timer.start(DragTimerInterval);
+                            _drag_timer.start(DragTimerIntervalMs);
                             set_action(LOGIC_MOVE);
                         }
                     }
@@ -2101,7 +2101,7 @@ void Viewport::on_drag_timer()
         _view.set_scale_offset(scale, offset + _drag_strength);
         _drag_strength /= DragDamping;
         if (_drag_strength != 0)
-            _drag_timer.start(DragTimerInterval);
+            _drag_timer.start(DragTimerIntervalMs);
     }
     else if (offset == _view.get_max_offset() ||
              offset == _view.get_min_offset()) {
