@@ -71,6 +71,7 @@ public:
     static const int HitCursorMargin = 10;
     static const double HitCursorTimeMargin;
     static const int DragTimerInterval = 8;
+    static const int DragVelocityMeasureIntervalMs = 10;
     static const int MinorDragOffsetUp = 100;
     static const int DsoMeasureStages = 3;
     static const double MinorDragRateUp;
@@ -157,6 +158,8 @@ private:
     void onDsoMouseRelease(QMouseEvent *event);
     void onAnalogMouseRelease(QMouseEvent *event);
 
+    void updateDragVelocity(QMouseEvent *event);
+
 private slots:
     void on_trigger_timer();
     void on_drag_timer();
@@ -225,7 +228,11 @@ private:
 
     QElapsedTimer   _elapsed_time;
     QTimer          _drag_timer;
-    int             _drag_strength;
+    QPoint          _drag_last_mouse_pos;
+    qint64          _drag_delta_t;  // cumulative time during dragging (for measuring velocity)
+    int             _drag_delta_x;  // cumulative x movement per interval during dragging
+    double          _drag_velocity; // pixels per interval (DragVelocityMeasureIntervalMs)
+    int             _drag_strength; // resulting initial swipe velocity (pixels per DragTimerIntervalMs)
     bool            _dso_xm_valid;
     int             _dso_xm_y;
     uint64_t        _dso_xm_index[DsoMeasureStages];
