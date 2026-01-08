@@ -70,7 +70,7 @@ class Viewport : public QWidget, public IUiWindow
 public:
     static const int HitCursorMargin = 10;
     static const double HitCursorTimeMargin;
-    static const int DragTimerInterval = 100;
+    static const int DragTimerInterval = 8;
     static const int MinorDragOffsetUp = 100;
     static const int DsoMeasureStages = 3;
     static const double MinorDragRateUp;
