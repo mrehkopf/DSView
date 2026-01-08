@@ -648,6 +648,11 @@ void Viewport::mousePressEvent(QMouseEvent *event)
     _drag_strength = 0;
     _elapsed_time.restart();
 
+    // cancel potential ongoing MOVE action so click/drag is evaluated anew
+    if (_action_type == LOGIC_MOVE) {
+        set_action(NO_ACTION);
+    }
+
     if (_action_type == NO_ACTION
         && event->button() == Qt::RightButton
         && _view.session().is_stopped_status())
@@ -1092,6 +1097,9 @@ void Viewport::onLogicMouseRelease(QMouseEvent *event)
             set_action(NO_ACTION);
             break;
         }
+        case LOGIC_MOVE:
+        default:
+            break;
     } 
 }
 
@@ -1484,9 +1492,7 @@ void Viewport::leaveEvent(QEvent *)
         set_action(NO_ACTION);
     }
     else if (_action_type == LOGIC_MOVE) {
-        _drag_strength = 0;
-        _drag_timer.stop();
-        set_action(NO_ACTION);
+        // continue swipe scrolling even when mouse leaves viewport
     }
     else if (_action_type == DSO_XM_STEP1 || _action_type == DSO_XM_STEP2) {
         clear_dso_xm();
