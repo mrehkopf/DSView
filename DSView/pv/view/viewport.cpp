@@ -54,7 +54,7 @@ namespace pv {
 namespace view {
 
 const double Viewport::DragDamping = 1.05;
-const double Viewport::MinorDragRateUp = 10;
+const double Viewport::MinorDragRateUp = 15;
 
 Viewport::Viewport(View &parent, View_type type) :
     QWidget(&parent),
@@ -644,9 +644,12 @@ void Viewport::mousePressEvent(QMouseEvent *event)
 	assert(event);
     
 	_mouse_down_point = event->pos();
+    _drag_last_mouse_pos = _mouse_down_point;
 	_mouse_down_offset = QPoint(_view.x_offset(), _view.y_offset());
     _drag_strength = 0;
+    _drag_timer.stop();
     _elapsed_time.restart();
+    _drag_delta_t = 0;
 
     // cancel potential ongoing MOVE action so click/drag is evaluated anew
     if (_action_type == LOGIC_MOVE) {
@@ -792,6 +795,22 @@ void Viewport::mousePressEvent(QMouseEvent *event)
     }
 }
 
+void Viewport::updateDragVelocity(QMouseEvent *event)
+{
+    _drag_delta_t += _elapsed_time.elapsed();
+    _elapsed_time.restart();
+    _drag_delta_x += (_drag_last_mouse_pos - event->pos()).x();
+    _drag_last_mouse_pos = event->pos();
+//printf("elapsed=%lld delta_x=%d \n", _valid_elapsed, _delta_x);
+    if(_drag_delta_t > DragVelocityMeasureIntervalMs) {
+        _drag_velocity = (double)_drag_delta_x / (double)_drag_delta_t;
+        _drag_strength = _drag_velocity * 12; // adjust strength
+//printf("_drag_velocity=%f _drag_strength=%d elapsed=%lld\n", _drag_velocity, _drag_strength, _valid_elapsed);
+        _drag_delta_t = 0;
+        _drag_delta_x = 0;
+    }
+}
+
 void Viewport:: mouseMoveEvent(QMouseEvent *event)
 {
 	assert(event);
@@ -804,7 +823,7 @@ void Viewport:: mouseMoveEvent(QMouseEvent *event)
                 int64_t x = _mouse_down_offset.x() + (_mouse_down_point - event->pos()).x();
                 _view.set_scale_offset(_view.scale(), x);
             }
-            _drag_strength = (_mouse_down_point - event->pos()).x();
+            updateDragVelocity(event);
         }
         else if (_type == FFT_VIEW) {
             for(auto t: _view.session().get_spectrum_traces()) {
@@ -965,36 +984,21 @@ void Viewport::onLogicMouseRelease(QMouseEvent *event)
         {
             if (event->button() == Qt::LeftButton && _view.session().is_stopped_status()){
                 //priority 1
-                //try to quick scroll view...
-                int curX = event->pos().x();
-                int clickX = _mouse_down_point.x();
-                int moveLong = ABS_VAL(curX - clickX);                
-                int maxWidth = this->geometry().width();
-                float mvk = (float) moveLong / (float)maxWidth;
-
-                if (quickScroll){
-                    quickScroll = false; 
-                    if (isMaxWindow && mvk > 0.4f){
-                        quickScroll = true;
-                    }
-                    else if (!isMaxWindow && mvk > 0.25f){
-                        quickScroll = true;
-                    }
-                }
-
-                if (_action_type == NO_ACTION && quickScroll) {
-                    const double strength = _drag_strength*DragTimerInterval*1.0/_elapsed_time.elapsed();
-                    if (_elapsed_time.elapsed() < 200 &&
-                        abs(_drag_strength) < MinorDragOffsetUp &&
-                        abs(strength) > MinorDragRateUp) {
-                        _drag_timer.start(DragTimerInterval);
-                        set_action(LOGIC_MOVE);
-                    }
-                    else if (_elapsed_time.elapsed() < 200 &&
-                               abs(strength) > DragTimerInterval) {
-                        _drag_strength = strength * 5;
-                        _drag_timer.start(DragTimerInterval);
-                        set_action(LOGIC_MOVE);
+                //swipe dragging
+                if (_action_type == NO_ACTION) {
+                    updateDragVelocity(event);
+                    if(abs(_drag_strength) > MinorDragRateUp) {
+                        if (abs(_drag_strength) < MinorDragOffsetUp) {
+                            // small swipe, continue at same speed and decelerate
+                            _drag_timer.start(DragTimerInterval);
+                            set_action(LOGIC_MOVE);
+                        }
+                        else {
+                            // fast swipe, give extra boost for increased scroll distance
+                            _drag_strength *= 5;
+                            _drag_timer.start(DragTimerInterval);
+                            set_action(LOGIC_MOVE);
+                        }
                     }
                 }
 
@@ -1055,33 +1059,6 @@ void Viewport::onLogicMouseRelease(QMouseEvent *event)
             _edge_rising = 0;
             _edge_falling = 0;
             _edge_hit = false;
-            break;
-        }
-        case LOGIC_MOVE:
-        {
-            if (_mouse_down_point == event->pos()) {
-                _drag_strength = 0;
-                _drag_timer.stop();
-                set_action(NO_ACTION);
-            }
-            else {
-                const double strength = _drag_strength*DragTimerInterval*1.0/_elapsed_time.elapsed();
-                if (_elapsed_time.elapsed() < 200 &&
-                    abs(_drag_strength) < MinorDragOffsetUp &&
-                    abs(strength) > MinorDragRateUp) {
-                    _drag_timer.start(DragTimerInterval);
-                }
-                else if (_elapsed_time.elapsed() < 200 &&
-                           abs(strength) > DragTimerInterval) {
-                    _drag_strength = strength * 5;
-                    _drag_timer.start(DragTimerInterval);
-                }
-                else {
-                    _drag_strength = 0;
-                    _drag_timer.stop();
-                    set_action(NO_ACTION);
-                }
-            }
             break;
         }
         case LOGIC_ZOOM:
