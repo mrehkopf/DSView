@@ -165,6 +165,10 @@ void Viewport::doPaint()
     QStyleOption o;
     o.initFrom(this);
     QPainter p(this);
+    if (AppConfig::Instance().appOptions.antialias) {
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setRenderHint(QPainter::TextAntialiasing);
+    }
     style()->drawPrimitive(QStyle::PE_Widget, &o, &p, this);
 
     QFont font = p.font();
@@ -305,6 +309,7 @@ void Viewport::paintSignals(QPainter &p, QColor fore, QColor back)
             _pixmap.fill(Qt::transparent);
 
             QPainter dbp(&_pixmap);
+            dbp.setRenderHint(QPainter::Antialiasing, AppConfig::Instance().appOptions.antialias);
 
             bool isLissa = false;
 

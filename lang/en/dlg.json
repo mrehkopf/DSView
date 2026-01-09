@@ -700,6 +700,10 @@
         "text": "Display the profile in title bar"
     },
     {
+        "id": "IDS_DLG_DISPLAY_ANTIALIAS",
+        "text": "Antialiasing"
+    },
+    {
         "id": "IDS_DLG_SERIAL_HEX",
         "text": "Hex :"
     },

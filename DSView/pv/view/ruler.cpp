@@ -230,6 +230,10 @@ void Ruler::paintEvent(QPaintEvent*)
     QStyleOption o;
     o.initFrom(this);
     QPainter p(this);
+    if (AppConfig::Instance().appOptions.antialias) {
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setRenderHint(QPainter::TextAntialiasing);
+    }
     style()->drawPrimitive(QStyle::PE_Widget, &o, &p, this);
 
     QFont font = p.font();

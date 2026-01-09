@@ -120,7 +120,6 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
 {
     DSDialog dlg(parent, true, true);
     dlg.setTitle(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DISPLAY_OPTIONS), "Display options"));
-    dlg.setMinimumSize(300, 230);
 
     QVBoxLayout *lay = new QVBoxLayout();
     lay->setContentsMargins(0,10,0,20);
@@ -143,6 +142,9 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
 
     QCheckBox *ck_autoScrollLatestData = new QCheckBox();
     ck_autoScrollLatestData->setChecked(app.appOptions.autoScrollLatestData);
+
+    QCheckBox *ck_antialias = new QCheckBox();
+    ck_antialias->setChecked(app.appOptions.antialias);
 
     QComboBox *ftCbSize = new DsComboBox();
     ftCbSize->setFixedWidth(50);
@@ -186,9 +188,12 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     uiLay->addWidget(ck_profileBar, 0, 1, Qt::AlignRight);
     uiLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_FONT_SIZE), "Font size")), 1, 0, Qt::AlignLeft);
     uiLay->addWidget(ftCbSize, 1, 1, Qt::AlignRight);
+    uiLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DISPLAY_ANTIALIAS), "Antialiasing")), 2, 0, Qt::AlignLeft);
+    uiLay->addWidget(ck_antialias, 2, 1, Qt::AlignRight);
     lay->addWidget(uiGroup);
 
     dlg.layout()->addLayout(lay);      
+    dlg.layout()->setSizeConstraint(QLayout::SetFixedSize);
     dlg.exec();
     bool ret = dlg.IsClickYes();
 
@@ -227,7 +232,11 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
             app.appOptions.rulerTimeUnits = unitsCb->currentData().toString();
             bAppChanged = true;
         }
- 
+        if (app.appOptions.antialias != ck_antialias->isChecked()){
+            app.appOptions.antialias = ck_antialias->isChecked();
+            bAppChanged = true;
+        }
+
         if (bAppChanged){
             app.SaveApp();
             AppControl::Instance()->GetSession()->broadcast_msg(DSV_MSG_APP_OPTIONS_CHANGED);

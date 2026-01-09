@@ -119,6 +119,10 @@ void Header::paintEvent(QPaintEvent*)
     QStyleOption o;
     o.initFrom(this);
     QPainter painter(this);
+    if(AppConfig::Instance().appOptions.antialias) {
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setRenderHint(QPainter::TextAntialiasing);
+    }
     style()->drawPrimitive(QStyle::PE_Widget, &o, &painter, this);
 
 	const int w = width();

@@ -66,6 +66,10 @@ void ViewStatus::paintEvent(QPaintEvent *)
  #endif
 
     QPainter p(this);
+    if (AppConfig::Instance().appOptions.antialias) {
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setRenderHint(QPainter::TextAntialiasing);
+    }
     style()->drawPrimitive(QStyle::PE_Widget, &opt, &p, this);
     QColor fore(QWidget::palette().color(QWidget::foregroundRole()));
 

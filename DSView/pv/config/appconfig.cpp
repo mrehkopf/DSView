@@ -125,6 +125,7 @@ static void _loadApp(AppOptions &o, QSettings &st)
     getFiled("autoScrollLatestData", st, o.autoScrollLatestData, true);
     getFiled("version", st, o.version, 1);
     getFiled("rulerTimeUnits", st, o.rulerTimeUnits, "Time");
+    getFiled("antialias", st, o.antialias, true);
 
     o.warnofMultiTrig = true;
 
@@ -163,7 +164,7 @@ static void _saveApp(AppOptions &o, QSettings &st)
     setFiled("autoScrollLatestData", st, o.autoScrollLatestData);
     setFiled("version", st, APP_CONFIG_VERSION);
     setFiled("rulerTimeUnits", st, o.rulerTimeUnits);
-
+    setFiled("antialias", st, o.antialias);
 
     QString fmt =  FormatArrayToString(o.m_protocolFormats);
     setFiled("protocalFormats", st, fmt);

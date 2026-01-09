@@ -76,6 +76,7 @@ struct AppOptions
     bool  autoScrollLatestData;
     float fontSize;
     QString rulerTimeUnits;
+    bool antialias;
 
     std::vector<StringPair> m_protocolFormats;
 };
