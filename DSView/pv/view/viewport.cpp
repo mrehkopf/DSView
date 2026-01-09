@@ -985,7 +985,7 @@ void Viewport::onLogicMouseRelease(QMouseEvent *event)
             if (event->button() == Qt::LeftButton && _view.session().is_stopped_status()){
                 //priority 1
                 //swipe dragging
-                if (_action_type == NO_ACTION) {
+                if (quickScroll && _action_type == NO_ACTION) {
                     updateDragVelocity(event);
                     if(abs(_drag_strength) > MinorDragRateUp) {
                         if (abs(_drag_strength) < MinorDragOffsetUp) {
