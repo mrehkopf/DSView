@@ -63,11 +63,16 @@ public:
         return _box;
     }
 
+    inline QLabel* getLabel(){
+        return _lb;
+    }
+
 private slots:
     void on_checked();
 
 private:
     QCheckBox *_box;
+    QLabel *_lb;
     IChannelCheck *_checked;
     int     _index;
 };

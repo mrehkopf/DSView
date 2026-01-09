@@ -54,19 +54,19 @@ ChannelLabel::ChannelLabel(IChannelCheck *check, QWidget *parent, int chanIndex)
     lay->setContentsMargins(0,0,0,0);
     lay->setSpacing(0);
     this->setLayout(lay);
-    QLabel *lb = new QLabel(QString::number(chanIndex));
-    lb->setAlignment(Qt::AlignCenter);
+    _lb = new QLabel(QString::number(chanIndex));
+    _lb->setAlignment(Qt::AlignCenter);
     _box = new QCheckBox();
     _box->setFixedSize(20,20);
-    lay->addWidget(lb, 0, 0, Qt::AlignCenter);
+    lay->addWidget(_lb, 0, 0, Qt::AlignCenter);
     lay->addWidget(_box, 1, 0, Qt::AlignCenter);
 
     QFont font = this->font();
     font.setPointSizeF(AppConfig::Instance().appOptions.fontSize);
-    lb->setFont(font);
+    _lb->setFont(font);
 
-    int fh = lb->fontMetrics().height();
-    int w = lb->fontMetrics().horizontalAdvance(lb->text()) + 5;
+    int fh = _lb->fontMetrics().height();
+    int w = _lb->fontMetrics().horizontalAdvance(_lb->text()) + 5;
     w = w < 30 ? 30 : w;
     int h = fh + _box->height() + 2;
     setFixedSize(w, h);
@@ -111,7 +111,7 @@ DeviceOptions::DeviceOptions(QWidget *parent) :
     // scroll panel
     _scroll_panel  = new QWidget();
     QVBoxLayout *scroll_lay = new QVBoxLayout();
-    scroll_lay->setContentsMargins(0, 0, 0, 0);
+    scroll_lay->setContentsMargins(0, 0, 8, 0);
     scroll_lay->setAlignment(Qt::AlignLeft);
     scroll_lay->setDirection(QBoxLayout::TopToBottom);
     _scroll_panel->setLayout(scroll_lay);
@@ -294,6 +294,7 @@ void DeviceOptions::logic_probes(QVBoxLayout &layout)
     int row2 = 0;
     int vld_ch_num = 0;
     int cur_ch_num = 0;
+    int total_ch_num = 0;
     int contentHeight = 0;
  
     _probes_checkBox_list.clear();
@@ -338,6 +339,7 @@ void DeviceOptions::logic_probes(QVBoxLayout &layout)
         }
     }
 
+    _device_agent->get_config_int16(SR_CONF_TOTAL_CH_NUM, total_ch_num);
     _device_agent->get_config_int16(SR_CONF_VLD_CH_NUM, vld_ch_num);
 
     // channels
@@ -351,32 +353,53 @@ void DeviceOptions::logic_probes(QVBoxLayout &layout)
     int channel_column = 0;
     int channel_line_height = 0;
     row2++;
-
-    for (const GSList *l = _device_agent->get_channels(); l; l = l->next) {
-		sr_channel *const probe = (sr_channel*)l->data;
+    printf("row2=%d\n", row2);
+    const GSList *l = _device_agent->get_channels();
+    for (int i = 0; i < total_ch_num; i++) {
+        if(l) {
+		    sr_channel *const probe = (sr_channel*)l->data;
 		 
-        if (probe->enabled)
-            cur_ch_num++;
+printf("cur_ch_num=%d, vld_ch_num=%d, total_ch_num=%d, i=%d, probe_index=%d, enabled=%d\n", cur_ch_num, vld_ch_num, total_ch_num, i, probe->index, probe->enabled);
+            if (probe->enabled)
+                cur_ch_num++;
 
-        if (cur_ch_num > vld_ch_num)
-            probe->enabled = false;
+            if (cur_ch_num > vld_ch_num)
+                probe->enabled = false;
 
-        ChannelLabel *ch_item = new ChannelLabel(this, NULL, probe->index);
-        channel_grid->addWidget(ch_item, channel_row, channel_column++, Qt::AlignCenter);
-        _probes_checkBox_list.push_back(ch_item->getCheckBox());
-        ch_item->getCheckBox()->setCheckState(probe->enabled ? Qt::Checked : Qt::Unchecked);
-        channel_line_height = ch_item->height();
+            ChannelLabel *ch_item = new ChannelLabel(this, NULL, probe->index);
+            channel_grid->addWidget(ch_item, channel_row, channel_column++, Qt::AlignCenter);
+            _probes_checkBox_list.push_back(ch_item->getCheckBox());
+            ch_item->getCheckBox()->setCheckState(probe->enabled ? Qt::Checked : Qt::Unchecked);
+            channel_line_height = ch_item->height();
 
-         if (channel_column == 8){
-            channel_column = 0;
-            channel_row++;
-            
-            if (l->next != NULL){
-                row2++;
+            if (channel_column == 8){
+                channel_column = 0;
+                channel_row++;
+//                printf("l->next=%p\n", l->next);
+                if (i < total_ch_num - 1){
+                    row2++;
+                }
             }
-         }
+            l = l->next;
+        } else {
+            // display the same checkbox but disabled and unchecked
+            ChannelLabel *ch_item = new ChannelLabel(this, NULL, i);
+            channel_grid->addWidget(ch_item, channel_row, channel_column++, Qt::AlignCenter);
+            ch_item->getCheckBox()->setEnabled(false);
+            ch_item->getCheckBox()->setCheckState(Qt::Unchecked);
+            ch_item->getLabel()->setEnabled(false);
+            channel_line_height = ch_item->height();
+            if (channel_column == 8){
+                channel_column = 0;
+                channel_row++;
+                
+                if (i < total_ch_num - 1){
+                    row2++;
+                }
+            }
+        }
 	}
-
+printf("row2=%d\n", row2);
     layout.addWidget(channel_pannel);
 
     // space
@@ -871,7 +894,7 @@ void DeviceOptions::try_resize_scroll()
 
     float sk = QGuiApplication::primaryScreen()->logicalDotsPerInch() / 96;
 
-    int srcHeight = 600;
+    int srcHeight = 800;
     int w = _width;
 
 
@@ -935,6 +958,7 @@ void DeviceOptions::try_resize_scroll()
         _scroll_panel->setFixedSize(w, contentHeight);
         _scroll->setFixedSize(sclw, contentHeight);
     }
+printf("sk=%f, srcheight=%d, dlgheight=%d, sclw=%d, w=%d\n", sk, srcHeight, dlgHeight, sclw, w);
 }
 
 void DeviceOptions::keyPressEvent(QKeyEvent *event) 
