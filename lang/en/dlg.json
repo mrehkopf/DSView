@@ -385,7 +385,7 @@
     },
     {
         "id": "IDS_DLG_TIME_SAMPLES",
-        "text": "Time/Samples"
+        "text": "Time / Samples"
     },
     {
         "id": "IDS_DLG_MOUSE_MEASUREMENT",
@@ -413,19 +413,19 @@
     },
     {
         "id": "IDS_DLG_W",
-        "text": "W: "
+        "text": "Width: "
     },
     {
         "id": "IDS_DLG_P",
-        "text": "P: "
+        "text": "Period: "
     },
     {
         "id": "IDS_DLG_F",
-        "text": "F: "
+        "text": "Freq: "
     },
     {
         "id": "IDS_DLG_D",
-        "text": "D: "
+        "text": "Duty: "
     },
     {
         "id": "IDS_DLG_SEARCH",

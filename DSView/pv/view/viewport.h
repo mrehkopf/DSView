@@ -202,11 +202,12 @@ private:
     int         _cur_preY_bottom;
     int         _cur_aftY;
     bool        _edge_hit;
-    QString     _mm_width;
-    QString     _mm_period;
+    QString     _mm_width_time;
+    QString     _mm_width_samples;
+    QString     _mm_period_time;
+    QString     _mm_period_samples;
     QString     _mm_freq;
     QString     _mm_duty;
-    QString     _mm_samples;
 
     uint64_t    _edge_rising;
     uint64_t    _edge_falling;

@@ -64,37 +64,41 @@ MeasureDock::MeasureDock(QWidget *parent, View &view, SigSession *session) :
     _mouse_groupBox = new QGroupBox(_widget);
     _fen_checkBox = new QCheckBox(_widget);
     _fen_checkBox->setChecked(true);
-    _width_label = new QLabel(_widget);
-    _period_label = new QLabel(_widget);
+    _width_time_label = new QLabel(_widget);
+    _width_samples_label = new QLabel(_widget);
+    _period_time_label = new QLabel(_widget);
+    _period_samples_label = new QLabel(_widget);
     _freq_label = new QLabel(_widget);
     _duty_label = new QLabel(_widget);
-    _samples_label = new QLabel(_widget);
 
     _w_label = new QLabel(_widget);
     _p_label = new QLabel(_widget);
     _f_label = new QLabel(_widget);
     _d_label = new QLabel(_widget);
-    _s_label = new QLabel(_widget);
 
     QGridLayout *mouse_layout = new QGridLayout();
     mouse_layout->setVerticalSpacing(5);
-    mouse_layout->setHorizontalSpacing(5);
-    mouse_layout->addWidget(_fen_checkBox, 0, 0, 1, 5);
-    mouse_layout->addWidget(_w_label, 1, 0);
-    mouse_layout->addWidget(_width_label, 1, 1);
-    mouse_layout->addWidget(_p_label, 1, 3);
-    mouse_layout->addWidget(_period_label, 1, 4);
-
-    mouse_layout->addWidget(_d_label, 2, 0);
-    mouse_layout->addWidget(_duty_label, 2, 1);
-    mouse_layout->addWidget(_f_label, 2, 3);
-    mouse_layout->addWidget(_freq_label, 2, 4);    
- 
-    mouse_layout->addWidget(_s_label, 3, 0);
-    mouse_layout->addWidget(_samples_label, 3, 1);
-
+    mouse_layout->setHorizontalSpacing(0);
+    mouse_layout->addWidget(_fen_checkBox, 0, 0, 1, 4);
+    _measure_time_label = new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_TIME), "Time"), _widget);
+    _measure_samples_label = new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SAMPLES), "Samples"), _widget);
+    mouse_layout->addWidget(_measure_time_label, 1, 1, Qt::AlignHCenter);
+    mouse_layout->addWidget(_measure_samples_label, 1, 3, Qt::AlignHCenter);
+    mouse_layout->addWidget(_w_label, 2, 0);
+    mouse_layout->addWidget(_width_time_label, 2, 1);
+    mouse_layout->addWidget(new QLabel("/", _widget), 2, 2, Qt::AlignHCenter);
+    mouse_layout->addWidget(_width_samples_label, 2, 3);
+    mouse_layout->addWidget(_p_label, 3, 0);
+    mouse_layout->addWidget(_period_time_label, 3, 1);
+    mouse_layout->addWidget(new QLabel("/", _widget), 3, 2, Qt::AlignHCenter);
+    mouse_layout->addWidget(_period_samples_label, 3, 3);
+    mouse_layout->setRowMinimumHeight(4, 10);
+    mouse_layout->addWidget(_d_label, 5, 0);
+    mouse_layout->addWidget(_duty_label, 5, 1, Qt::AlignRight);
+    mouse_layout->addWidget(_f_label, 6, 0);
+    mouse_layout->addWidget(_freq_label, 6, 1, Qt::AlignRight);
     _mouse_groupBox->setLayout(mouse_layout);
-    mouse_layout->setContentsMargins(5, 15, 5, 5);
+    mouse_layout->setContentsMargins(5, 15, 5, 15);
 
     /* cursor distance group */
     _dist_groupBox = new QGroupBox(_widget);
@@ -182,18 +186,13 @@ void MeasureDock::retranslateUi()
     _time_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_TIME_SAMPLES), "Time/Samples"));
     _add_dec_label->setText(_time_label->text());
 
-    /*
-    _w_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_W), "W: "));
-    _p_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_P), "P: "));
-    _f_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_F), "F: "));
-    _d_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_D), "D: "));
-    */
-
-    _w_label->setText("W:");
-    _p_label->setText("P:");
-    _f_label->setText("F:");
-    _d_label->setText("D:");
-    _s_label->setText("S:");
+    _measure_time_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_TIME), "Time"));
+    _measure_samples_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SAMPLES), "Samples"));
+    _w_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_W), "Width "));
+    _p_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_P), "Period "));
+    _f_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_F), "Freq "));
+    _d_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_D), "Duty "));
+    adjusLabelSize();
 }
 
 void MeasureDock::reStyle()
@@ -243,11 +242,12 @@ void MeasureDock::reload()
 
 void MeasureDock::measure_updated()
 {
-    _width_label->setText(_view.get_measure("width"));
-    _period_label->setText(_view.get_measure("period"));
+    _width_time_label->setText(_view.get_measure("width_time"));
+    _width_samples_label->setText(_view.get_measure("width_samples"));
+    _period_time_label->setText(_view.get_measure("period_time"));
+    _period_samples_label->setText(_view.get_measure("period_samples"));
     _freq_label->setText(_view.get_measure("frequency"));
     _duty_label->setText(_view.get_measure("duty"));
-    _samples_label->setText(_view.get_measure("samples"));
     adjusLabelSize();
 }
 
@@ -958,6 +958,9 @@ void MeasureDock::UpdateFont()
     font.setPointSizeF(font.pointSizeF() + 1);
     this->parentWidget()->setFont(font);
 
+    font.setStretch(QFont::Condensed);
+    _condensed_font = font;
+
     adjusLabelSize();
 }
 
@@ -982,12 +985,25 @@ void MeasureDock::adjust_form_size(QWidget *wid)
     }
 
     int mouse_info_label_width = fm.horizontalAdvance("############");
-    _width_label->setFixedWidth(mouse_info_label_width);
-    _period_label->setFixedWidth(mouse_info_label_width);
+    _width_time_label->setFixedWidth(mouse_info_label_width);
+    _width_time_label->setAlignment(Qt::AlignRight);
+    _width_samples_label->setFixedWidth(mouse_info_label_width);
+    _width_samples_label->setAlignment(Qt::AlignRight);
+    _period_time_label->setFixedWidth(mouse_info_label_width);
+    _period_time_label->setAlignment(Qt::AlignRight);
+    _period_samples_label->setFixedWidth(mouse_info_label_width);
+    _period_samples_label->setAlignment(Qt::AlignRight);
     _freq_label->setFixedWidth(mouse_info_label_width);
+    _freq_label->setAlignment(Qt::AlignRight);
     _duty_label->setFixedWidth(mouse_info_label_width);
-    _samples_label->setFixedWidth(mouse_info_label_width);
-   
+    _duty_label->setAlignment(Qt::AlignRight);
+    _width_time_label->setFont(_condensed_font);
+    _width_samples_label->setFont(_condensed_font);
+    _period_time_label->setFont(_condensed_font);
+    _period_samples_label->setFont(_condensed_font);
+    _freq_label->setFont(_condensed_font);
+    _duty_label->setFont(_condensed_font);
+
     auto groups = wid->findChildren<QGroupBox*>();
     for(auto o : groups)
     { 

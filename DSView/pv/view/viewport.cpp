@@ -83,11 +83,12 @@ Viewport::Viewport(View &parent, View_type type) :
     setBackgroundRole(QPalette::Base);
 
     //setFixedSize(QSize(600, 400));
-    _mm_width = View::Unknown_Str;
-    _mm_period = View::Unknown_Str;
+    _mm_width_time = View::Unknown_Str;
+    _mm_width_samples = View::Unknown_Str;
+    _mm_period_time = View::Unknown_Str;
+    _mm_period_samples = View::Unknown_Str;
     _mm_freq = View::Unknown_Str;
     _mm_duty = View::Unknown_Str;
-    _mm_samples = View::Unknown_Str;
     _measure_en = true;
     _edge_hit = false;
     _transfer_started = false;
@@ -1570,11 +1571,12 @@ void Viewport::clear_measure()
 void Viewport::clear_dso_xm()
 {
     _dso_xm_valid = false;
-    _mm_width = View::Unknown_Str;
-    _mm_period = View::Unknown_Str;
+    _mm_width_time = View::Unknown_Str;
+    _mm_width_samples = View::Unknown_Str;
+    _mm_period_time = View::Unknown_Str;
+    _mm_period_samples = View::Unknown_Str;
     _mm_freq = View::Unknown_Str;
     _mm_duty = View::Unknown_Str;
-    _mm_samples = View::Unknown_Str;
 
     set_action(NO_ACTION);
 }
@@ -1599,10 +1601,11 @@ void Viewport::measure()
                     if (logicSig->measure(_mouse_point, _cur_sample, _nxt_sample, _thd_sample)) {
                         _measure_type = LOGIC_FREQ;
 
-                        _mm_width = _view.get_ruler()->format_real_time(_nxt_sample - _cur_sample, sample_rate);
-                        _mm_period = _thd_sample != 0 ? _view.get_ruler()->format_real_time(_thd_sample - _cur_sample, sample_rate) : View::Unknown_Str;
+                        _mm_width_time = _view.get_ruler()->format_real_time(_nxt_sample - _cur_sample, sample_rate);
+                        _mm_width_samples = _view.get_ruler()->format_samples(_nxt_sample - _cur_sample);
+                        _mm_period_time = _thd_sample != 0 ? _view.get_ruler()->format_real_time(_thd_sample - _cur_sample, sample_rate) : View::Unknown_Str;
+                        _mm_period_samples = _thd_sample != 0 ? _view.get_ruler()->format_samples(_thd_sample - _cur_sample) : View::Unknown_Str;
                         _mm_freq = _thd_sample != 0 ? _view.get_ruler()->format_real_freq(_thd_sample - _cur_sample, sample_rate) : View::Unknown_Str;
-                        _mm_samples = _thd_sample != 0 ? _view.get_ruler()->format_samples(_thd_sample - _cur_sample) : View::Unknown_Str;
                         _cur_preX = _view.index2pixel(_cur_sample);
                         _cur_aftX = _view.index2pixel(_nxt_sample);
                         _cur_thdX = _view.index2pixel(_thd_sample);
@@ -1614,11 +1617,12 @@ void Viewport::measure()
                     }
                     else {
                         _measure_type = NO_MEASURE;
-                        _mm_width = View::Unknown_Str;
-                        _mm_period = View::Unknown_Str;
+                        _mm_width_time = View::Unknown_Str;
+                        _mm_width_samples = View::Unknown_Str;
+                        _mm_period_time = View::Unknown_Str;
+                        _mm_period_samples = View::Unknown_Str;
                         _mm_freq = View::Unknown_Str;
                         _mm_duty = View::Unknown_Str;
-                        _mm_samples = View::Unknown_Str;
                     }
                 }
                 else if (_action_type == LOGIC_EDGE) {
@@ -1714,21 +1718,23 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
 
         if (_measure_en) {
             int typical_width = p.boundingRect(0, 0, INT_MAX, INT_MAX,
-                Qt::AlignLeft | Qt::AlignTop, _mm_width).width();
+                Qt::AlignLeft | Qt::AlignTop, _mm_width_time).width();
             typical_width = max(typical_width, p.boundingRect(0, 0, INT_MAX, INT_MAX,
-                Qt::AlignLeft | Qt::AlignTop, _mm_period).width());
+                Qt::AlignLeft | Qt::AlignTop, _mm_period_time).width());
             typical_width = max(typical_width, p.boundingRect(0, 0, INT_MAX, INT_MAX,
                 Qt::AlignLeft | Qt::AlignTop, _mm_freq).width());
             typical_width = max(typical_width, p.boundingRect(0, 0, INT_MAX, INT_MAX,
                 Qt::AlignLeft | Qt::AlignTop, _mm_duty).width());
             typical_width = typical_width + 100;
 
+            const QString mm_period_samples_long = _mm_period_samples + " " + L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SAMPLES), " samples");
+            const QString mm_width_samples_long = _mm_width_samples + " " + L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SAMPLES), " samples");
             const double width = _view.get_view_width() - _view.verticalScrollBar()->geometry().width();
             const double height = _view.get_view_height() - _view.horizontalScrollBar()->geometry().height() - View::StatusHeight;
             const double left = _view.hover_point().x();
             const double top = _view.hover_point().y();
             const double right = left + typical_width;
-            const double bottom = top + 100;
+            const double bottom = top + 140;
             double hover_x, hover_y;
             if(right > width) {
                 hover_x = left - typical_width - MouseEdgeClearance;
@@ -1736,7 +1742,7 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
                 hover_x = left + MousePointerClearance;
             }
             if(bottom > height) {
-                hover_y = top - 100 - MousePointerClearance;
+                hover_y = top - 140 - MousePointerClearance;
                 if(right <= width) {
                     hover_x = left + MouseEdgeClearance;
                 }
@@ -1744,12 +1750,13 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
                 hover_y = top + MousePointerClearance;
             }
             QPointF org_pos = QPointF(hover_x, hover_y);
-            QRectF measure_rect = QRectF(org_pos.x(), org_pos.y(), (double)typical_width, 100.0);
-            QRectF measure1_rect = QRectF(org_pos.x(), org_pos.y(), (double)typical_width, 20.0);
-            QRectF measure2_rect = QRectF(org_pos.x(), org_pos.y()+20, (double)typical_width, 20.0);
-            QRectF measure3_rect = QRectF(org_pos.x(), org_pos.y()+40, (double)typical_width, 20.0);
-            QRectF measure4_rect = QRectF(org_pos.x(), org_pos.y()+60, (double)typical_width, 20.0);
-            QRectF measure5_rect = QRectF(org_pos.x(), org_pos.y()+80, (double)typical_width, 20.0);
+            QRectF measure_rect = QRectF(org_pos.x(), org_pos.y(), (double)typical_width, 140.0);
+            QRectF measure1_rect = QRectF(org_pos.x()+5, org_pos.y()+5, (double)typical_width-10, 20.0);
+            QRectF measure2_rect = QRectF(org_pos.x()+5, org_pos.y()+25, (double)typical_width-10, 20.0);
+            QRectF measure3_rect = QRectF(org_pos.x()+5, org_pos.y()+50, (double)typical_width-10, 20.0);
+            QRectF measure4_rect = QRectF(org_pos.x()+5, org_pos.y()+70, (double)typical_width-10, 20.0);
+            QRectF measure5_rect = QRectF(org_pos.x()+5, org_pos.y()+95, (double)typical_width-10, 20.0);
+            QRectF measure6_rect = QRectF(org_pos.x()+5, org_pos.y()+115, (double)typical_width-10, 20.0);
 
             p.setPen(Qt::NoPen);
             p.setBrush(View::LightBlue);
@@ -1758,19 +1765,18 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
             p.setPen(active_color);
             p.drawText(measure1_rect, Qt::AlignLeft | Qt::AlignVCenter,
                        L_S(STR_PAGE_DLG, S_ID(IDS_DLG_WIDTH), "Width: "));
-            p.drawText(measure1_rect, Qt::AlignRight | Qt::AlignVCenter,_mm_width);
-            p.drawText(measure2_rect, Qt::AlignLeft | Qt::AlignVCenter,
-                       L_S(STR_PAGE_DLG, S_ID(IDS_DLG_PERIOD), "Period: "));
-            p.drawText(measure2_rect, Qt::AlignRight | Qt::AlignVCenter, _mm_period);
+            p.drawText(measure1_rect, Qt::AlignRight | Qt::AlignVCenter,_mm_width_time);
+            p.drawText(measure2_rect, Qt::AlignRight | Qt::AlignVCenter,mm_width_samples_long);
             p.drawText(measure3_rect, Qt::AlignLeft | Qt::AlignVCenter,
-                       L_S(STR_PAGE_DLG, S_ID(IDS_DLG_FREQUENCY), "Frequency: "));
-            p.drawText(measure3_rect, Qt::AlignRight | Qt::AlignVCenter, _mm_freq);
-            p.drawText(measure4_rect, Qt::AlignLeft | Qt::AlignVCenter,
-                      L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DUTY_CYCLE), "Duty Cycle: "));
-            p.drawText(measure4_rect, Qt::AlignRight | Qt::AlignVCenter, _mm_duty);
+                       L_S(STR_PAGE_DLG, S_ID(IDS_DLG_PERIOD), "Period: "));
+            p.drawText(measure3_rect, Qt::AlignRight | Qt::AlignVCenter, _mm_period_time);
+            p.drawText(measure4_rect, Qt::AlignRight | Qt::AlignVCenter, mm_period_samples_long);
             p.drawText(measure5_rect, Qt::AlignLeft | Qt::AlignVCenter,
-                      L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SAMPLES_MEAS), "Samples: "));
-            p.drawText(measure5_rect, Qt::AlignRight | Qt::AlignCenter, _mm_samples);
+                       L_S(STR_PAGE_DLG, S_ID(IDS_DLG_FREQUENCY), "Frequency: "));
+            p.drawText(measure5_rect, Qt::AlignRight | Qt::AlignVCenter, _mm_freq);
+            p.drawText(measure6_rect, Qt::AlignLeft | Qt::AlignVCenter,
+                      L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DUTY_CYCLE), "Duty Cycle: "));
+            p.drawText(measure6_rect, Qt::AlignRight | Qt::AlignVCenter, _mm_duty);
         }
     } 
 
@@ -1884,10 +1890,10 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
                            x[1], _dso_xm_y + 10);
             *line++ = QLine(x[0], _dso_xm_y,
                            x[1], _dso_xm_y);
-            _mm_width = _view.get_ruler()->format_real_time(_dso_xm_index[1] - _dso_xm_index[0], sample_rate);
+            _mm_width_time = _view.get_ruler()->format_real_time(_dso_xm_index[1] - _dso_xm_index[0], sample_rate);
 
             // -- width show
-            const QString w_ctr = "W="+_mm_width;
+            const QString w_ctr = "W="+_mm_width_time;
             int w_rect_width = p.boundingRect(0, 0, INT_MAX, INT_MAX,
                                               Qt::AlignLeft | Qt::AlignVCenter, w_ctr).width();
             p.drawText(QRect(x[0]+10, _dso_xm_y - text_height, w_rect_width, text_height), w_ctr);
@@ -1900,12 +1906,12 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
                            x[2], _dso_xm_y + 30);
             *line++ = QLineF(x[2], _dso_xm_y + 20,
                            x[2], _dso_xm_y + 40);
-            _mm_period = _view.get_ruler()->format_real_time(_dso_xm_index[2] - _dso_xm_index[0], sample_rate);
+            _mm_period_time = _view.get_ruler()->format_real_time(_dso_xm_index[2] - _dso_xm_index[0], sample_rate);
             _mm_freq = _view.get_ruler()->format_real_freq(_dso_xm_index[2] - _dso_xm_index[0], sample_rate);
             _mm_duty = QString::number((_dso_xm_index[1] - _dso_xm_index[0]) * 100.0 / (_dso_xm_index[2] - _dso_xm_index[0]), 'f', 2)+"%";
 
             // -- period show
-            const QString p_ctr = "P="+_mm_period;
+            const QString p_ctr = "P="+_mm_period_time;
             int p_rect_width = p.boundingRect(0, 0, INT_MAX, INT_MAX,
                                               Qt::AlignLeft | Qt::AlignVCenter, p_ctr).width();
             p.drawText(QRect(x[0]+10, _dso_xm_y + 30 - text_height, p_rect_width, text_height), p_ctr);
@@ -2033,16 +2039,18 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
 
 QString Viewport::get_measure(QString option)
 {
-    if(option.compare("width") == 0)
-        return _mm_width;
-    else if (option.compare("period") == 0)
-        return _mm_period;
+    if(option.compare("width_time") == 0)
+        return _mm_width_time;
+    else if (option.compare("width_samples") == 0)
+        return _mm_width_samples;
+    else if (option.compare("period_time") == 0)
+        return _mm_period_time;
+    else if (option.compare("period_samples") == 0)
+        return _mm_period_samples;
     else if (option.compare("frequency") == 0)
         return _mm_freq;
     else if (option.compare("duty") == 0)
         return _mm_duty;
-    else if (option.compare("samples") == 0)
-        return _mm_samples;
     else
         return View::Unknown_Str;
 }

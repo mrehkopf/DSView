@@ -146,12 +146,15 @@ private:
     QWidget *_widget;
     QGroupBox *_mouse_groupBox;
     QCheckBox *_fen_checkBox;
-    QLabel *_width_label;
-    QLabel *_period_label;
+    QLabel *_width_time_label;
+    QLabel *_width_samples_label;
+    QLabel *_period_time_label;
+    QLabel *_period_samples_label;
     QLabel *_freq_label;
     QLabel *_duty_label;
-    QLabel *_samples_label;
     QLabel *_add_dec_label;
+    QLabel *_measure_time_label;
+    QLabel *_measure_samples_label;
     QGridLayout *_dist_layout;
     QGroupBox *_dist_groupBox;
     XToolButton *_dist_add_btn;
@@ -174,8 +177,9 @@ private:
     QLabel *_p_label;
     QLabel *_f_label;
     QLabel *_d_label;
-    QLabel *_s_label;
     bool    _bSetting;
+
+    QFont  _condensed_font;
 };
 
 } // namespace dock
