@@ -2113,8 +2113,12 @@ void Viewport::on_drag_timer()
     {
         _view.set_scale_offset(scale, offset + _drag_strength);
         _drag_strength /= DragDamping;
-        if (_drag_strength != 0)
+        if (_drag_strength != 0) {
             _drag_timer.start(DragTimerIntervalMs);
+        } else {
+            _drag_timer.stop();
+            set_action(NO_ACTION);
+        }
     }
     else if (offset == _view.get_max_offset() ||
              offset == _view.get_min_offset()) {
