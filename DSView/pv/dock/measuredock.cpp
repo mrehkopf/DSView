@@ -94,9 +94,9 @@ MeasureDock::MeasureDock(QWidget *parent, View &view, SigSession *session) :
     mouse_layout->addWidget(_period_samples_label, 3, 3);
     mouse_layout->setRowMinimumHeight(4, 10);
     mouse_layout->addWidget(_d_label, 5, 0);
-    mouse_layout->addWidget(_duty_label, 5, 1, Qt::AlignRight);
+    mouse_layout->addWidget(_duty_label, 5, 1);
     mouse_layout->addWidget(_f_label, 6, 0);
-    mouse_layout->addWidget(_freq_label, 6, 1, Qt::AlignRight);
+    mouse_layout->addWidget(_freq_label, 6, 1);
     _mouse_groupBox->setLayout(mouse_layout);
     mouse_layout->setContentsMargins(5, 15, 5, 15);
 
@@ -984,18 +984,19 @@ void MeasureDock::adjust_form_size(QWidget *wid)
         o->setFixedSize(size);
     }
 
-    int mouse_info_label_width = fm.horizontalAdvance("############");
-    _width_time_label->setFixedWidth(mouse_info_label_width);
+    QFontMetrics fm_condensed(_condensed_font);
+    int mouse_info_label_width = fm_condensed.horizontalAdvance("############");
+    _width_time_label->setMinimumWidth(mouse_info_label_width);
     _width_time_label->setAlignment(Qt::AlignRight);
-    _width_samples_label->setFixedWidth(mouse_info_label_width);
+    _width_samples_label->setMinimumWidth(mouse_info_label_width);
     _width_samples_label->setAlignment(Qt::AlignRight);
-    _period_time_label->setFixedWidth(mouse_info_label_width);
+    _period_time_label->setMinimumWidth(mouse_info_label_width);
     _period_time_label->setAlignment(Qt::AlignRight);
-    _period_samples_label->setFixedWidth(mouse_info_label_width);
+    _period_samples_label->setMinimumWidth(mouse_info_label_width);
     _period_samples_label->setAlignment(Qt::AlignRight);
-    _freq_label->setFixedWidth(mouse_info_label_width);
+    _freq_label->setMinimumWidth(mouse_info_label_width);
     _freq_label->setAlignment(Qt::AlignRight);
-    _duty_label->setFixedWidth(mouse_info_label_width);
+    _duty_label->setMinimumWidth(mouse_info_label_width);
     _duty_label->setAlignment(Qt::AlignRight);
     _width_time_label->setFont(_condensed_font);
     _width_samples_label->setFont(_condensed_font);
