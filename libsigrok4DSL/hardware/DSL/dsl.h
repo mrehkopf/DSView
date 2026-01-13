@@ -88,31 +88,31 @@
 /*
  * for basic configuration
  */
-#define TRIG_EN_BIT 0
-#define CLK_TYPE_BIT 1
-#define CLK_EDGE_BIT 2
-#define RLE_MODE_BIT 3
-#define DSO_MODE_BIT 4
-#define HALF_MODE_BIT 5
-#define QUAR_MODE_BIT 6
-#define ANALOG_MODE_BIT 7
-#define FILTER_BIT 8
-#define INSTANT_BIT 9
-#define SLOW_ACQ_BIT 10
-#define STRIG_MODE_BIT 11
-#define STREAM_MODE_BIT 12
-#define LPB_TEST_BIT 13
-#define EXT_TEST_BIT 14
-#define INT_TEST_BIT 15
+#define TRIG_EN_BIT 0       // 0: instant capture, 1: triggers effective
+#define CLK_TYPE_BIT 1      // 0: internal clock, 1: external clock
+#define CLK_EDGE_BIT 2      // 0: rising edge, 1: falling edge
+#define RLE_MODE_BIT 3      // 0: RLE disable, 1: RLE enable (only effective when required)
+#define DSO_MODE_BIT 4      // 0: logic mode, 1: DSO mode
+#define HALF_MODE_BIT 5     // 0: normal sample rate, 1: double sample rate with halved channels (only effective when required)
+#define QUAR_MODE_BIT 6     // 0: normal sample rate, 1: quadruple sample rate with quartered channels (only effective when required)
+#define ANALOG_MODE_BIT 7   // 0: digital mode, 1: analog mode
+#define FILTER_BIT 8        // 0: no filter, 1: 1T filter
+#define INSTANT_BIT 9       // ? does not affect instant acquisition, TRIG_EN_BIT (0) is used for that
+#define SLOW_ACQ_BIT 10     // 0: normal acquisition, 1: slow acquisition when bytes per ms < 1024
+#define STRIG_MODE_BIT 11   // 0: normal trigger, 1: serial trigger
+#define STREAM_MODE_BIT 12  // 0: buffer mode, 1: stream mode
+#define LPB_TEST_BIT 13     // 0: normal mode, 1: loopback test mode (?)
+#define EXT_TEST_BIT 14     // 0: normal mode, 1: external test mode (?)
+#define INT_TEST_BIT 15     // 0: normal mode, 1: internal test mode (channels return binary counter)
 
 #define bmNONE          0
-#define bmEEWP          (1 << 0)
-#define bmFORCE_RDY     (1 << 1)
-#define bmFORCE_STOP    (1 << 2)
-#define bmSCOPE_SET     (1 << 3)
-#define bmSCOPE_CLR     (1 << 4)
-#define bmBW20M_SET     (1 << 5)
-#define bmBW20M_CLR     (1 << 6)
+#define bmEEWP          (1 << 0) // EEPROM write protect disable
+#define bmFORCE_RDY     (1 << 1) // get device ready for next acquisition
+#define bmFORCE_STOP    (1 << 2) // stop acquisition now, prepare for data readout
+#define bmSCOPE_SET     (1 << 3) // enable scope mode
+#define bmSCOPE_CLR     (1 << 4) // disable scope mode
+#define bmBW20M_SET     (1 << 5) // enable 20M bandwidth limit
+#define bmBW20M_CLR     (1 << 6) // disable 20M bandwidth limit
 
 /*
  * packet content check
@@ -1240,7 +1240,7 @@ struct DSL_context {
 
     uint64_t ext_samplerate;
 };
-
+#define NUM_XXX (2)
 /*
  * hardware setting for each capture
  */
@@ -1268,7 +1268,13 @@ struct DSL_setting {
     uint16_t ch_en_h;
     uint16_t fgain_header;                  // 12
     uint16_t fgain;
-
+uint16_t xxx_header;                    // 16
+    uint16_t xxx[NUM_XXX];
+//    uint16_t xxx2;
+//uint16_t yyy_header;                    // 14
+//    uint16_t yyy;
+//uint16_t zzz_header;                    // 15
+//    uint16_t zzz;
     uint16_t trig_header;                   // 64
     uint16_t trig_mask0[NUM_TRIGGER_STAGES];
     uint16_t trig_mask1[NUM_TRIGGER_STAGES];
