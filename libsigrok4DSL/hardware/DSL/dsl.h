@@ -1240,7 +1240,7 @@ struct DSL_context {
 
     uint64_t ext_samplerate;
 };
-#define NUM_XXX (2)
+
 /*
  * hardware setting for each capture
  */
@@ -1268,13 +1268,6 @@ struct DSL_setting {
     uint16_t ch_en_h;
     uint16_t fgain_header;                  // 12
     uint16_t fgain;
-uint16_t xxx_header;                    // 16
-    uint16_t xxx[NUM_XXX];
-//    uint16_t xxx2;
-//uint16_t yyy_header;                    // 14
-//    uint16_t yyy;
-//uint16_t zzz_header;                    // 15
-//    uint16_t zzz;
     uint16_t trig_header;                   // 64
     uint16_t trig_mask0[NUM_TRIGGER_STAGES];
     uint16_t trig_mask1[NUM_TRIGGER_STAGES];
