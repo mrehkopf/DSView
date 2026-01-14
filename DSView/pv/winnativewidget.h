@@ -24,9 +24,10 @@
 #ifndef WINNATIVEWINDOW_H
 #define WINNATIVEWINDOW_H
 
+#define UNICODE
 
-#include <Windows.h>
-#include <Windowsx.h>
+#include <windows.h>
+#include <windowsx.h>
 #include <QWidget>
 #include <QByteArray>
 #include <QColor>
