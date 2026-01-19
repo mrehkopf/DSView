@@ -1701,6 +1701,8 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
 {
     QColor active_color = back.black() > 0x80 ? View::Orange : View::Purple;
     _hover_hit = false;
+    int hoverpoint_x = _view.hover_point().x();
+    int hoverpoint_y = _view.hover_point().y();
     if (_action_type == NO_ACTION &&
         _measure_type == LOGIC_FREQ) {
         p.setPen(active_color);
@@ -1732,8 +1734,8 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
             const QString mm_width_samples_long = _mm_width_samples + " " + L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SAMPLES), " samples");
             const double width = _view.get_view_width() - _view.verticalScrollBar()->geometry().width();
             const double height = _view.get_view_height() - _view.horizontalScrollBar()->geometry().height() - View::StatusHeight;
-            const double left = _view.hover_point().x();
-            const double top = _view.hover_point().y();
+            const double left = hoverpoint_x;
+            const double top = hoverpoint_y;
             const double right = left + typical_width;
             const double bottom = top + 140;
             double hover_x, hover_y;
@@ -1959,8 +1961,8 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
 
         const double width = _view.get_view_width();
         const double height = _view.viewport()->height();
-        const double left = _view.hover_point().x();
-        const double top = _view.hover_point().y();
+        const double left = hoverpoint_x;
+        const double top = hoverpoint_y;
         const double right = left + typical_width;
         const double bottom = top + 60;
         QPointF org_pos = QPointF(right > width ? left - typical_width : left, bottom > height ? top - 80 : top);
@@ -2017,8 +2019,8 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
             const int rectW = fm.boundingRect(delta_text).width() + 60;
             const int rectH = fm.height() + 10;
              
-            const int rectY = (height() - _view.hover_point().y() < rectH + 20) ? _view.hover_point().y() - 10 - rectH : _view.hover_point().y() + 20;
-            const int rectX = (width() - _view.hover_point().x() < rectW) ? _view.hover_point().x() - rectW : _view.hover_point().x();
+            const int rectY = (height() - hoverpoint_x < rectH + 20) ? hoverpoint_y - 10 - rectH : hoverpoint_y + 20;
+            const int rectX = (width() - hoverpoint_x < rectW) ? hoverpoint_x - rectW : hoverpoint_x;
             QRectF jump_rect = QRectF(rectX, rectY, rectW, rectH);
 
             p.setPen(Qt::NoPen);
