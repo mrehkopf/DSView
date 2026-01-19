@@ -1045,6 +1045,7 @@ void Viewport::onLogicMouseRelease(QMouseEvent *event)
                             if (abs(event->pos().y() - s->get_y()) < _view.get_signalHeight()) {
                                 set_action(LOGIC_EDGE);
                                 _edge_start = _view.pixel2index(event->pos().x());
+                                measure();
                                 break;
                             }
                         }
@@ -1627,10 +1628,11 @@ void Viewport::measure()
                     }
                 }
                 else if (_action_type == LOGIC_EDGE) {
-                    if (logicSig->edges(_view.hover_point(), _edge_start, _edge_rising, _edge_falling)) {
+                    QPoint edge_point(_view.hover_point().x(), _mouse_down_point.y());
+                    if (logicSig->edges(edge_point, _edge_start, _edge_rising, _edge_falling)) {
                         _cur_preX = _view.index2pixel(_edge_start);
                         _cur_aftX = _view.hover_point().x();
-                        _cur_midY = logicSig->get_y() - logicSig->get_totalHeight()/2 - 5;
+                        _cur_midY = logicSig->get_y();
 
                         _em_rising = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_RISING), "Rising: ") + QString::number(_edge_rising);
                         _em_falling = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_FALLING), "Falling: ") + QString::number(_edge_falling);
@@ -1949,7 +1951,9 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
         p.drawLine(QLineF(_cur_preX, _cur_midY-5, _cur_preX, _cur_midY+5));
         p.drawLine(QLineF(_cur_aftX, _cur_midY-5, _cur_aftX, _cur_midY+5));
         p.drawLine(QLineF(_cur_preX, _cur_midY, _cur_aftX, _cur_midY));
-
+        p.setPen(QPen(active_color, 1, Qt::DashLine));
+        p.drawLine(QLineF(_cur_preX, _cur_midY, _cur_preX, hoverpoint_y));
+        p.drawLine(QLineF(_cur_aftX, _cur_midY, _cur_aftX, hoverpoint_y));
         int typical_width = p.boundingRect(0, 0, INT_MAX, INT_MAX,
             Qt::AlignLeft | Qt::AlignTop, _em_edges).width();
         typical_width = max(typical_width, p.boundingRect(0, 0, INT_MAX, INT_MAX,
