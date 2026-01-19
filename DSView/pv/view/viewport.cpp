@@ -1831,7 +1831,7 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
             QRectF measure6_rect = QRectF(org_pos.x()+5, org_pos.y()+115, (double)typical_width-10, 20.0);
 
             p.setPen(Qt::NoPen);
-            p.setBrush(View::TransparentLightBlue);
+            p.setBrush(back.black() > 0x80 ? View::TransparentLightBlue : View::TransparentLightYellow);
             p.drawRect(measure_rect);
 
             p.setPen(active_color);
@@ -2045,7 +2045,7 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
         QRectF measure3_rect = QRectF(org_pos.x(), org_pos.y()+40, (double)typical_width, 20.0);
 
         p.setPen(Qt::NoPen);
-        p.setBrush(View::TransparentLightBlue);
+        p.setBrush(back.black() > 0x80 ? View::TransparentLightBlue : View::TransparentLightYellow);
         p.drawRect(measure_rect);
 
         p.setPen(active_color);
