@@ -1709,11 +1709,15 @@ void Viewport::measure()
 
 void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
 {
+    const int line_width = 1;
+    const int arrowhead_length = 2;
     QColor active_color = back.black() > 0x80 ? View::Orange : View::Purple;
     QColor active_color2 = back.black() > 0x80 ? Qt::yellow : Qt::darkRed;
     QColor rising_edge_color = View::TransparentLightRed;
     QColor falling_edge_color = View::TransparentLightBlue;
+
     _hover_hit = false;
+
     int hoverpoint_x = _view.hover_point().x();
     int hoverpoint_y = _view.hover_point().y();
 
@@ -1724,8 +1728,42 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
 
     if (_action_type == NO_ACTION &&
         _measure_type == LOGIC_FREQ) {
+        int widthY = _cur_midY - 4;
+        int periodY = _cur_midY + 4;
+
+        int xoffset = line_width / 2;
+        int width_X1, width_X2, width_arrowhead_offset;
+        int period_X1, period_X2, period_arrowhead_offset;
+
         int edge_topY = _cur_midY - _cur_trace->get_totalHeight()/2;
         int edge_bottomY = _cur_midY + _cur_trace->get_totalHeight()/2;
+
+        // for small spaces between two edges, draw arrowheads outside
+        if((_cur_aftX - _cur_preX) < (3 * arrowhead_length + line_width)) {
+            width_X1 = _cur_preX - xoffset;
+            width_X2 = _cur_aftX + xoffset;
+            width_arrowhead_offset = -arrowhead_length;
+        } else {
+            width_X1 = _cur_preX + xoffset;
+            width_X2 = _cur_aftX - xoffset;
+            width_arrowhead_offset = arrowhead_length;
+        }
+        if((_cur_thdX - _cur_preX) < (3 * arrowhead_length + line_width)) {
+            period_X1 = _cur_preX - xoffset;
+            period_X2 = _cur_thdX + xoffset;
+            period_arrowhead_offset = -arrowhead_length;
+        } else {
+            period_X1 = _cur_preX + xoffset;
+            period_X2 = _cur_thdX - xoffset;
+            period_arrowhead_offset = arrowhead_length;
+        }
+
+        p.setPen(QPen(active_color, line_width));
+        p.drawLine(QLineF(width_X1, widthY, width_X2, widthY));
+        p.drawLine(QLineF(width_X1, widthY, width_X1 + width_arrowhead_offset, widthY - width_arrowhead_offset));
+        p.drawLine(QLineF(width_X1, widthY, width_X1 + width_arrowhead_offset, widthY + width_arrowhead_offset));
+        p.drawLine(QLineF(width_X2 - width_arrowhead_offset, widthY - width_arrowhead_offset, width_X2, widthY));
+        p.drawLine(QLineF(width_X2 - width_arrowhead_offset, widthY + width_arrowhead_offset, width_X2, widthY));
 
         p.setPen(QPen(_cur_preEdge ? rising_edge_color : falling_edge_color, 1, Qt::DashLine));
         p.drawLine(QLineF(_cur_preX, 0, _cur_preX, _view.get_view_height()));
@@ -1738,6 +1776,12 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
         p.drawLine(QLineF(_cur_aftX, edge_topY, _cur_aftX, edge_bottomY));
 
         if (_thd_sample != 0) {
+            p.setPen(QPen(active_color2, line_width));
+            p.drawLine(QLineF(period_X1, periodY, period_X2, periodY));
+            p.drawLine(QLineF(period_X1, periodY, period_X1 + period_arrowhead_offset, periodY - period_arrowhead_offset));
+            p.drawLine(QLineF(period_X1, periodY, period_X1 + period_arrowhead_offset, periodY + period_arrowhead_offset));
+            p.drawLine(QLineF(period_X2 - period_arrowhead_offset, periodY - period_arrowhead_offset, period_X2, periodY));
+            p.drawLine(QLineF(period_X2 - period_arrowhead_offset, periodY + period_arrowhead_offset, period_X2, periodY));
             p.setPen(QPen(_cur_preEdge ? rising_edge_color : falling_edge_color, 1, Qt::DashLine));
             p.drawLine(QLineF(_cur_thdX, 0, _cur_thdX, _view.get_view_height()));
             p.setPen(QPen(active_color2, 1));
@@ -1795,10 +1839,12 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
                        L_S(STR_PAGE_DLG, S_ID(IDS_DLG_WIDTH), "Width: "));
             p.drawText(measure1_rect, Qt::AlignRight | Qt::AlignVCenter,_mm_width_time);
             p.drawText(measure2_rect, Qt::AlignRight | Qt::AlignVCenter,mm_width_samples_long);
+            p.setPen(active_color2);
             p.drawText(measure3_rect, Qt::AlignLeft | Qt::AlignVCenter,
                        L_S(STR_PAGE_DLG, S_ID(IDS_DLG_PERIOD), "Period: "));
             p.drawText(measure3_rect, Qt::AlignRight | Qt::AlignVCenter, _mm_period_time);
             p.drawText(measure4_rect, Qt::AlignRight | Qt::AlignVCenter, mm_period_samples_long);
+            p.setPen(active_color);
             p.drawText(measure5_rect, Qt::AlignLeft | Qt::AlignVCenter,
                        L_S(STR_PAGE_DLG, S_ID(IDS_DLG_FREQUENCY), "Frequency: "));
             p.drawText(measure5_rect, Qt::AlignRight | Qt::AlignVCenter, _mm_freq);
