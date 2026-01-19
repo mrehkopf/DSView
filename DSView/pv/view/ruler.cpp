@@ -584,17 +584,6 @@ void Ruler::draw_logic_tick_mark(QPainter &p)
         cursor->paint_label(p, rect(), prefix, bWorkStoped, isShowSamples);
     }
 
-    if (cursor_list.size()) {
-        auto i = cursor_list.begin();
-        int index = 1;
-
-        while (i != cursor_list.end()) {
-            (*i)->paint_label(p, rect(), prefix, bWorkStoped, isShowSamples);
-            index++;
-            i++;
-        }
-    }
-
     if (_view.trig_cursor_shown()) {
         _view.get_trig_cursor()->paint_fix_label(p, rect(), prefix, 'T', _view.get_trig_cursor()->get_color(), false, isShowSamples);
     }
