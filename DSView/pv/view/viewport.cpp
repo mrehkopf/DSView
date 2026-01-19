@@ -1614,6 +1614,15 @@ void Viewport::measure()
                         _cur_midY = logicSig->get_y();
                         _cur_trace = logicSig;
                         _cur_preEdge = edge0;
+                        if(_thd_sample != 0) {
+                            uint64_t duty_pos = edge0 ? _nxt_sample - _cur_sample : _thd_sample  - _nxt_sample;
+                            double duty_pct_pos = duty_pos * 100.0 / (_thd_sample - _cur_sample);
+                            double duty_pct_neg = 100.0 - duty_pct_pos;
+                            _mm_duty = "+"+QString::number(duty_pct_pos, 'f', 2) + "% / "
+                                     + "-" +QString::number(duty_pct_neg, 'f', 2) + "%";
+                        } else {
+                            _mm_duty = View::Unknown_Str;
+                        }
                         break;
                     }
                     else {
