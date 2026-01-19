@@ -404,7 +404,7 @@ void Viewport::paintSignals(QPainter &p, QColor fore, QColor back)
         // plot zoom rect
         if (_action_type == LOGIC_ZOOM) {
             p.setPen(Qt::NoPen);
-            p.setBrush(View::LightBlue);
+            p.setBrush(View::TransparentLightBlue);
             p.drawRect(QRectF(_mouse_down_point, _mouse_point));
         }
 
@@ -1760,7 +1760,7 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
             QRectF measure6_rect = QRectF(org_pos.x()+5, org_pos.y()+115, (double)typical_width-10, 20.0);
 
             p.setPen(Qt::NoPen);
-            p.setBrush(View::LightBlue);
+            p.setBrush(View::TransparentLightBlue);
             p.drawRect(measure_rect);
 
             p.setPen(active_color);
@@ -1970,7 +1970,7 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
         QRectF measure3_rect = QRectF(org_pos.x(), org_pos.y()+40, (double)typical_width, 20.0);
 
         p.setPen(Qt::NoPen);
-        p.setBrush(View::LightBlue);
+        p.setBrush(View::TransparentLightBlue);
         p.drawRect(measure_rect);
 
         p.setPen(active_color);
@@ -2022,7 +2022,7 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
             QRectF jump_rect = QRectF(rectX, rectY, rectW, rectH);
 
             p.setPen(Qt::NoPen);
-            p.setBrush(View::LightBlue);
+            p.setBrush(View::TransparentLightBlue);
             p.drawRect(jump_rect);
 
             p.setPen(active_color);

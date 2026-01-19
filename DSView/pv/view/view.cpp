@@ -75,8 +75,9 @@ const QColor View::Orange = QColor(238, 178, 17, 255);
 const QColor View::Blue = QColor(17, 133, 209,  255);
 const QColor View::Green = QColor(0, 153, 37, 255);
 const QColor View::Purple = QColor(109, 50, 156, 255);
-const QColor View::LightBlue = QColor(17, 133, 209, 200);
-const QColor View::LightRed = QColor(213, 15, 37, 200);
+const QColor View::TransparentLightBlue = QColor(17, 133, 209, 200);
+const QColor View::TransparentLightRed = QColor(213, 15, 37, 200);
+const QColor View::TransparentLightYellow = QColor(255, 233, 115, 200);
 
 
 View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget *parent) :
@@ -186,7 +187,7 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
 
     _show_trig_cursor = false;
     _trig_cursor = new Cursor(*this, -1, 0);
-    _trig_cursor->set_colour(View::LightRed);
+    _trig_cursor->set_colour(View::TransparentLightRed);
     _show_search_cursor = false;
     _search_pos = 0;
     _search_cursor = new Cursor(*this, -1, _search_pos);
