@@ -656,6 +656,7 @@ void Viewport::mousePressEvent(QMouseEvent *event)
     _drag_timer.stop();
     _elapsed_time.restart();
     _drag_delta_t = 0;
+    _drag_delta_x = 0;
 
     // cancel potential ongoing MOVE action so click/drag is evaluated anew
     if (_action_type == LOGIC_MOVE) {
@@ -807,11 +808,11 @@ void Viewport::updateDragVelocity(QMouseEvent *event)
     _elapsed_time.restart();
     _drag_delta_x += (_drag_last_mouse_pos - event->pos()).x();
     _drag_last_mouse_pos = event->pos();
-//printf("elapsed=%lld delta_x=%d \n", _valid_elapsed, _delta_x);
+// printf("elapsed=%lld delta_x=%d \n", _drag_delta_t, _drag_delta_x);
     if(_drag_delta_t > DragVelocityMeasureIntervalMs) {
         _drag_velocity = (double)_drag_delta_x / (double)_drag_delta_t;
         _drag_strength = _drag_velocity * 12; // adjust strength
-//printf("_drag_velocity=%f _drag_strength=%d elapsed=%lld\n", _drag_velocity, _drag_strength, _valid_elapsed);
+// printf("_drag_velocity=%f _drag_strength=%d elapsed=%lld\n", _drag_velocity, _drag_strength, _drag_delta_t);
         _drag_delta_t = 0;
         _drag_delta_x = 0;
     }
