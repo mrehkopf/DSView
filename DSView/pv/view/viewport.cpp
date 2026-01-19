@@ -1716,6 +1716,12 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
     _hover_hit = false;
     int hoverpoint_x = _view.hover_point().x();
     int hoverpoint_y = _view.hover_point().y();
+
+    QColor hover_color = fore;
+    hover_color.setAlpha(140);
+    p.setPen(QPen(hover_color, 1, Qt::DashLine));
+    p.drawLine(QLineF(hoverpoint_x, 0, hoverpoint_x, _view.get_view_height()));
+
     if (_action_type == NO_ACTION &&
         _measure_type == LOGIC_FREQ) {
         int edge_topY = _cur_midY - _cur_trace->get_totalHeight()/2;
