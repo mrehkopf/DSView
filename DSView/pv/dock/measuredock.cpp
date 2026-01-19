@@ -759,8 +759,8 @@ void MeasureDock::update_cursor_info()
     for(int i = 0; i < num_cursors; i++)
     {   
         if (mode_rows->_opt_row_list[i].info_label != NULL){
-            QString cur_pos = _view.get_cm_time(i) + "/" 
-                    + QString::number(_view.get_cursor_samples(i));
+            QString cur_pos = _view.get_cm_time(i, true) + "/" 
+                    + QString::number(_view.get_cursor_samples(i, true));
             mode_rows->_opt_row_list[i].info_label->setText(cur_pos);
         }
     }

@@ -64,9 +64,9 @@ public:
         unsigned precision = pricision);
     static QString format_freq(double period, unsigned int precision = pricision);
     QString format_time(double t);
-    static QString format_real_time(uint64_t delta_index, uint64_t sample_rate);
-    static QString format_real_freq(uint64_t delta_index, uint64_t sample_rate);
-    static QString format_samples(uint64_t delta_index);
+    static QString format_real_time(int64_t delta_index, uint64_t sample_rate);
+    static QString format_real_freq(int64_t delta_index, uint64_t sample_rate);
+    static QString format_samples(int64_t delta_index);
 
     TimeMarker* get_grabbed_cursor();
     void set_grabbed_cursor(TimeMarker* grabbed_marker);

@@ -275,8 +275,8 @@ public:
     void set_update(Viewport *viewport, bool need_update);
     void set_all_update(bool need_update);
 
-    uint64_t get_cursor_samples(int index);
-    QString get_cm_time(int index);
+    int64_t get_cursor_samples(int index, bool trigger_relative = false);
+    QString get_cm_time(int index, bool trigger_relative = false);
     QString get_cm_delta(int index1, int index2);
     QString get_index_delta(uint64_t start, uint64_t end);
 

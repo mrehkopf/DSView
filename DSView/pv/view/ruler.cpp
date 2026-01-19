@@ -157,13 +157,16 @@ QString Ruler::format_time(double t, int prefix,
     */
 
     char buffer[50];
+    char *b = buffer;
     char format[15];
     QString units = SIPrefixes[prefix] + "s";
     double v = (t * multiplier) / 1000000.0;
-    buffer[0] = v >= 0 ? '+' : '-';
+    if(v >= 0) {
+        *(b++) = '+';
+    }
     sprintf(format, "%%.%df", (int)precision);   
-    sprintf(buffer + 1, format, v);
-    strcat(buffer + 1, units.toUtf8().data());
+    sprintf(b, format, v);
+    strcat(b, units.toUtf8().data());
     return QString(buffer);
 }
 
@@ -172,13 +175,13 @@ QString Ruler::format_time(double t)
     return format_time(t, _cur_prefix);
 }
 
-QString Ruler::format_real_time(uint64_t delta_index, uint64_t sample_rate)
+QString Ruler::format_real_time(int64_t delta_index, uint64_t sample_rate)
 {
     double v1 = (double)std::pow(10, 12) / (double)sample_rate;
     double delta_time_double = v1 * delta_index;
-    uint64_t delta_time = v1 * delta_index;
+    int64_t delta_time = v1 * delta_index;
 
-    if (delta_time_double > UINT64_MAX){
+    if (delta_time_double > INT64_MAX || delta_time_double < INT64_MIN){
         return "INF";
     }
 
@@ -187,7 +190,7 @@ QString Ruler::format_real_time(uint64_t delta_index, uint64_t sample_rate)
     }
 
     int zero = 0;
-    int prefix = (int)floor(log10(delta_time));
+    int prefix = (int)floor(log10(abs(delta_time)));
     while(delta_time == (delta_time/10*10)) {
         delta_time /= 10;
         zero++;
@@ -196,14 +199,20 @@ QString Ruler::format_real_time(uint64_t delta_index, uint64_t sample_rate)
     return format_time(delta_time / std::pow(10.0, 12-zero), prefix/3+1, prefix/3*3 > zero ? prefix/3*3 - zero : 0);
 }
 
-QString Ruler::format_real_freq(uint64_t delta_index, uint64_t sample_rate)
+QString Ruler::format_real_freq(int64_t delta_index, uint64_t sample_rate)
 {
     const double delta_period = delta_index * 1.0 / sample_rate;
     return format_freq(delta_period);
 }
 
-QString Ruler::format_samples(uint64_t delta_index) {
-    return QString::number(delta_index);
+QString Ruler::format_samples(int64_t delta_index) {
+    char buffer[50];
+    char *b = buffer;
+    if(delta_index > 0) {
+        *(b++) = '+';
+    }
+    sprintf(b, "%ld", delta_index);
+    return QString(buffer);
 }
 
 TimeMarker* Ruler::get_grabbed_cursor()
@@ -465,6 +474,13 @@ void Ruler::draw_logic_tick_mark(QPainter &p)
     const unsigned int prefix = (order - FirstSIPrefixPower) / 3;
     _cur_prefix = prefix;
     assert(prefix < countof(SIPrefixes));
+
+    /* calculate time/samples relative to trigger point */
+    uint64_t trigger_pos = _view.session().get_trigger_pos();
+    double trigger_time = (double)trigger_pos / (double)samplerate;
+    double time_prep = (double)offset * scale - ((double)trigger_pos / (double)samplerate);
+//    uint64_t samples_prep = (double)offset * scale * (double)samplerate - trigger_pos;
+
     /* Previously, here the bounding box width of the actual printed time was
        used for space calculations. Since the width fluctuates based on the
        numbers comprising the timestamp, this method could lead to undesired
@@ -473,9 +489,9 @@ void Ruler::draw_logic_tick_mark(QPainter &p)
        Instead, now the string length of the formatted time, multiplied by a
        fixed character width (of character "8") is used now which is stable. */
     typical_width = p.boundingRect(0, 0, INT_MAX, INT_MAX, AlignLeft | AlignTop, "8").width()
-                  * (isShowSamples ? format_samples((double)(offset + _view.get_view_width())
+                  * (isShowSamples ? format_samples((double)(offset + _view.get_view_width()) // rightmost visible sample number
                                                      * scale * (double)samplerate).length()
-                                   : format_time(offset * scale, prefix).length())
+                                   : format_time(time_prep, prefix).length())
                   + MinValueSpacing;
     do
     {
@@ -498,9 +514,9 @@ void Ruler::draw_logic_tick_mark(QPainter &p)
     assert(minor_prefix < countof(SIPrefixes));
 
     const double first_major_division =
-        floor(offset * scale / tick_period);
+        floor(time_prep / tick_period);
     const double first_minor_division =
-        floor(offset * scale / minor_tick_period + 1);
+        floor(time_prep / minor_tick_period + 1);
     const double t0 = first_major_division * tick_period;
 
     int division = (int)round(first_minor_division -
@@ -522,7 +538,9 @@ void Ruler::draw_logic_tick_mark(QPainter &p)
         const double t = t0 + division * minor_tick_period;
         const double major_t = t0 + floor(division / MinPeriodScale) * tick_period;
 
-        x = t / scale - offset;
+        // for absolute viewport X calculation, offset the trigger time again that
+        // we subtracted for trigger relative time calculation
+        x = (t + trigger_time) / scale - offset;
 
         if (division % MinPeriodScale == 0)
         {

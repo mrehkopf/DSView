@@ -1164,9 +1164,9 @@ QString View::get_measure(QString option)
     return Unknown_Str;
 }
 
-QString View::get_cm_time(int index)
+QString View::get_cm_time(int index, bool trigger_relative)
 {
-    uint64_t sampleIndex = get_cursor_samples(index);
+    uint64_t sampleIndex = get_cursor_samples(index, trigger_relative);
     uint64_t sampleRate = _session->cur_snap_samplerate();
     return _ruler->format_real_time(sampleIndex, sampleRate);
 }
@@ -1191,7 +1191,7 @@ QString View::get_index_delta(uint64_t start, uint64_t end)
     return _ruler->format_real_time(delta_sample, _session->cur_snap_samplerate());
 }
 
-uint64_t View::get_cursor_samples(int index)
+int64_t View::get_cursor_samples(int index, bool trigger_relative)
 {
     auto &lst = get_cursorList();
     assert(index < (int)lst.size());
@@ -1202,6 +1202,9 @@ uint64_t View::get_cursor_samples(int index)
          i != lst.end(); i++) {
         if (index == curIndex) {
             ret = (*i)->index();
+            if(trigger_relative) {
+                ret -= session().get_trigger_pos();
+            }
         }
         curIndex++;
     }

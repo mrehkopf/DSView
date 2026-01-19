@@ -119,8 +119,8 @@ void Cursor::paint_label(QPainter &p, const QRect &rect,
     p.drawLine(close.left() + 2, close.bottom() - 2, close.right() - 2, close.top() + 2);
 
 	p.drawText(r, Qt::AlignCenter | Qt::AlignVCenter,
-        show_samples ? Ruler::format_samples(_index)
-                     : Ruler::format_real_time(_index, _view.session().cur_snap_samplerate()));
+        show_samples ? Ruler::format_samples(_index - _view.session().get_trigger_pos())
+                     : Ruler::format_real_time(_index - _view.session().get_trigger_pos(), _view.session().cur_snap_samplerate()));
 
     const QRect arrowRect = QRect(r.bottomLeft().x(), r.bottomLeft().y(), r.width(), ArrowSize);
     p.drawText(arrowRect, Qt::AlignCenter | Qt::AlignVCenter, QString::number(_order));
