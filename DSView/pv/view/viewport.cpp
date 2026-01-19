@@ -1598,9 +1598,9 @@ void Viewport::measure()
         for(auto s : _view.session().get_signals()) {
             if (s->signal_type() == SR_CHANNEL_LOGIC) {
                 view::LogicSignal *logicSig  = (view::LogicSignal*)s;
-                
+                bool edge0;
                 if (_action_type == NO_ACTION) {
-                    if (logicSig->measure(_mouse_point, _cur_sample, _nxt_sample, _thd_sample)) {
+                    if (logicSig->measure(_mouse_point, _cur_sample, _nxt_sample, _thd_sample, edge0)) {
                         _measure_type = LOGIC_FREQ;
 
                         _mm_width_time = _view.get_ruler()->format_real_time(_nxt_sample - _cur_sample, sample_rate);
@@ -1612,9 +1612,8 @@ void Viewport::measure()
                         _cur_aftX = _view.index2pixel(_nxt_sample);
                         _cur_thdX = _view.index2pixel(_thd_sample);
                         _cur_midY = logicSig->get_y();
-
-                        _mm_duty = _thd_sample != 0 ? QString::number((_nxt_sample - _cur_sample) * 100.0 / (_thd_sample - _cur_sample), 'f', 2)+"%" :
-                                                     View::Unknown_Str;
+                        _cur_trace = logicSig;
+                        _cur_preEdge = edge0;
                         break;
                     }
                     else {
@@ -1702,23 +1701,32 @@ void Viewport::measure()
 void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
 {
     QColor active_color = back.black() > 0x80 ? View::Orange : View::Purple;
+    QColor active_color2 = back.black() > 0x80 ? Qt::yellow : Qt::darkRed;
+    QColor rising_edge_color = View::TransparentLightRed;
+    QColor falling_edge_color = View::TransparentLightBlue;
     _hover_hit = false;
     int hoverpoint_x = _view.hover_point().x();
     int hoverpoint_y = _view.hover_point().y();
     if (_action_type == NO_ACTION &&
         _measure_type == LOGIC_FREQ) {
-        p.setPen(active_color);
-        p.drawLine(QLineF(_cur_preX, _cur_midY, _cur_aftX, _cur_midY));
-        p.drawLine(QLineF(_cur_preX, _cur_midY, _cur_preX + 2, _cur_midY - 2));
-        p.drawLine(QLineF(_cur_preX, _cur_midY, _cur_preX + 2, _cur_midY + 2));
-        p.drawLine(QLineF(_cur_aftX - 2, _cur_midY - 2, _cur_aftX, _cur_midY));
-        p.drawLine(QLineF(_cur_aftX - 2, _cur_midY + 2, _cur_aftX, _cur_midY));
+        int edge_topY = _cur_midY - _cur_trace->get_totalHeight()/2;
+        int edge_bottomY = _cur_midY + _cur_trace->get_totalHeight()/2;
+
+        p.setPen(QPen(_cur_preEdge ? rising_edge_color : falling_edge_color, 1, Qt::DashLine));
+        p.drawLine(QLineF(_cur_preX, 0, _cur_preX, _view.get_view_height()));
+        p.setPen(QPen(active_color2, 1));
+        p.drawLine(QLineF(_cur_preX, edge_topY, _cur_preX, edge_bottomY));
+
+        p.setPen(QPen(_cur_preEdge ? falling_edge_color : rising_edge_color, 1, Qt::DashLine));
+        p.drawLine(QLineF(_cur_aftX, 0, _cur_aftX, _view.get_view_height()));
+        p.setPen(QPen(active_color, 1));
+        p.drawLine(QLineF(_cur_aftX, edge_topY, _cur_aftX, edge_bottomY));
+
         if (_thd_sample != 0) {
-            p.drawLine(QLineF(_cur_aftX, _cur_midY, _cur_thdX, _cur_midY));
-            p.drawLine(QLineF(_cur_aftX, _cur_midY, _cur_aftX + 2, _cur_midY - 2));
-            p.drawLine(QLineF(_cur_aftX, _cur_midY, _cur_aftX + 2, _cur_midY + 2));
-            p.drawLine(QLineF(_cur_thdX - 2, _cur_midY - 2, _cur_thdX, _cur_midY));
-            p.drawLine(QLineF(_cur_thdX - 2, _cur_midY + 2, _cur_thdX, _cur_midY));
+            p.setPen(QPen(_cur_preEdge ? rising_edge_color : falling_edge_color, 1, Qt::DashLine));
+            p.drawLine(QLineF(_cur_thdX, 0, _cur_thdX, _view.get_view_height()));
+            p.setPen(QPen(active_color2, 1));
+            p.drawLine(QLineF(_cur_thdX, edge_topY, _cur_thdX, edge_bottomY));
         }
 
         if (_measure_en) {

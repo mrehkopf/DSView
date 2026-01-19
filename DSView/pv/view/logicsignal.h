@@ -94,6 +94,7 @@ public:
     void paint_mid(QPainter &p, int left, int right, QColor fore, QColor back);
 
     bool measure(const QPointF &p, uint64_t &index0, uint64_t &index1, uint64_t &index2);
+    bool measure(const QPointF &p, uint64_t &index0, uint64_t &index1, uint64_t &index2, bool &edge0);
 
     bool is_by_edge(const QPointF &p, uint64_t &index, int radius);
 

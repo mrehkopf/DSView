@@ -190,6 +190,7 @@ private:
     bool        _measure_en;
     ActionType  _action_type;
     MeasureType _measure_type;
+    Signal      *_cur_trace;
     uint64_t    _cur_sample;
     uint64_t    _nxt_sample;
     uint64_t    _thd_sample;
@@ -201,6 +202,7 @@ private:
     int         _cur_preY_top;
     int         _cur_preY_bottom;
     int         _cur_aftY;
+    bool        _cur_preEdge;
     bool        _edge_hit;
     QString     _mm_width_time;
     QString     _mm_width_samples;

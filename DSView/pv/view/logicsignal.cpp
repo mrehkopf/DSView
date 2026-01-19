@@ -290,6 +290,12 @@ void LogicSignal::paint_type_options(QPainter &p, int right, const QPoint pt, QC
 
 bool LogicSignal::measure(const QPointF &p, uint64_t &index0, uint64_t &index1, uint64_t &index2)
 {
+    bool b;
+    return measure(p, index0, index1, index2, b);
+}
+
+bool LogicSignal::measure(const QPointF &p, uint64_t &index0, uint64_t &index1, uint64_t &index2, bool &edge0)
+{
     const float gap = abs(p.y() - get_y());
     if (gap < get_totalHeight() * 0.5) {
 
@@ -304,6 +310,7 @@ bool LogicSignal::measure(const QPointF &p, uint64_t &index0, uint64_t &index1, 
         }
 
         bool sample = _data->get_sample(index, get_index());
+        edge0 = sample;
         if (index == 0){
             index0 = index;
         }
