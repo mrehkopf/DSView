@@ -538,7 +538,7 @@ private:
 		        const struct sr_datafeed_packet *packet);
 
     static void device_lib_event_callback(int event);
-    
+    bool wait_transfer_end(int timeout_ms);
     void on_device_lib_event(int event);
     Snapshot* get_signal_snapshot();
     void repeat_capture_wait_timeout();
