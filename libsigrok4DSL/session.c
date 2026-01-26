@@ -210,6 +210,7 @@ SR_PRIV int sr_session_run(void)
 	if (session->num_sources == 1 && session->pollfds[0].fd == -1) {
 		/* Dummy source, freewheel over it. */
         while (session->num_sources) {
+            g_usleep(1000 * session->sources[0].timeout);
             if (session->abort_session) {
                 session->sources[0].cb(-1, -1, session->sources[0].cb_data);
                 break;
