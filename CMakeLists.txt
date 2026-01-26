@@ -192,15 +192,18 @@ find_package(Qt5Core QUIET)
 if(Qt5Core_FOUND)
 	message("----- Qt5:")
 	message(STATUS "	 includes:" ${Qt5Core_INCLUDE_DIRS})
-	#find_package(Qt5WinExtras REQUIRED)
 	find_package(Qt5Widgets REQUIRED)
 	find_package(Qt5Gui REQUIRED)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Qt5Widgets_EXECUTABLE_COMPILE_FLAGS}")
-	#set(QT_INCLUDE_DIRS ${Qt5Gui_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS} ${Qt5WinExtras_INCLUDE_DIRS})
-	#set(QT_LIBRARIES Qt5::Gui Qt5::Widgets Qt5::WinExtras)
 	set(QT_INCLUDE_DIRS ${Qt5Gui_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS})
 	set(QT_LIBRARIES Qt5::Gui Qt5::Widgets)
 	add_definitions(${Qt5Gui_DEFINITIONS} ${Qt5Widgets_DEFINITIONS})
+    if(WIN32)
+        find_package(Qt5WinExtras REQUIRED)
+        add_definitions(${Qt5WinExtras_DEFINITIONS})
+        list(APPEND QT_LIBRARIES Qt5::WinExtras)
+        list(APPEND QT_INCLUDE_DIRS ${Qt5WinExtras_INCLUDE_DIRS})
+    endif()
 else()
 	find_package(Qt6Core QUIET)
 endif()
@@ -565,6 +568,14 @@ if(WIN32)
 	enable_language(RC)
 	# app icon
         list(APPEND DSView_SOURCES applogo.rc)
+        list(APPEND DSView_SOURCES
+            DSView/pv/winnativewidget.cpp
+            DSView/pv/winshadow.cpp
+        )
+        list(APPEND DSView_HEADERS
+            DSView/pv/winnativewidget.h
+            DSView/pv/winshadow.h
+        )
 endif()
 
 if(Qt5Core_FOUND)
