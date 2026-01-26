@@ -56,6 +56,7 @@
 #include "utility/path.h"
 #include "ui/msgbox.h"
 #include "ui/langresource.h"
+#include <qelapsedtimer.h>
 
 namespace pv
 {
@@ -2054,12 +2055,45 @@ namespace pv
 
     void SigSession::device_lib_event_callback(int event)
     {
+        dsv_dbg("device_lib_event_callback,event=%d", event);
         if (_session == NULL)
         {
             dsv_err("Error!Global variable \"_session\" is null.");
             return;
         }
         _session->on_device_lib_event(event);
+    }
+
+    /**
+     * @brief wait for _last_ended flag set in capture data, marking the completion
+     * of the current acquisition process.
+     *
+     * @param timeout_ms wait timeout in milliseconds.
+     * @return true transfers completed within timeout specified
+     * @return false transfers did not complete, timeout occurred.
+     */
+    bool SigSession::wait_transfer_end(int timeout_ms)
+    {
+        dsv_info("%s: wait for data transfer end", __func__);
+        QElapsedTimer timer;
+        timer.start();
+
+        while (true)
+        {
+            if (_capture_data->get_logic()->last_ended()
+             && _capture_data->get_dso()->last_ended()
+             && _capture_data->get_analog()->last_ended())
+            {
+                dsv_info("%s: data transfer ended after %lld ms", __func__, timer.elapsed());
+                return true;
+            }
+            if (timer.elapsed() >= timeout_ms)
+            {
+                dsv_err("%s: wait timeout (%d ms)!", __func__, timeout_ms);
+                return false;
+            }
+        }
+        return false;
     }
 
     void SigSession::on_device_lib_event(int event)
@@ -2079,10 +2113,8 @@ namespace pv
 
         case DS_EV_DEVICE_STOPPED:
             _device_status = ST_STOPPED;
-            // Confirm that SR_DF_END was received
-            if (   !_capture_data->get_logic()->last_ended() 
-                || !_capture_data->get_dso()->last_ended()
-                || !_capture_data->get_analog()->last_ended())
+            // wait for the final transfer to end, handled by hotplug thread
+            if(!wait_transfer_end(1000))
             {
                 dsv_err("Error!The data is not completed.");
                 assert(false);
