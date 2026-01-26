@@ -1239,6 +1239,9 @@ struct DSL_context {
     int is_loop;
 
     uint64_t ext_samplerate;
+
+    GThread *usb_thread;
+    gboolean usb_thread_quit;
 };
 
 /*
