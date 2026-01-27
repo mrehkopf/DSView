@@ -168,6 +168,10 @@ static struct DSL_context *DSCope_dev_new(const struct DSL_profile *prof)
     devc->bw_limit = BW_FULL;
     devc->is_loop = 0;
 
+    /* Polling thread for Windows (no pollfds available) */
+    devc->usb_thread = NULL;
+    devc->usb_thread_quit = FALSE;
+
     dsl_adjust_samplerate(devc);
 	return devc;
 }
@@ -1900,11 +1904,21 @@ static int cleanup(void)
 static void remove_sources(struct DSL_context *devc)
 {
     int i;
-    sr_info("%s: remove fds from polling", __func__);
-    /* Remove fds from polling. */
-    for (i = 0; devc->usbfd[i] != -1; i++)
-        sr_source_remove(devc->usbfd[i]);
-    g_free(devc->usbfd);
+    if(devc->usbfd) {
+        sr_info("%s: remove fds from polling", __func__);
+        /* Remove fds from polling. */
+        for (i = 0; devc->usbfd[i] != -1; i++)
+            sr_source_remove(devc->usbfd[i]);
+        g_free(devc->usbfd);
+        devc->usbfd = NULL;
+    }
+
+    if(devc->usb_thread) {
+        sr_info("%s: stop USB event thread", __func__);
+        sr_source_remove(-1);
+        devc->usb_thread_quit = TRUE;
+        devc->usb_thread = NULL;
+    }
 }
 
 static int receive_data(int fd, int revents, const struct sr_dev_inst *sdi)
@@ -1958,6 +1972,27 @@ static int receive_data(int fd, int revents, const struct sr_dev_inst *sdi)
 
     devc->trf_completed = 0;
     return TRUE;
+}
+
+static gpointer usb_event_thread(gpointer data)
+{
+    struct sr_dev_inst *sdi = (struct sr_dev_inst *)data;
+    struct DSL_context *devc = (struct DSL_context *)sdi->priv;
+    struct drv_context *drvc = (struct drv_context *)di->priv;
+    struct sr_context *sr_ctx = drvc->sr_ctx;
+
+    sr_dbg("%s: enter usb event handling thread.", __func__);
+
+    struct timeval tv;
+    while (!devc->usb_thread_quit) {
+        int completed = 1;
+        tv.tv_sec = 0;
+        tv.tv_usec = 1000 * dsl_get_timeout(sdi);
+        libusb_handle_events_timeout_completed(sr_ctx->libusb_ctx, &tv, &completed);
+    }
+
+    sr_dbg("%s: exit usb event handling thread.", __func__);
+    return NULL;
 }
 
 static int dev_acquisition_start(struct sr_dev_inst *sdi, void *cb_data)
@@ -2089,22 +2124,37 @@ static int dev_acquisition_start(struct sr_dev_inst *sdi, void *cb_data)
 
     /* setup callback function for data transfer */
     lupfd = libusb_get_pollfds(drvc->sr_ctx->libusb_ctx);
-    for (i = 0; lupfd[i]; i++);
+    if(lupfd != NULL) {
+        for (i = 0; lupfd[i]; i++);
 
-    if (!(devc->usbfd = g_try_malloc0(sizeof(struct libusb_pollfd) * (i + 1)))){
-        sr_err("%s,ERROR:failed to alloc memory.", __func__);
-    	return SR_ERR;
+        if (!(devc->usbfd = g_try_malloc0(sizeof(struct libusb_pollfd) * (i + 1)))){
+            sr_err("%s,ERROR:failed to alloc memory.", __func__);
+            return SR_ERR;
+        }
+
+        for (i = 0; lupfd[i]; i++) {
+            sr_source_add(lupfd[i]->fd, lupfd[i]->events,
+                    dsl_get_timeout(sdi), receive_data, sdi);
+            devc->usbfd[i] = lupfd[i]->fd;
+        }
+
+        devc->usbfd[i] = -1;
+        g_free(lupfd);
     }
-
-    for (i = 0; lupfd[i]; i++) {
-        sr_source_add(lupfd[i]->fd, lupfd[i]->events,
-                  dsl_get_timeout(sdi), receive_data, sdi);
-        devc->usbfd[i] = lupfd[i]->fd;
+    /* libusb pollfds are not available on Windows (always NULL).
+       use a thread to call libusb_handle_events instead. */
+    else {
+        devc->usbfd = NULL;
+        devc->usb_thread_quit = FALSE;
+        devc->usb_thread = g_thread_new("dscope-usb-poll", usb_event_thread, sdi);
+        if(!devc->usb_thread) {
+            sr_err("%s: Failed to create usb event thread.", __func__);
+            return SR_ERR;
+        }
+        /* Add source with dummy fd, so session has something to spin on
+           and call the receive_data callback in lieu of the pollfd */
+        sr_source_add(-1, 0, dsl_get_timeout(sdi), receive_data, sdi);
     }
-
-    devc->usbfd[i] = -1;
-    g_free(lupfd);
-
     wr_cmd.header.dest = DSL_CTL_START;
     wr_cmd.header.size = 0;
     if ((ret = command_ctl_wr(usb->devhdl, wr_cmd)) != SR_OK) {
