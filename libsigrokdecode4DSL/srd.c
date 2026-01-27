@@ -255,8 +255,9 @@ SRD_API int srd_init(const char *path)
 	}
 
 	/* Initialize the Python GIL (this also happens to acquire it). */
+#if PY_VERSION_HEX < 0x03070000
 	PyEval_InitThreads();
-
+#endif
 	/* Release the GIL (ignore return value, we don't need it here). */
 	PyEval_SaveThread();
 
