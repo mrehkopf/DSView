@@ -45,6 +45,29 @@
 #    * dnf install python3-sphinx
 #    * apt install python3-sphinx
 
+# After initial setup is complete it is not necessary to run this entire script
+# again:
+# * Set your PATH to your MXE usr/bin directory
+#     $ export PATH="/path/to/mxe/usr/bin:$PATH"
+# * Set PKG_CONFIG_PATH_<target>_static to point to the python3.pc file
+#   generated in the python-setup/pkgconfig/ directory
+#   e.g. for 64bit target:
+#     $ export PKG_CONFIG_PATH_x86_64_w64_mingw32_static="$(realpath python-setup/pkgconfig)"
+# * run the appropriate cmake and make commands manually, e.g.
+#     $ x86_64-w64-mingw32.static-cmake ..
+#     $ make
+#   in this directory.
+
+# Deployment:
+# DSView.exe resides in ../build.dir after a successful build.
+# To deploy DSView, copy the following files into the same directory as DSView.exe:
+# * all contents of python-setup/python-dist/
+# * the following directories from the git repository's DSView directory:
+#   - libsigrokdecode4DSL/decoders (strip the parent directory)
+#   - demo
+#   - lang
+#   - res
+
 ## Configuration variables - edit as needed
 ## Python version to use
 PYTHON_VERSION="3.14.2"
@@ -183,8 +206,10 @@ else
     export PKG_CONFIG_PATH_x86_64_w64_mingw32_static="${ABS_PYTHON_SETUP_DIR}/pkgconfig"
 fi
 
+# run the build
 export PATH="${MXE_HOME}/usr/bin:${PATH}"
-${MXE_HOME}/usr/bin/${MXE_TARGET}-pkg-config --cflags python3 || die "Error: pkg-config cannot find python3!"
+
+${MXE_HOME}/usr/bin/${MXE_TARGET}-pkg-config python3 || die "Error: pkg-config cannot find python3!"
 
 ${MXE_HOME}/usr/bin/${MXE_TARGET}-cmake ..
 make -j${CORE_COUNT} || die "Error building DSView!"
