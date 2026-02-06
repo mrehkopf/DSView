@@ -1358,7 +1358,7 @@ void Viewport::wheelEvent(QWheelEvent *event)
     isVertical = event->orientation() == Qt::Vertical;
 #endif
 
-    double zoom_scale = delta / 80;
+    double zoom_scale = (double)delta / 80.0;
 
     if (ABS_VAL(delta) <= 80){
         zoom_scale = delta > 0 ? 1.5 : -1.5;
