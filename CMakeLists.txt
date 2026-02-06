@@ -184,10 +184,37 @@ message(STATUS "	 libraries:" ${ZLIB_LIBRARIES})
 include_directories(${ZLIB_INCLUDE_DIRS})
 
 #===============================================================================
-#= Qt5 or Qt6
+#= Qt6 or Qt5
+#
+# Windows build only works with Qt5 for now due to WinExtras dependency,
+# therefore do not yet attempt to build with Qt6.
+#
+# Otherwise prioritize Qt6 for better font rendering on OSX and better Wayland
+# compatibility on Linux.
 #-------------------------------------------------------------------------------
 
-find_package(Qt5Core QUIET)
+if(NOT WIN32)
+	find_package(Qt6Core QUIET)
+endif()
+
+if(Qt6Core_FOUND)
+	message("----- Qt6:")
+	message(STATUS "	 includes:" ${Qt6Core_INCLUDE_DIRS})
+	find_package(Qt6Widgets REQUIRED)
+	find_package(Qt6Gui REQUIRED)
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Qt6Widgets_EXECUTABLE_COMPILE_FLAGS}")
+	set(QT_INCLUDE_DIRS ${Qt6Gui_INCLUDE_DIRS} ${Qt6Widgets_INCLUDE_DIRS})
+	set(QT_LIBRARIES Qt6::Gui Qt6::Widgets)
+	if(WIN32)
+		find_package(Qt6Core5Compat REQUIRED)
+		add_definitions(${Qt6Core5Compat_DEFINITIONS})
+		list(APPEND QT_LIBRARIES Qt6::Core5Compat)
+		list(APPEND QT_INCLUDE_DIRS ${Qt6Core5Compat_INCLUDE_DIRS})
+	endif()
+	add_definitions(${Qt6Gui_DEFINITIONS} ${Qt6Widgets_DEFINITIONS})
+else()
+	find_package(Qt5Core QUIET)
+endif()
 
 if(Qt5Core_FOUND)
 	message("----- Qt5:")
@@ -198,25 +225,12 @@ if(Qt5Core_FOUND)
 	set(QT_INCLUDE_DIRS ${Qt5Gui_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS})
 	set(QT_LIBRARIES Qt5::Gui Qt5::Widgets)
 	add_definitions(${Qt5Gui_DEFINITIONS} ${Qt5Widgets_DEFINITIONS})
-    if(WIN32)
-        find_package(Qt5WinExtras REQUIRED)
-        add_definitions(${Qt5WinExtras_DEFINITIONS})
-        list(APPEND QT_LIBRARIES Qt5::WinExtras)
-        list(APPEND QT_INCLUDE_DIRS ${Qt5WinExtras_INCLUDE_DIRS})
-    endif()
-else()
-	find_package(Qt6Core QUIET)
-endif()
-
-if(Qt6Core_FOUND)
-    	message("----- Qt6:")
-	message(STATUS "	 includes:" ${Qt6Core_INCLUDE_DIRS})
-	find_package(Qt6Widgets REQUIRED)
-	find_package(Qt6Gui REQUIRED)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Qt6Widgets_EXECUTABLE_COMPILE_FLAGS}")
-	set(QT_INCLUDE_DIRS ${Qt6Gui_INCLUDE_DIRS} ${Qt6Widgets_INCLUDE_DIRS})
-	set(QT_LIBRARIES Qt6::Gui Qt6::Widgets)
-	add_definitions(${Qt6Gui_DEFINITIONS} ${Qt6Widgets_DEFINITIONS})
+	if(WIN32)
+		find_package(Qt5WinExtras REQUIRED)
+		add_definitions(${Qt5WinExtras_DEFINITIONS})
+		list(APPEND QT_LIBRARIES Qt5::WinExtras)
+		list(APPEND QT_INCLUDE_DIRS ${Qt5WinExtras_INCLUDE_DIRS})
+	endif()
 endif()
 
 if(NOT Qt5Core_FOUND AND NOT Qt6Core_FOUND)
