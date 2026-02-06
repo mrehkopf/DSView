@@ -21,7 +21,7 @@
 
 #pragma once
 
-#include "../config.h"
+#include "DSView/config.h"
 
 #define countof(x) (sizeof(x)/sizeof(x[0]))
 

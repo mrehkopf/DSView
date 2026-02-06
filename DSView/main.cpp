@@ -31,7 +31,7 @@
 #include "mystyle.h" 
 #include "pv/mainframe.h"
 #include "pv/config/appconfig.h"
-#include "config.h"
+#include "DSView/config.h"
 #include "pv/appcontrol.h"
 #include "pv/log.h" 
 #include "pv/ui/langresource.h"
