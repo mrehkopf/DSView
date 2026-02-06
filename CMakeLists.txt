@@ -681,36 +681,56 @@ set(EXECUTABLE_OUTPUT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/build.dir")
 #= Installation
 #-------------------------------------------------------------------------------
 
-# Install the executable.
-install(TARGETS ${PROJECT_NAME} DESTINATION bin)
-install(DIRECTORY DSView/res DESTINATION share/DSView)
-install(DIRECTORY DSView/demo DESTINATION share/DSView)
-install(FILES DSView/icons/logo.svg DESTINATION share/DSView RENAME logo.svg)
-install(FILES DSView/icons/logo.svg DESTINATION share/icons/hicolor/scalable/apps RENAME dsview.svg)
-install(FILES DSView/icons/logo.svg DESTINATION share/pixmaps RENAME dsview.svg)
+if(WIN32)
+	# Settings for NSIS to create a Windows installer
+	set(CPACK_GENERATOR "NSIS")
+	set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
+	set(CPACK_PACKAGE_EXECUTABLES DSView DSView)
+	set(CPACK_CREATE_DESKTOP_LINKS DSView)
+	set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/logo-win.ico")
+	set(CPACK_NSIS_MUI_UNIICON "${CMAKE_CURRENT_SOURCE_DIR}/logo-win.ico")
+	set(CPACK_PACKAGE_VENDOR "DreamSourceLab")
+	set(CPACK_NSIS_INSTALLED_ICON_NAME "DSView.exe")
+	install(TARGETS ${PROJECT_NAME} DESTINATION .)
+	install(DIRECTORY DSView/res DESTINATION .)
+	install(DIRECTORY DSView/demo DESTINATION .)
+	install(DIRECTORY lang DESTINATION .)
+	install(DIRECTORY libsigrokdecode4DSL/decoders 
+			DESTINATION .
+			PATTERN "__pycache__" EXCLUDE)
+	install(DIRECTORY cross-compile-windows/python-setup/python-dist/. DESTINATION .)
+else()
+	# Install the executable.
+	install(TARGETS ${PROJECT_NAME} DESTINATION bin)
+	install(DIRECTORY DSView/res DESTINATION share/DSView)
+	install(DIRECTORY DSView/demo DESTINATION share/DSView)
+	install(FILES DSView/icons/logo.svg DESTINATION share/DSView RENAME logo.svg)
+	install(FILES DSView/icons/logo.svg DESTINATION share/icons/hicolor/scalable/apps RENAME dsview.svg)
+	install(FILES DSView/icons/logo.svg DESTINATION share/pixmaps RENAME dsview.svg)
 
-if(CMAKE_SYSTEM_NAME MATCHES "Linux")	
-	install(FILES DSView/DSView.desktop DESTINATION /usr/share/applications RENAME dsview.desktop)
-	
-	add_compile_definitions(_DEFAULT_SOURCE)
+	if(CMAKE_SYSTEM_NAME MATCHES "Linux")	
+		install(FILES DSView/DSView.desktop DESTINATION /usr/share/applications RENAME dsview.desktop)
 
-	if(IS_DIRECTORY /usr/lib/udev/rules.d)
-		install(FILES DSView/DreamSourceLab.rules DESTINATION /usr/lib/udev/rules.d RENAME 60-dreamsourcelab.rules)
-	elseif(IS_DIRECTORY /lib/udev/rules.d)
-		install(FILES DSView/DreamSourceLab.rules DESTINATION /lib/udev/rules.d RENAME 60-dreamsourcelab.rules)
-	elseif(IS_DIRECTORY /etc/udev/rules.d)
-		install(FILES DSView/DreamSourceLab.rules DESTINATION /etc/udev/rules.d RENAME 60-dreamsourcelab.rules)
+		add_compile_definitions(_DEFAULT_SOURCE)
+
+		if(IS_DIRECTORY /usr/lib/udev/rules.d)
+			install(FILES DSView/DreamSourceLab.rules DESTINATION /usr/lib/udev/rules.d RENAME 60-dreamsourcelab.rules)
+		elseif(IS_DIRECTORY /lib/udev/rules.d)
+			install(FILES DSView/DreamSourceLab.rules DESTINATION /lib/udev/rules.d RENAME 60-dreamsourcelab.rules)
+		elseif(IS_DIRECTORY /etc/udev/rules.d)
+			install(FILES DSView/DreamSourceLab.rules DESTINATION /etc/udev/rules.d RENAME 60-dreamsourcelab.rules)
+		endif()
+
 	endif()
 
+	install(FILES NEWS25 DESTINATION share/DSView RENAME NEWS25)
+	install(FILES NEWS31 DESTINATION share/DSView RENAME NEWS31)
+	install(FILES ug25.pdf DESTINATION share/DSView RENAME ug25.pdf)
+	install(FILES ug31.pdf DESTINATION share/DSView RENAME ug31.pdf)
+
+	install(DIRECTORY libsigrokdecode4DSL/decoders DESTINATION share/libsigrokdecode4DSL)
+	install(DIRECTORY lang DESTINATION share/DSView)
 endif()
-
-install(FILES NEWS25 DESTINATION share/DSView RENAME NEWS25)
-install(FILES NEWS31 DESTINATION share/DSView RENAME NEWS31)
-install(FILES ug25.pdf DESTINATION share/DSView RENAME ug25.pdf)
-install(FILES ug31.pdf DESTINATION share/DSView RENAME ug31.pdf)
-
-install(DIRECTORY libsigrokdecode4DSL/decoders DESTINATION share/libsigrokdecode4DSL)
-install(DIRECTORY lang DESTINATION share/DSView)
 
 #===============================================================================
 #= Packaging (handled by CPack)

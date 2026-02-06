@@ -53,20 +53,22 @@
 #   generated in the python-setup/pkgconfig/ directory
 #   e.g. for 64bit target:
 #     $ export PKG_CONFIG_PATH_x86_64_w64_mingw32_static="$(realpath python-setup/pkgconfig)"
-# * run the appropriate cmake and make commands manually, e.g.
-#     $ x86_64-w64-mingw32.static-cmake ..
-#     $ make
+# * run the appropriate cmake build command manually, e.g.
+#     $ x86_64-w64-mingw32.static-cmake --build . [-j <threads>]
 #   in this directory.
 
 # Deployment:
 # DSView.exe resides in ../build.dir after a successful build.
-# To deploy DSView, copy the following files into the same directory as DSView.exe:
+# To deploy DSView, the following files need to be in the same directory as DSView.exe:
 # * all contents of python-setup/python-dist/
 # * the following directories from the git repository's DSView directory:
-#   - libsigrokdecode4DSL/decoders (strip the parent directory)
-#   - demo
 #   - lang
-#   - res
+#   - libsigrokdecode4DSL/decoders (strip the parent directory)
+#   - DSView/demo (strip the parent directory)
+#   - DSView/res (strip the parent directory)
+#
+# A Windows installer can be generated using cpack, e.g.
+#   x86_64-w64-mingw32.static-cpack
 
 ## Configuration variables - edit as needed
 ## Python version to use
@@ -74,11 +76,13 @@ PYTHON_VERSION="3.14.2"
 
 ## Target architecture: "i686" (32bit) or "x86_64" (64bit)
 TARGET="x86_64"
+# LINKING="shared"
 
 ## Path to MXE installation
 MXE_HOME=${MXE_HOME:-$HOME/src/mxe}
 
 ## MXE target triplet
+#MXE_TARGET="${TARGET}-w64-mingw32.${LINKING}"
 MXE_TARGET="${TARGET}-w64-mingw32.static"
 
 # -----------------------------------------------------------------------------
@@ -89,7 +93,7 @@ die() {
 }
 
 # MXE packages to build
-MXE_BUILD_PACKAGES="fftw libusb1 qt5 boost glib zlib gendef"
+MXE_BUILD_PACKAGES="fftw libusb1 qt5 boost glib zlib gendef nsis"
 
 # Determine number of CPU cores for parallel builds
 CORE_COUNT=$( nproc --all 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1 )
@@ -145,7 +149,7 @@ ${DL_CMD} "${PYTHON_EMBED_URL}" || die "Error downloading Python embedded distri
 # Build MXE dependencies
 for pkg in ${MXE_BUILD_PACKAGES}; do
     echo "Building MXE package: ${pkg} for target: ${MXE_TARGET}"
-    make -j${CORE_COUNT} -C ${MXE_HOME} MXE_TARGETS=${MXE_TARGET} ${pkg} \
+    make -C ${MXE_HOME} MXE_TARGETS=${MXE_TARGET} JOBS=${CORE_COUNT} ${pkg} \
         || die "Error building MXE package: ${pkg}!"
 done
 
@@ -155,6 +159,8 @@ echo "MXE packages have been built."
 mkdir -p ${PYTHON_SETUP_DIR}/include
 unzip -o ${PYTHON_DOWNLOAD_DIR}/${PYTHON_EMBED_FILENAME} \
         -d ${PYTHON_SETUP_DIR}/python-dist \
+        '*.dll' \
+        '*.zip' \
         || die "Failed to extract Python embedded distribution!"
 echo "Python embedded distribution extracted."
 tar xf ${PYTHON_DOWNLOAD_DIR}/${PYTHON_SRC_FILENAME} \
@@ -211,6 +217,31 @@ export PATH="${MXE_HOME}/usr/bin:${PATH}"
 
 ${MXE_HOME}/usr/bin/${MXE_TARGET}-pkg-config python3 || die "Error: pkg-config cannot find python3!"
 
-${MXE_HOME}/usr/bin/${MXE_TARGET}-cmake ..
-make -j${CORE_COUNT} || die "Error building DSView!"
-echo "Build complete"
+${MXE_HOME}/usr/bin/${MXE_TARGET}-cmake .. # -DCMAKE_PREFIX_PATH="${MXE_HOME}/usr/${MXE_TARGET}/qt6"
+${MXE_HOME}/usr/bin/${MXE_TARGET}-cmake --build . -j${CORE_COUNT} || die "Error building DSView!"
+
+echo "Build complete. The DSView executable can be found in ../build.dir/."
+echo
+
+cat > build-env.sh << EOF
+# Source this file to set up the environment for using the DSView build
+# without having to rerun the entire build script.
+export PATH="${MXE_HOME}/usr/bin:\$PATH"
+export PKG_CONFIG_PATH_i686_w64_mingw32_static="${ABS_PYTHON_SETUP_DIR}/pkgconfig"
+export PKG_CONFIG_PATH_x86_64_w64_mingw32_static="${ABS_PYTHON_SETUP_DIR}/pkgconfig"
+# export PKG_CONFIG_PATH_i686_w64_mingw32_shared="${ABS_PYTHON_SETUP_DIR}/pkgconfig"
+# export PKG_CONFIG_PATH_x86_64_w64_mingw32_shared="${ABS_PYTHON_SETUP_DIR}/pkgconfig"
+EOF
+
+echo "Created build-env.sh."
+echo "To set up the environment for using the DSView build, run:"
+echo ". build-env.sh"
+echo
+echo "Then, to rebuild, run:"
+echo "${MXE_TARGET}-cmake --build ."
+echo
+echo "To create an installer package, run:"
+echo "${MXE_TARGET}-cpack"
+echo "(Append \"-G ZIP\" to create a ZIP archive instead.)"
+echo
+echo "Done."
