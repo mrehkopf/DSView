@@ -488,6 +488,9 @@ void DecodeTrace::draw_range(const pv::data::decode::Annotation &a, QPainter &p,
 {
     (void)fore;
 
+    AppConfig &app = AppConfig::Instance();
+    bool fontStretch = app.appOptions.decoderDynamicFontWidth;
+
 	const double top = y + .5 - h / 2;
 	const double bottom = y + .5 + h / 2;
 	const std::vector<QString> annotations = a.annotations();
@@ -518,9 +521,10 @@ void DecodeTrace::draw_range(const pv::data::decode::Annotation &a, QPainter &p,
 	if (annotations.empty())
 		return;
 
-	QRectF rect(start + cap_width, y - h / 2,
-		end - start - cap_width * 2, h);
-	if (rect.width() <= 4)
+    // Allow printing inside the caps a little
+	QRectF rect(start + cap_width / 2, y - h / 2,
+		end - start - cap_width, h);
+	if (rect.width() <= 6)
 		return;
 
 	p.setPen(text_color);
@@ -528,18 +532,62 @@ void DecodeTrace::draw_range(const pv::data::decode::Annotation &a, QPainter &p,
 	// Try to find an annotation that will fit
 	QString best_annotation;
 	int best_width = 0;
+    int max_width = rect.width();
+    bool isCondensed = false;
+    QFontMetrics fm = p.fontMetrics();
+    QFont condensed_font = p.font();
+    double MIN_STRETCH = fontStretch
+        ? app.appOptions.minDecoderFontWidthPercent : 100; // percent
+    double MAX_STRETCH = fontStretch
+        ? app.appOptions.maxDecoderFontWidthPercent : 100; // percent
+    double stretch = 0;
 
+    p.save();
 	for(auto &a : annotations) {
-		const int w = p.boundingRect(QRectF(), 0, a).width();
-		if (w <= rect.width() && w > best_width)
-			best_annotation = a, best_width = w;
+        int w = fm.boundingRect(QRect(), 0, a).width();
+        stretch = min((double)max_width / (double)w * 100.0, MAX_STRETCH);
+        condensed_font.setStretch(max(MIN_STRETCH, stretch));
+        QFontMetrics condensed_fm = QFontMetrics(condensed_font);
+        int actual_width = condensed_fm.boundingRect(QRect(), 0, a).width();
+        dsv_detail("[COND] Init stretch=%f, w=%d, width after stretch: %d", stretch, w,actual_width);
+        while(actual_width > max_width + 1 && stretch >= MIN_STRETCH) {
+            // Windows font rendering has coarse granularity for font stretching;
+            // rendered width may exceed the stretch factor. Iteratively reduce
+            stretch--;
+            condensed_font.setStretch(stretch);
+            condensed_fm = QFontMetrics(condensed_font);
+            actual_width = condensed_fm.boundingRect(QRect(), 0, a).width();
+            dsv_detail("New stretch: %f, new width: %d", stretch, actual_width);
+        }
+        if (stretch >= MIN_STRETCH) {
+            // fitting annotation found with condensing
+            best_annotation = a;
+            best_width = ceil((double)w * (stretch / 100.0));
+            isCondensed = true;
+            break;
+        }
 	}
 
-	if (best_annotation.isEmpty())
+    dsv_detail("\n\nAnnotation: %s\nStretch: %f", best_annotation.toUtf8().constData(), stretch);
+    dsv_detail("Allowed width: %d", max_width);
+    int flags = Qt::AlignCenter;
+    if (best_annotation.isEmpty()) {
+        // no fitting annotation found, use the last one with maximum condensing
+        // also alpha blend the right end of the text to indicate truncation
+        QLinearGradient gradient(rect.right() - (rect.width() / 5), rect.top(),
+            rect.right(), rect.top());
+        gradient.setColorAt(0.0, text_color);
+        gradient.setColorAt(1.0, QColor(text_color.red(), text_color.green(), text_color.blue(), 0));
+        p.setPen(QPen(QBrush(gradient), 1));
 		best_annotation = annotations.back();
+        condensed_font.setStretch(MIN_STRETCH);
+        dsv_detail("[CLIP] Width after stretch: %d", p.boundingRect(QRect(), 0, best_annotation).width());
+        flags = Qt::AlignLeft | Qt::AlignVCenter;
+    }
 
-    p.drawText(rect, Qt::AlignCenter, p.fontMetrics().elidedText(
-        best_annotation, Qt::ElideRight, rect.width()));
+    p.setFont(condensed_font);
+    p.drawText(rect, flags, best_annotation);
+    p.restore();
 }
 
 void DecodeTrace::draw_error(QPainter &p, const QString &message,

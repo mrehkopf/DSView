@@ -31,6 +31,8 @@
 #include <QLabel>
 #include <vector>
 #include <QGridLayout>
+#include <QSpinBox>
+#include <QSizePolicy>
 
 #include "../config/appconfig.h"
 #include "../ui/langresource.h"
@@ -118,6 +120,9 @@ void ApplicationParamDlg::bind_ruler_time_unit(QComboBox *box, QString v)
 
 bool ApplicationParamDlg::ShowDlg(QWidget *parent)
 {
+    const int DecoderFontStretchMinimum = 25;
+    const int DecoderFontStretchMaximum = 250;
+
     DSDialog dlg(parent, true, true);
     dlg.setTitle(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DISPLAY_OPTIONS), "Display options"));
 
@@ -152,9 +157,113 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
    
     QComboBox *unitsCb = new DsComboBox();
     bind_ruler_time_unit(unitsCb, app.appOptions.rulerTimeUnits);
+
+    bool fontWidthEnabled = app.appOptions.decoderDynamicFontWidth;
+    QCheckBox *ck_decoderDynamicFontWidth = new QCheckBox();
+    ck_decoderDynamicFontWidth->setChecked(fontWidthEnabled);
+
     // Logic group
     QGroupBox *logicGroup = new QGroupBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_GROUP_LOGIC), "Logic"));
     QGridLayout *logicLay = new QGridLayout();
+
+    // slider + input field for min and max font width
+    QSlider *slider_minFontWidth = new QSlider(Qt::Horizontal);
+    slider_minFontWidth->setMinimum(DecoderFontStretchMinimum);
+    slider_minFontWidth->setMaximum(DecoderFontStretchMaximum);
+    slider_minFontWidth->setValue(app.appOptions.minDecoderFontWidthPercent);
+    slider_minFontWidth->setTickInterval(25);
+    slider_minFontWidth->setTickPosition(QSlider::TicksBelow);
+    slider_minFontWidth->setFixedWidth(250);
+    slider_minFontWidth->setEnabled(fontWidthEnabled);
+    QSlider *slider_maxFontWidth = new QSlider(Qt::Horizontal);
+    slider_maxFontWidth->setMinimum(DecoderFontStretchMinimum);
+    slider_maxFontWidth->setMaximum(DecoderFontStretchMaximum);
+    slider_maxFontWidth->setValue(app.appOptions.maxDecoderFontWidthPercent);
+    slider_maxFontWidth->setTickInterval(25);
+    slider_maxFontWidth->setTickPosition(QSlider::TicksBelow);
+    slider_maxFontWidth->setFixedWidth(250);
+    slider_maxFontWidth->setEnabled(fontWidthEnabled);
+    QSpinBox *spinBox_minFontWidth = new QSpinBox();
+    spinBox_minFontWidth->setMinimum(DecoderFontStretchMinimum);
+    spinBox_minFontWidth->setMaximum(DecoderFontStretchMaximum);
+    spinBox_minFontWidth->setValue(app.appOptions.minDecoderFontWidthPercent);
+    spinBox_minFontWidth->setSuffix("%");
+    spinBox_minFontWidth->setEnabled(fontWidthEnabled);
+    QSpinBox *spinBox_maxFontWidth = new QSpinBox();
+    spinBox_maxFontWidth->setMinimum(DecoderFontStretchMinimum);
+    spinBox_maxFontWidth->setMaximum(DecoderFontStretchMaximum);
+    spinBox_maxFontWidth->setValue(app.appOptions.maxDecoderFontWidthPercent);
+    spinBox_maxFontWidth->setSuffix("%");
+    spinBox_maxFontWidth->setEnabled(fontWidthEnabled);
+
+    QLabel *label_minFontWidth = new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_MIN_FONT_WIDTH), "Min font width:"));
+    QLabel *label_maxFontWidth = new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_MAX_FONT_WIDTH), "Max font width:"));
+
+    float decoderFontSize = std::min(10.0f, app.appOptions.fontSize);
+
+    QLabel *label_minSample = new QLabel("Example");
+    QFont minFont = parent->font();
+    minFont.setStretch(app.appOptions.minDecoderFontWidthPercent);
+    minFont.setPointSizeF(decoderFontSize);
+    label_minSample->setFont(minFont);
+    label_minSample->setEnabled(fontWidthEnabled);
+
+    QLabel *label_maxSample = new QLabel("Example");
+    QFont maxFont = parent->font();
+    maxFont.setStretch(app.appOptions.maxDecoderFontWidthPercent);
+    maxFont.setPointSizeF(decoderFontSize);
+    label_maxSample->setFont(maxFont);
+    label_maxSample->setEnabled(fontWidthEnabled);
+
+    QFont layoutWidthFont = parent->font();
+    layoutWidthFont.setStretch(DecoderFontStretchMaximum);
+    layoutWidthFont.setPointSizeF(decoderFontSize);
+    QFontMetrics wfm(layoutWidthFont);
+
+    QObject::connect(spinBox_minFontWidth, QOverload<int>::of(&QSpinBox::valueChanged), [slider_minFontWidth, slider_maxFontWidth, label_minSample](int value){
+        slider_minFontWidth->setValue(value);
+        if(value > slider_maxFontWidth->value()) {
+            slider_maxFontWidth->setValue(value);
+        }
+        QFont f = label_minSample->font();
+        f.setStretch(value);
+        label_minSample->setFont(f);
+    });
+    QObject::connect(slider_minFontWidth, &QSlider::valueChanged, [spinBox_minFontWidth](int value){
+        spinBox_minFontWidth->setValue(value);
+    });
+
+    QObject::connect(spinBox_maxFontWidth, QOverload<int>::of(&QSpinBox::valueChanged), [slider_maxFontWidth, slider_minFontWidth, label_maxSample](int value){
+        slider_maxFontWidth->setValue(value);
+        if(value < slider_minFontWidth->value()) {
+            slider_minFontWidth->setValue(value);
+        }
+        QFont f = label_maxSample->font();
+        f.setStretch(value);
+        label_maxSample->setFont(f);
+    });
+    QObject::connect(slider_maxFontWidth, &QSlider::valueChanged, [spinBox_maxFontWidth](int value){
+        spinBox_maxFontWidth->setValue(value);
+    });
+
+    QObject::connect(ck_decoderDynamicFontWidth, &QCheckBox::stateChanged,
+        [
+            slider_minFontWidth, slider_maxFontWidth,
+            spinBox_minFontWidth, spinBox_maxFontWidth,
+            label_minFontWidth, label_maxFontWidth,
+            label_minSample, label_maxSample
+        ] (int state) {
+        bool enabled = (state == Qt::Checked);
+        slider_minFontWidth->setEnabled(enabled);
+        slider_maxFontWidth->setEnabled(enabled);
+        spinBox_minFontWidth->setEnabled(enabled);
+        spinBox_maxFontWidth->setEnabled(enabled);
+        label_minFontWidth->setEnabled(enabled);
+        label_maxFontWidth->setEnabled(enabled);
+        label_minSample->setEnabled(enabled);
+        label_maxSample->setEnabled(enabled);
+    });
+
     logicLay->setContentsMargins(10,15,15,10);
     logicLay->setAlignment(Qt::AlignTop | Qt::AlignLeft);
     logicGroup->setLayout(logicLay);
@@ -166,6 +275,22 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     logicLay->addWidget(ck_autoScrollLatestData, 2, 1, Qt::AlignRight);
     logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_RULER_UNITS), "Ruler / Cursor units")), 3, 0, Qt::AlignLeft);
     logicLay->addWidget(unitsCb, 3, 1, Qt::AlignRight);
+
+    // Add sliders to logic layout
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DECODER_DYNAMIC_FONT_WIDTH), "Decoder adaptive font width")), 4, 0, Qt::AlignLeft);
+    logicLay->addWidget(ck_decoderDynamicFontWidth, 4, 1, Qt::AlignRight);
+    logicLay->addWidget(label_minFontWidth, 5, 0, Qt::AlignLeft);
+    logicLay->addWidget(spinBox_minFontWidth, 5, 1, Qt::AlignRight);
+    logicLay->addWidget(slider_minFontWidth, 6, 0, Qt::AlignJustify);
+    logicLay->addWidget(label_minSample, 6, 1, Qt::AlignCenter);
+    logicLay->addWidget(label_maxFontWidth, 7, 0, Qt::AlignLeft);
+    logicLay->addWidget(spinBox_maxFontWidth, 7, 1, Qt::AlignRight);
+    logicLay->addWidget(slider_maxFontWidth, 8, 0, Qt::AlignJustify);
+    logicLay->addWidget(label_maxSample, 8, 1, Qt::AlignCenter);
+    logicLay->setColumnMinimumWidth(1, wfm.horizontalAdvance("Example")
+        + logicLay->contentsMargins().left()
+        + logicLay->contentsMargins().right()
+        + 1 );
     lay->addWidget(logicGroup);
 
     //Scope group
@@ -194,6 +319,9 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
 
     dlg.layout()->addLayout(lay);      
     dlg.layout()->setSizeConstraint(QLayout::SetFixedSize);
+    // prevent dlg.exec()'s implicit font update from resetting preview font stretches
+    label_minSample->setObjectName("__LOCKED_FONT_MINSAMPLE");
+    label_maxSample->setObjectName("__LOCKED_FONT_MAXSAMPLE");
     dlg.exec();
     bool ret = dlg.IsClickYes();
 
@@ -236,7 +364,18 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
             app.appOptions.antialias = ck_antialias->isChecked();
             bAppChanged = true;
         }
-
+        if (app.appOptions.decoderDynamicFontWidth != ck_decoderDynamicFontWidth->isChecked()) {
+            app.appOptions.decoderDynamicFontWidth = ck_decoderDynamicFontWidth->isChecked();
+            bAppChanged = true;
+        }
+        if (app.appOptions.minDecoderFontWidthPercent != slider_minFontWidth->value()) {
+            app.appOptions.minDecoderFontWidthPercent = slider_minFontWidth->value();
+            bAppChanged = true;
+        }
+        if (app.appOptions.maxDecoderFontWidthPercent != slider_maxFontWidth->value()) {
+            app.appOptions.maxDecoderFontWidthPercent = slider_maxFontWidth->value();
+            bAppChanged = true;
+        }
         if (bAppChanged){
             app.SaveApp();
             AppControl::Instance()->GetSession()->broadcast_msg(DSV_MSG_APP_OPTIONS_CHANGED);

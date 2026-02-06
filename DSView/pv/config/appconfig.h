@@ -77,7 +77,9 @@ struct AppOptions
     float fontSize;
     QString rulerTimeUnits;
     bool antialias;
-
+    int minDecoderFontWidthPercent;
+    int maxDecoderFontWidthPercent;
+    bool decoderDynamicFontWidth;
     std::vector<StringPair> m_protocolFormats;
 };
  

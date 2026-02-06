@@ -126,6 +126,9 @@ static void _loadApp(AppOptions &o, QSettings &st)
     getFiled("version", st, o.version, 1);
     getFiled("rulerTimeUnits", st, o.rulerTimeUnits, "Time");
     getFiled("antialias", st, o.antialias, true);
+    getFiled("decoderDynamicFontWidth", st, o.decoderDynamicFontWidth, false);
+    getFiled("maxDecoderFontWidthPercent", st, o.maxDecoderFontWidthPercent, 125);
+    getFiled("minDecoderFontWidthPercent", st, o.minDecoderFontWidthPercent, 75);
 
     o.warnofMultiTrig = true;
 
@@ -165,6 +168,9 @@ static void _saveApp(AppOptions &o, QSettings &st)
     setFiled("version", st, APP_CONFIG_VERSION);
     setFiled("rulerTimeUnits", st, o.rulerTimeUnits);
     setFiled("antialias", st, o.antialias);
+    setFiled("decoderDynamicFontWidth", st, o.decoderDynamicFontWidth);
+    setFiled("maxDecoderFontWidthPercent", st, o.maxDecoderFontWidthPercent);
+    setFiled("minDecoderFontWidthPercent", st, o.minDecoderFontWidthPercent);
 
     QString fmt =  FormatArrayToString(o.m_protocolFormats);
     setFiled("protocalFormats", st, fmt);

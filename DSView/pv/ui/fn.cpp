@@ -102,7 +102,7 @@ namespace ui
             o->setFont(font);
         }
 
-        auto labels = wid->findChildren<QLabel*>();
+        auto labels = wid->findChildren<QLabel*>(QRegularExpression("^(?!__LOCKED)"));
         for(auto o : labels)
         { 
             o->setFont(font);
