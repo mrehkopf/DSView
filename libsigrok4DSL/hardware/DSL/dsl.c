@@ -1778,7 +1778,6 @@ SR_PRIV int dsl_config_list(int key, GVariant **data, const struct sr_dev_inst *
 
     switch (key) {
     case SR_CONF_SAMPLERATE:
-        GVariant *list;
         g_variant_builder_init(&gvb, G_VARIANT_TYPE("at"));
         if(devc->clock_type) {
             g_variant_builder_add(&gvb, "t", devc->ext_samplerate);
@@ -1786,7 +1785,7 @@ SR_PRIV int dsl_config_list(int key, GVariant **data, const struct sr_dev_inst *
         for(int i = devc->samplerates_min_index; i <= devc->samplerates_max_index; i++) {
             g_variant_builder_add(&gvb, "t", devc->profile->dev_caps.samplerates[i]);
         }
-        list = g_variant_builder_end(&gvb);
+        GVariant *list = g_variant_builder_end(&gvb);
         g_variant_builder_init(&gvb, G_VARIANT_TYPE("a{sv}"));
         g_variant_builder_add(&gvb, "{sv}", "samplerates", list);
         *data = g_variant_builder_end(&gvb);
