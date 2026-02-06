@@ -339,9 +339,10 @@ void DeviceOptions::logic_probes(QVBoxLayout &layout)
         }
     }
 
-    _device_agent->get_config_int16(SR_CONF_TOTAL_CH_NUM, total_ch_num);
     _device_agent->get_config_int16(SR_CONF_VLD_CH_NUM, vld_ch_num);
-
+    if(!_device_agent->get_config_int16(SR_CONF_TOTAL_CH_NUM, total_ch_num)) {
+        total_ch_num = vld_ch_num;
+    };
     // channels
     QWidget *channel_pannel = new QWidget();
     QGridLayout *channel_grid = new QGridLayout();
@@ -358,8 +359,6 @@ void DeviceOptions::logic_probes(QVBoxLayout &layout)
     for (int i = 0; i < total_ch_num; i++) {
         if(l) {
 		    sr_channel *const probe = (sr_channel*)l->data;
-		 
-printf("cur_ch_num=%d, vld_ch_num=%d, total_ch_num=%d, i=%d, probe_index=%d, enabled=%d\n", cur_ch_num, vld_ch_num, total_ch_num, i, probe->index, probe->enabled);
             if (probe->enabled)
                 cur_ch_num++;
 
