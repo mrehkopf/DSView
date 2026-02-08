@@ -108,18 +108,6 @@ void ApplicationParamDlg::bind_font_size_list(QComboBox *box, float size)
     box->setCurrentIndex(selDex);
 }
 
-void ApplicationParamDlg::bind_ruler_time_unit(QComboBox *box, QString v)
-{
-    box->addItem(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_TIME), "Time"), RULER_UNIT_TIME);
-    box->addItem(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SAMPLES), "Samples"), RULER_UNIT_SAMPLES);
-    for(int i=0; i<box->count(); i++) {
-        if(box->itemData(i).toString() == v) {
-            box->setCurrentIndex(i);
-            break;
-        }
-    }
-}
-
 bool ApplicationParamDlg::ShowDlg(QWidget *parent)
 {
     const int DecoderFontStretchMinimum = 25;
@@ -167,8 +155,19 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     ftCbSize->setFixedWidth(50);
     bind_font_size_list(ftCbSize, app.appOptions.fontSize);
    
-    QComboBox *unitsCb = new DsComboBox();
-    bind_ruler_time_unit(unitsCb, app.appOptions.rulerTimeUnits);
+    QHBoxLayout *hl_units = new QHBoxLayout();
+    QButtonGroup *bg_timeUnit = new QButtonGroup();
+    QRadioButton *rb_timeUnitTime = new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_TIME), "Time"));
+    QRadioButton *rb_timeUnitSamples = new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SAMPLES), "Samples"));
+    if (app.appOptions.rulerTimeUnits == RULER_UNIT_TIME) {
+        rb_timeUnitTime->setChecked(true);
+    } else {
+        rb_timeUnitSamples->setChecked(true);
+    }
+    bg_timeUnit->addButton(rb_timeUnitTime);
+    bg_timeUnit->addButton(rb_timeUnitSamples);
+    hl_units->addWidget(rb_timeUnitTime);
+    hl_units->addWidget(rb_timeUnitSamples);
 
     bool fontWidthEnabled = app.appOptions.decoderDynamicFontWidth;
     QCheckBox *ck_decoderDynamicFontWidth = new QCheckBox();
@@ -287,6 +286,8 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     logicLay->addWidget(ck_autoScrollLatestData, 2, 1, Qt::AlignRight);
     logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_VERTICAL_SCROLL_ACTION), "Vertical Scroll Action")), 3, 0, Qt::AlignLeft);
     logicLay->addLayout(hl_verticalScrollAction, 3, 1, Qt::AlignRight);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_RULER_UNITS), "Ruler / Cursor units")), 4, 0, Qt::AlignLeft);
+    logicLay->addLayout(hl_units, 4, 1, Qt::AlignRight);
 
     // Add sliders to logic layout
     logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DECODER_DYNAMIC_FONT_WIDTH), "Decoder adaptive font width")), 5, 0, Qt::AlignLeft);
@@ -372,6 +373,8 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
             app.appOptions.verticalScrollIsZoom = rb_zoom->isChecked();
             bAppChanged = true;
         }
+        if (app.appOptions.rulerTimeUnits != (rb_timeUnitTime->isChecked() ? RULER_UNIT_TIME : RULER_UNIT_SAMPLES)){
+            app.appOptions.rulerTimeUnits = (rb_timeUnitTime->isChecked() ? RULER_UNIT_TIME : RULER_UNIT_SAMPLES);
             bAppChanged = true;
         }
         if (app.appOptions.antialias != ck_antialias->isChecked()){
