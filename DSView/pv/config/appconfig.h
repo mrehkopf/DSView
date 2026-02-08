@@ -74,6 +74,7 @@ struct AppOptions
     bool  displayProfileInBar;
     bool  swapBackBufferAlways;
     bool  autoScrollLatestData;
+    bool  verticalScrollIsZoom;
     float fontSize;
     QString rulerTimeUnits;
     bool antialias;

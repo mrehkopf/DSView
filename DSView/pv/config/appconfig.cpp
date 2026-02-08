@@ -123,6 +123,7 @@ static void _loadApp(AppOptions &o, QSettings &st)
     getFiled("swapBackBufferAlways", st, o.swapBackBufferAlways, false);
     getFiled("fontSize", st, o.fontSize, 9.0);
     getFiled("autoScrollLatestData", st, o.autoScrollLatestData, true);
+    getFiled("verticalScrollIsZoom", st, o.verticalScrollIsZoom, true);
     getFiled("version", st, o.version, 1);
     getFiled("rulerTimeUnits", st, o.rulerTimeUnits, "Time");
     getFiled("antialias", st, o.antialias, true);
@@ -165,6 +166,7 @@ static void _saveApp(AppOptions &o, QSettings &st)
     setFiled("swapBackBufferAlways", st, o.swapBackBufferAlways);
     setFiled("fontSize", st, o.fontSize);
     setFiled("autoScrollLatestData", st, o.autoScrollLatestData);
+    setFiled("verticalScrollIsZoom", st, o.verticalScrollIsZoom);
     setFiled("version", st, APP_CONFIG_VERSION);
     setFiled("rulerTimeUnits", st, o.rulerTimeUnits);
     setFiled("antialias", st, o.antialias);

@@ -1358,6 +1358,15 @@ void Viewport::wheelEvent(QWheelEvent *event)
     isVertical = event->orientation() == Qt::Vertical;
 #endif
 
+    bool verticalScrollIsZoom = AppConfig::Instance().appOptions.verticalScrollIsZoom;
+    bool doVScroll = false;
+    if (isVertical) {
+        if(verticalScrollIsZoom) {
+            doVScroll = event->modifiers() & Qt::ControlModifier;
+        } else {
+            doVScroll = !(event->modifiers() & Qt::ControlModifier);
+        }
+    }
     double zoom_scale = (double)delta / 120.0;
 
     if(event->inverted()) {
@@ -1395,18 +1404,26 @@ void Viewport::wheelEvent(QWheelEvent *event)
                 else{
                     int64_t cur_time = QDateTime::currentMSecsSinceEpoch();
                     if (cur_time - last_time > 50){
-                        double scale = delta > 1.5 ? 1 : (delta < -1.5 ? -1 : 0);
-                        _view.zoom(scale, x);
-                        last_time = QDateTime::currentMSecsSinceEpoch();
+                        if(doVScroll) {
+                            _view.verticalScrollBar()->setValue(_view.verticalScrollBar()->value() - delta);
+                        } else {
+                            double scale = delta > 1.5 ? 1 : (delta < -1.5 ? -1 : 0);
+                            _view.zoom(scale, x);
+                        }
+                            last_time = QDateTime::currentMSecsSinceEpoch();
                     }                   
                 } 
             }
             else
             {
-                _view.zoom(-zoom_scale, x);
+                if(doVScroll) {
+                    _view.verticalScrollBar()->setValue(_view.verticalScrollBar()->value() - delta);
+                } else {
+                    _view.zoom(-zoom_scale, x);
+                }
             }
 #else
-        if(event->modifiers() & Qt::ControlModifier) {
+        if(doVScroll) {
             _view.verticalScrollBar()->setValue(_view.verticalScrollBar()->value() - delta);
         } else {
             _view.zoom(zoom_scale, x);
