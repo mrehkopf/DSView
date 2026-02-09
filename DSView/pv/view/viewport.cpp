@@ -1391,44 +1391,11 @@ void Viewport::wheelEvent(QWheelEvent *event)
         if (isVertical)
         {
             // Vertical scrolling is interpreted as zooming in/out
-#ifdef Q_OS_DARWIN
-            static int64_t last_time;
-
-            if (event->source() == Qt::MouseEventSynthesizedBySystem)
-            {
-                if (!bLstTime)
-                {  
-                    last_time = QDateTime::currentMSecsSinceEpoch();
-                    bLstTime = true;
-                }
-                else{
-                    int64_t cur_time = QDateTime::currentMSecsSinceEpoch();
-                    if (cur_time - last_time > 50){
-                        if(doVScroll) {
-                            _view.verticalScrollBar()->setValue(_view.verticalScrollBar()->value() - delta);
-                        } else {
-                            double scale = delta > 1.5 ? 1 : (delta < -1.5 ? -1 : 0);
-                            _view.zoom(scale, x);
-                        }
-                            last_time = QDateTime::currentMSecsSinceEpoch();
-                    }                   
-                } 
+            if(doVScroll) {
+                _view.verticalScrollBar()->setValue(_view.verticalScrollBar()->value() - delta);
+            } else {
+                _view.zoom(zoom_scale, x);
             }
-            else
-            {
-                if(doVScroll) {
-                    _view.verticalScrollBar()->setValue(_view.verticalScrollBar()->value() - delta);
-                } else {
-                    _view.zoom(-zoom_scale, x);
-                }
-            }
-#else
-        if(doVScroll) {
-            _view.verticalScrollBar()->setValue(_view.verticalScrollBar()->value() - delta);
-        } else {
-            _view.zoom(zoom_scale, x);
-        }
-#endif
         }
         else
         {   
