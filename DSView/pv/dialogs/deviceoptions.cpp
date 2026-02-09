@@ -354,7 +354,6 @@ void DeviceOptions::logic_probes(QVBoxLayout &layout)
     int channel_column = 0;
     int channel_line_height = 0;
     row2++;
-    printf("row2=%d\n", row2);
     const GSList *l = _device_agent->get_channels();
     for (int i = 0; i < total_ch_num; i++) {
         if(l) {
@@ -374,7 +373,6 @@ void DeviceOptions::logic_probes(QVBoxLayout &layout)
             if (channel_column == 8){
                 channel_column = 0;
                 channel_row++;
-//                printf("l->next=%p\n", l->next);
                 if (i < total_ch_num - 1){
                     row2++;
                 }
@@ -398,7 +396,6 @@ void DeviceOptions::logic_probes(QVBoxLayout &layout)
             }
         }
 	}
-printf("row2=%d\n", row2);
     layout.addWidget(channel_pannel);
 
     // space
@@ -957,7 +954,6 @@ void DeviceOptions::try_resize_scroll()
         _scroll_panel->setFixedSize(w, contentHeight);
         _scroll->setFixedSize(sclw, contentHeight);
     }
-printf("sk=%f, srcheight=%d, dlgheight=%d, sclw=%d, w=%d\n", sk, srcHeight, dlgHeight, sclw, w);
 }
 
 void DeviceOptions::keyPressEvent(QKeyEvent *event) 
