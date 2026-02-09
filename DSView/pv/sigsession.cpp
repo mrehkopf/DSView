@@ -1947,6 +1947,7 @@ namespace pv
                 delete trace;
         }
         _decode_traces.clear();
+        _decoder_model->setDecoderStack(NULL);
 
         if (!_bClose && bUpdateView)
             signals_changed();
