@@ -33,6 +33,7 @@
 #include <assert.h>
 #include <algorithm>
 #include <QFont>
+#include <QScrollBar>
 
 #include "view.h"
 #include "trace.h"
@@ -375,7 +376,7 @@ void Header::wheelEvent(QWheelEvent *event)
             if (t->mouse_wheel(width(), pos, shift))
                 break;
         }
-
+        _view.verticalScrollBar()->setValue(_view.verticalScrollBar()->value() - delta);
         update();
     }
 }
