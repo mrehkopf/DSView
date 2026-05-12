@@ -585,16 +585,19 @@ void View::normalize_layout()
     int v_min = INT_MAX;
     std::vector<Trace*> traces;
     get_traces(ALL_VIEW, traces);
-	
+    Trace* top = nullptr;
+
+    if(traces.size() == 0)
+        return;
+
     for(auto t : traces){
-          v_min = min(t->get_v_offset(), v_min);
+        if(t->get_v_offset() < v_min) {
+            top = t;
+            v_min = t->get_v_offset();
+        }
     }
 
-	const int delta = -min(v_min, 0);
-
-    for(auto t : traces){
-        t->set_v_offset(t->get_v_offset() + delta);
-    }        
+	const int delta = -min(v_min - (top->get_totalHeight() / 2 + 2 * SignalMargin), 0);
 
     verticalScrollBar()->setSliderPosition(delta);
 	v_scroll_value_changed(verticalScrollBar()->sliderPosition());
