@@ -159,9 +159,13 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
     layout->setContentsMargins(0,0,0,0);
     _viewcenter->setLayout(layout);
     layout->addWidget(_vsplitter, 0, 0);
+    QVBoxLayout* statusLayout = new QVBoxLayout(this);
+    statusLayout->setSpacing(0);
+    statusLayout->setContentsMargins(0,0,verticalScrollBar()->geometry().width()+2, horizontalScrollBar()->geometry().height()+1);
     _viewbottom = new ViewStatus(_session, *this);
     _viewbottom->setFixedHeight(StatusHeight);
-    layout->addWidget(_viewbottom, 1, 0);
+    setLayout(statusLayout);
+    statusLayout->addWidget(_viewbottom, 0, Qt::AlignBottom);
 
 #ifdef Q_OS_DARWIN
     QWidget *lineSpan = new QWidget(this);
