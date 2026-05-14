@@ -92,7 +92,7 @@ die() {
 }
 
 # MXE packages to build
-MXE_BUILD_PACKAGES="fftw libusb1 qt5 boost glib zlib gendef nsis"
+MXE_BUILD_PACKAGES="fftw libusb1 qtbase qtwinextras boost glib zlib gendef nsis"
 
 # Determine number of CPU cores for parallel builds
 CORE_COUNT=$( nproc --all 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1 )
