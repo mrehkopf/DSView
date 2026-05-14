@@ -76,14 +76,13 @@ PYTHON_VERSION="3.14.2"
 
 ## Target architecture: "i686" (32bit) or "x86_64" (64bit)
 TARGET="x86_64"
-# LINKING="shared"
+LINKING="static" # shared linking usually fails with mxe
 
 ## Path to MXE installation
 MXE_HOME=${MXE_HOME:-$HOME/src/mxe}
 
 ## MXE target triplet
-#MXE_TARGET="${TARGET}-w64-mingw32.${LINKING}"
-MXE_TARGET="${TARGET}-w64-mingw32.static"
+MXE_TARGET="${TARGET}-w64-mingw32.${LINKING}"
 
 # -----------------------------------------------------------------------------
 
@@ -208,8 +207,10 @@ echo "Generated python3.pc for pkg-config."
 
 if [ $TARGET = "i686" ]; then
     export PKG_CONFIG_PATH_i686_w64_mingw32_static="${ABS_PYTHON_SETUP_DIR}/pkgconfig"
+    export PKG_CONFIG_PATH_i686_w64_mingw32_shared="${ABS_PYTHON_SETUP_DIR}/pkgconfig"
 else
     export PKG_CONFIG_PATH_x86_64_w64_mingw32_static="${ABS_PYTHON_SETUP_DIR}/pkgconfig"
+    export PKG_CONFIG_PATH_x86_64_w64_mingw32_shared="${ABS_PYTHON_SETUP_DIR}/pkgconfig"
 fi
 
 # run the build
@@ -229,8 +230,8 @@ cat > build-env.sh << EOF
 export PATH="${MXE_HOME}/usr/bin:\$PATH"
 export PKG_CONFIG_PATH_i686_w64_mingw32_static="${ABS_PYTHON_SETUP_DIR}/pkgconfig"
 export PKG_CONFIG_PATH_x86_64_w64_mingw32_static="${ABS_PYTHON_SETUP_DIR}/pkgconfig"
-# export PKG_CONFIG_PATH_i686_w64_mingw32_shared="${ABS_PYTHON_SETUP_DIR}/pkgconfig"
-# export PKG_CONFIG_PATH_x86_64_w64_mingw32_shared="${ABS_PYTHON_SETUP_DIR}/pkgconfig"
+export PKG_CONFIG_PATH_i686_w64_mingw32_shared="${ABS_PYTHON_SETUP_DIR}/pkgconfig"
+export PKG_CONFIG_PATH_x86_64_w64_mingw32_shared="${ABS_PYTHON_SETUP_DIR}/pkgconfig"
 EOF
 
 echo "Created build-env.sh."
