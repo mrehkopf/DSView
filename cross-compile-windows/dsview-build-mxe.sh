@@ -111,6 +111,12 @@ PYTHON_EMBED_FILENAME="python-${PYTHON_VERSION}-embed-${PYTHON_TARGET}.zip"
 PYTHON_SOURCE_URL="${PYTHON_URL_BASE}/${PYTHON_SRC_FILENAME}"
 PYTHON_EMBED_URL="${PYTHON_URL_BASE}/${PYTHON_EMBED_FILENAME}"
 
+MXE_MAKE_OPTS="MXE_TARGETS=${MXE_TARGET} JOBS=${CORE_COUNT}"
+GCC_V16UP=$( gcc --version | awk '/gcc/ && split($3,a,"-") && a[1]>=16{print "Y"}' )
+[ a != "${GCC_V16UP}"a ] \
+  && echo "gcc 16+ detected! Forcing gcc16 plugin for MXE." \
+  && MXE_MAKE_OPTS+=" MXE_PLUGIN_DIRS=plugins/gcc16"
+
 WGET_CMD=$( command -v wget )
 CURL_CMD=$( command -v curl )
 
@@ -148,7 +154,7 @@ ${DL_CMD} "${PYTHON_EMBED_URL}" || die "Error downloading Python embedded distri
 # Build MXE dependencies
 for pkg in ${MXE_BUILD_PACKAGES}; do
     echo "Building MXE package: ${pkg} for target: ${MXE_TARGET}"
-    make -C ${MXE_HOME} MXE_TARGETS=${MXE_TARGET} JOBS=${CORE_COUNT} ${pkg} \
+    make -C ${MXE_HOME} ${MXE_MAKE_OPTS} ${pkg} \
         || die "Error building MXE package: ${pkg}!"
 done
 
