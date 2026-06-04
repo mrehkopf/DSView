@@ -65,7 +65,7 @@ namespace pv
             Q_OBJECT
 
         private:
-            static const int ComboBoxMaxWidth = 200;
+            static const int ComboBoxMaxWidth = 320;
             static const int RefreshShort = 500;
             static const uint64_t LogicMaxSWDepth64 = SR_GB(16);
             static const uint64_t LogicMaxSWDepth32 = SR_GB(8);

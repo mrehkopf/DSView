@@ -84,6 +84,7 @@ static void process_attach_event(int isEvent);
 static void process_detach_event();
 static struct libusb_device* get_new_attached_usb_device();
 static struct libusb_device* get_new_detached_usb_device();
+static void get_device_unique_id(const struct sr_dev_inst *dev, char *buf, size_t len);
 
 static struct sr_lib_context lib_ctx = {
 	.event_callback = NULL,
@@ -319,11 +320,13 @@ SR_API int ds_get_device_list(struct ds_device_base_info **out_list, int *out_co
 		dev = l->data;
 		p->handle = dev->handle;
 		strncpy(p->name, (const char*)dev->name, sizeof(p->name) - 1);
+		get_device_unique_id(dev, p->unique_id, sizeof(p->unique_id));
 		p++;
 	}
 
 	p->handle = 0; // is the end
 	p->name[0] = '\0';
+	p->unique_id[0] = '\0';
 
 	if (out_count)
 	{
@@ -334,6 +337,32 @@ SR_API int ds_get_device_list(struct ds_device_base_info **out_list, int *out_co
 
 	*out_list = (struct ds_device_base_info*)buf;
 	return SR_OK;
+}
+
+static void get_device_unique_id(const struct sr_dev_inst *dev, char *buf, size_t len)
+{
+	if (buf == NULL || len == 0)
+		return;
+
+	*buf = 0;
+
+	if (dev == NULL || dev->conn == NULL)
+		return;
+
+	if (dev->dev_type == DEV_TYPE_USB)
+	{
+		/* Get USB bus and address for device. Unfortunately the DSLogic devices do
+		   not have serial numbers in their device descriptors */
+		const struct sr_usb_dev_inst *usb = dev->conn;
+		snprintf(buf, len, "USB %u.%u", usb->bus, usb->address);
+	}
+	else if (dev->dev_type == DEV_TYPE_SERIAL)
+	{
+		/* probably never used... */
+		const struct sr_serial_dev_inst *serial = dev->conn;
+		if (serial->port != NULL && serial->port[0] != '\0')
+			snprintf(buf, len, "%s", serial->port);
+	}
 }
 
 /**

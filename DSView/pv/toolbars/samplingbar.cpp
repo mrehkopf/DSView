@@ -1142,7 +1142,18 @@ namespace pv
             for (int i = 0; i < dev_count; i++)
             {
                 p = (array + i);
-                _device_selector.addItem(QString(p->name), QVariant::fromValue((unsigned long long)p->handle));
+                QString device_name = QString::fromLocal8Bit(p->name);
+                QString unique_id = QString::fromLocal8Bit(p->unique_id).trimmed();
+                QString display_name = device_name;
+
+                if (!unique_id.isEmpty())
+                    display_name = QString("%1 [%2]").arg(device_name, unique_id);
+
+                max_text_width = max(max_text_width,
+                    _device_selector.fontMetrics().boundingRect(display_name).width());
+
+                _device_selector.addItem(display_name, QVariant::fromValue((unsigned long long)p->handle));
+                _device_selector.setItemData(i, display_name, Qt::ToolTipRole);
                 
                 if (i == select_index)
                     cur_dev_handle = p->handle;
@@ -1157,9 +1168,21 @@ namespace pv
             }
 
             _last_device_index = select_index;
-            int width = _device_selector.sizeHint().width();
-            _device_selector.setFixedWidth(min(width + 15, _device_selector.maximumWidth()));
-            _device_selector.view()->setMinimumWidth(width + 30);
+            const int width = max_text_width + 20;
+            const int selector_width = min(width, ComboBoxMaxWidth);
+            const int popup_width = width;
+
+            auto apply_device_selector_width_please = [this, selector_width, popup_width]() {
+                _device_selector.setFixedWidth(selector_width);
+                _device_selector.updateGeometry();
+            };
+
+            _device_selector.view()->setFixedWidth(popup_width);
+            _device_selector.view()->setTextElideMode(Qt::ElideNone);
+
+            /* defer applying the width attributes so Qt actually finds it in
+               itself to listen to our layout wishes (or prayers)..... */
+            QTimer::singleShot(0, this, apply_device_selector_width_please);
 
             _updating_device_list = false;
         }

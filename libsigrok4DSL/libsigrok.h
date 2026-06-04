@@ -1337,6 +1337,7 @@ struct ds_device_base_info
 {
 	ds_device_handle handle;
 	char 	name[150];
+	char 	unique_id[64];
 };
 
 struct ds_device_full_info
