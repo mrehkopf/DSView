@@ -112,6 +112,7 @@ private:
 
     //IDecoderPannel
     void update_deocder_item_name(void *trace_handel, const char *name) override;
+    void clear_decoder_items() override;
 
     //IUiWindow
     void UpdateLanguage() override;

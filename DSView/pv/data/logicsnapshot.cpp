@@ -195,7 +195,7 @@ void LogicSnapshot::first_payload(const sr_datafeed_logic &logic, uint64_t total
         }
     }
 
-    assert(_channel_num < CHANNEL_MAX_COUNT);
+    assert(_channel_num <= CHANNEL_MAX_COUNT);
 
     _sample_count = 0;
     _ring_sample_count = 0;

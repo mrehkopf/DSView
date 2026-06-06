@@ -27,6 +27,7 @@
 #include <libsigrok.h>
 #include <QString>
 #include <vector>
+#include "logicstackingconfig.h"
 
 class IDeviceAgentCallback
 {
@@ -38,6 +39,7 @@ class DeviceAgent
 {
 public:
     DeviceAgent();
+    ~DeviceAgent();
 
     void update();
 
@@ -157,10 +159,16 @@ public:
 
     GSList* get_channels();
 
+    bool set_logic_stacking_config(const pv::LogicStackingConfig &config);
+    const pv::LogicStackingConfig& logic_stacking_config() const;
+    bool is_logic_stacking() const;
+    bool is_logic_stacking_ready() const;
+    const std::vector<pv::LogicStackingChannel>& logic_stacking_channels();
+
     /**
      * Start collect data.
      */
-    bool start();
+    bool start(bool instant = false);
 
     /**
      * Stop collect
@@ -193,6 +201,7 @@ public:
 
     GVariant* get_config(int key, const sr_channel *ch = NULL, const sr_channel_group *cg = NULL);
     bool set_config(int key, GVariant *data, const sr_channel *ch = NULL, const sr_channel_group *cg = NULL);
+    bool set_stacking_shared_config(int key, GVariant *data);
     bool have_config(int key, const sr_channel *ch = NULL, const sr_channel_group *cg = NULL);
 
     bool get_config_string(int key, QString &value, const sr_channel *ch = NULL, const sr_channel_group *cg = NULL);
@@ -224,6 +233,15 @@ public:
 
 private:
     void config_changed(); 
+    void clear_stacking_channels();
+    void rebuild_stacking_channels();
+    sr_channel* make_stacking_channel(int analyzer, int physical_index);
+    bool configure_stacking_capture(bool instant, uint16_t *secondary_trigger_percent);
+    bool set_handle_config_bool(ds_device_handle handle, int key, bool value);
+    bool set_handle_config_uint64(ds_device_handle handle, int key, uint64_t value);
+    bool set_handle_config_int16(ds_device_handle handle, int key, int value);
+    bool set_handle_config_double(ds_device_handle handle, int key, double value);
+    bool enable_handle_probe(ds_device_handle handle, int probe_index, bool enable);
 
     //---------------device config-----------/
 public:
@@ -246,6 +264,9 @@ private:
     bool        _is_new_device;
     struct sr_dev_inst  *_di; 
     IDeviceAgentCallback *_callback;
+    pv::LogicStackingConfig _logic_stacking_config;
+    GSList *_logic_stacking_channels;
+    std::vector<pv::LogicStackingChannel> _logic_stacking_channel_map;
 };
 
 
