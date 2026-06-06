@@ -374,6 +374,12 @@ SR_PRIV int sr_source_remove(int fd)
 }
 
 /** @private */
+SR_PRIV int sr_source_remove_by_device(int fd, const struct sr_dev_inst *sdi)
+{
+	return sr_session_source_remove_by_device(fd, sdi);
+}
+
+/** @private */
 SR_PRIV int sr_source_add(int fd, int events, int timeout,
 			  sr_receive_data_callback_t cb, void *cb_data)
 {

@@ -2448,11 +2448,16 @@ static void receive_header(struct libusb_transfer *transfer)
     struct ds_trigger_pos *trigger_pos;
     const struct sr_dev_inst *sdi;
     uint64_t remain_cnt;
+    gboolean keep_full_logic_upload;
 
     packet.status = SR_PKT_OK;
     devc = transfer->user_data;
     sdi = devc->cb_data;
     trigger_pos = (struct ds_trigger_pos *)transfer->buffer;
+    keep_full_logic_upload =
+        sdi != NULL &&
+        sdi->mode == LOGIC &&
+        (sdi->capture_flags & SR_DEV_CAPTURE_KEEP_FULL_LOGIC_UPLOAD);
 
     if (devc->status != DSL_ABORT)
         devc->status = DSL_ERROR;
@@ -2465,8 +2470,10 @@ static void receive_header(struct libusb_transfer *transfer)
         if (transfer->actual_length == dsl_header_size(devc)) {
             if (sdi->mode != LOGIC ||
                 devc->stream ||
+                keep_full_logic_upload ||
                 remain_cnt < devc->limit_samples) {
-                if (sdi->mode == LOGIC && (!devc->stream || (devc->status == DSL_ABORT))) {
+                if (sdi->mode == LOGIC && !keep_full_logic_upload &&
+                    (!devc->stream || (devc->status == DSL_ABORT))) {
                     devc->actual_samples = (devc->limit_samples - remain_cnt) & ~SAMPLES_ALIGN;
                     devc->actual_bytes = devc->actual_samples / DSLOGIC_ATOMIC_SAMPLES * dsl_en_ch_num(sdi) * DSLOGIC_ATOMIC_SIZE;
                     devc->actual_samples = devc->actual_bytes / dsl_en_ch_num(sdi) * 8;

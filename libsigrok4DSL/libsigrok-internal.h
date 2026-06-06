@@ -52,6 +52,8 @@
 #define USB_EV_HOTPLUG_ATTACH		1
 #define USB_EV_HOTPLUG_DETTACH		2
 
+#define SR_DEV_CAPTURE_KEEP_FULL_LOGIC_UPLOAD (1U << 0)
+
 #define safe_free(p) 			if((p)) g_free((p)); ((p)) = NULL;
 #define g_safe_free_list(p) 	if((p)) g_slist_free((p)); ((p)) = NULL;
 
@@ -177,6 +179,9 @@ struct sr_dev_inst {
     /** Device instance private data (used?) */
     void *priv;
 
+    /** Transient per-capture behavior flags. */
+    unsigned int capture_flags;
+
 	int actived_times;
 };
 
@@ -288,6 +293,7 @@ typedef int (*sr_receive_data_callback_t)(int fd, int revents, const struct sr_d
 
 SR_PRIV void sr_hw_cleanup_all(void);
 SR_PRIV int sr_source_remove(int fd);
+SR_PRIV int sr_source_remove_by_device(int fd, const struct sr_dev_inst *sdi);
 SR_PRIV int sr_source_add(int fd, int events, int timeout,
         sr_receive_data_callback_t cb, void *cb_data);
 
@@ -303,6 +309,7 @@ SR_PRIV int sr_session_source_add_pollfd(GPollFD *pollfd, int timeout,
 SR_PRIV int sr_session_source_add_channel(GIOChannel *channel, int events,
 		int timeout, sr_receive_data_callback_t cb, const struct sr_dev_inst *sdi);
 SR_PRIV int sr_session_source_remove(int fd);
+SR_PRIV int sr_session_source_remove_by_device(int fd, const struct sr_dev_inst *sdi);
 SR_PRIV int sr_session_source_remove_pollfd(GPollFD *pollfd);
 SR_PRIV int sr_session_source_remove_channel(GIOChannel *channel); 
 
@@ -335,6 +342,8 @@ SR_PRIV uint16_t ds_trigger_get_edge1(uint16_t stage, uint16_t msc, uint16_t lsc
 
 SR_PRIV int ds_trigger_init(void);
 SR_PRIV int ds_trigger_destroy(void);
+SR_PRIV int ds_trigger_copy(struct ds_trigger *out);
+SR_PRIV int ds_trigger_apply(const struct ds_trigger *src);
 
 /*--- hardware/common/serial.c ----------------------------------------------*/
 

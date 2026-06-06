@@ -461,7 +461,7 @@ SR_PRIV int sr_session_source_add_channel(GIOChannel *channel, int events,
  *         SR_ERR_MALLOC upon memory allocation errors, SR_ERR_BUG upon
  *         internal errors.
  */
-static int _sr_session_source_remove(gintptr poll_object)
+static int _sr_session_source_remove(gintptr poll_object, const struct sr_dev_inst *sdi)
 {
 	struct source *new_sources;
 	GPollFD *new_pollfds;
@@ -478,7 +478,8 @@ static int _sr_session_source_remove(gintptr poll_object)
 	}
 
 	for (old = 0; old < session->num_sources; old++) {
-		if (session->sources[old].poll_object == poll_object)
+		if (session->sources[old].poll_object == poll_object &&
+			(sdi == NULL || session->sources[old].cb_data == sdi))
 			break;
 	}
 
@@ -533,7 +534,12 @@ static int _sr_session_source_remove(gintptr poll_object)
  */
 SR_PRIV int sr_session_source_remove(int fd)
 {
-	return _sr_session_source_remove((gintptr)fd);
+	return _sr_session_source_remove((gintptr)fd, NULL);
+}
+
+SR_PRIV int sr_session_source_remove_by_device(int fd, const struct sr_dev_inst *sdi)
+{
+	return _sr_session_source_remove((gintptr)fd, sdi);
 }
 
 /**
@@ -547,7 +553,7 @@ SR_PRIV int sr_session_source_remove(int fd)
  */
 SR_PRIV int sr_session_source_remove_pollfd(GPollFD *pollfd)
 {
-	return _sr_session_source_remove((gintptr)pollfd);
+	return _sr_session_source_remove((gintptr)pollfd, NULL);
 }
 
 /**
@@ -561,7 +567,7 @@ SR_PRIV int sr_session_source_remove_pollfd(GPollFD *pollfd)
  */
 SR_PRIV int sr_session_source_remove_channel(GIOChannel *channel)
 {
-	return _sr_session_source_remove((gintptr)channel);
+	return _sr_session_source_remove((gintptr)channel, NULL);
 }
  
 /** @} */
