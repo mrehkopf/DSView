@@ -122,6 +122,7 @@ private:
 		float x_offset, float y_offset);
 
     void paint_mid_align(QPainter &p, int left, int right, QColor fore, QColor back, uint64_t end_align_sample);
+    bool trigger_options_enabled() const;
 
 private:
 	pv::data::LogicSnapshot* _data;

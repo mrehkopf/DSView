@@ -131,7 +131,10 @@ DeviceOptions::DeviceOptions(QWidget *parent) :
     font.setPointSizeF(AppConfig::Instance().appOptions.fontSize);
    
     // mode group box
-    QGroupBox *props_box = new QGroupBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_MODE), "Mode"), this);
+    QString props_title = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_MODE), "Mode");
+    if (_device_agent->is_logic_stacking())
+        props_title = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SHARED_OPTIONS), "Stacking Common Options");
+    QGroupBox *props_box = new QGroupBox(props_title, this);
     props_box->setFont(font);
     props_box->setMinimumHeight(70);
     props_box->setAlignment(Qt::AlignTop);
@@ -146,7 +149,8 @@ DeviceOptions::DeviceOptions(QWidget *parent) :
     _container_lay->addWidget(minWid);
 
     // chnnels group box
-    this->build_dynamic_panel();
+    if (!_device_agent->is_logic_stacking())
+        this->build_dynamic_panel();
 
     // space
     QWidget *space = new QWidget();
@@ -168,7 +172,8 @@ DeviceOptions::DeviceOptions(QWidget *parent) :
     connect(button_box, SIGNAL(accepted()), this, SLOT(accept()));
 
     _mode_check_timer.setInterval(100);
-    _mode_check_timer.start();  
+    if (!_device_agent->is_logic_stacking())
+        _mode_check_timer.start();
 }
 
 DeviceOptions::~DeviceOptions()
@@ -194,6 +199,11 @@ void DeviceOptions::accept()
     for(auto p : dev_props) {
 		p->commit();
 	}
+
+    if (_device_agent->is_logic_stacking()) {
+        QDialog::accept();
+        return;
+    }
 
     // Commit the probes
     int mode = _device_agent->get_work_mode();

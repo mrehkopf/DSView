@@ -21,7 +21,85 @@
 
 #include "deviceagent.h"
 #include <assert.h>
+#include <string.h>
 #include "log.h"
+
+namespace {
+
+struct StackingSecondaryTiming
+{
+    uint64_t samplelimit;
+    uint16_t trigger_percent;
+};
+
+uint64_t samples_at_percent(uint64_t sample_count, uint16_t percent)
+{
+    if (percent == 0 || sample_count == 0)
+        return 0;
+
+    return (uint64_t)((long double)sample_count * (long double)percent / 100.0L);
+}
+
+uint16_t ceil_percent_for_samples(uint64_t desired_samples, uint64_t sample_count)
+{
+    if (desired_samples == 0 || sample_count == 0)
+        return 0;
+
+    long double scaled = (long double)desired_samples * 100.0L / (long double)sample_count;
+    uint64_t percent = (uint64_t)scaled;
+    if ((long double)percent < scaled)
+        percent++;
+
+    if (percent > 100)
+        percent = 100;
+
+    return (uint16_t)percent;
+}
+
+StackingSecondaryTiming stacking_secondary_timing(uint64_t master_samplelimit,
+                                                  uint16_t master_trigger_percent,
+                                                  uint64_t hw_depth)
+{
+    StackingSecondaryTiming timing;
+    timing.samplelimit = master_samplelimit;
+    timing.trigger_percent = master_trigger_percent;
+
+    if (master_samplelimit == 0 || master_trigger_percent == 0 ||
+        hw_depth <= master_samplelimit)
+        return timing;
+
+    const uint64_t desired_trigger_samples =
+        samples_at_percent(master_samplelimit, master_trigger_percent);
+    if (desired_trigger_samples == 0)
+        return timing;
+
+    const uint64_t max_extra = hw_depth - master_samplelimit;
+    uint64_t extra_samples = desired_trigger_samples;
+    if (extra_samples > max_extra)
+        extra_samples = max_extra;
+
+    for (int i = 0; i < 8; i++){
+        timing.samplelimit = master_samplelimit + extra_samples;
+        timing.trigger_percent =
+            ceil_percent_for_samples(desired_trigger_samples, timing.samplelimit);
+
+        const uint64_t secondary_trigger_samples =
+            samples_at_percent(timing.samplelimit, timing.trigger_percent);
+        if (secondary_trigger_samples <= extra_samples || extra_samples == max_extra)
+            return timing;
+
+        extra_samples = secondary_trigger_samples;
+        if (extra_samples > max_extra)
+            extra_samples = max_extra;
+    }
+
+    timing.samplelimit = master_samplelimit + extra_samples;
+    timing.trigger_percent =
+        ceil_percent_for_samples(desired_trigger_samples, timing.samplelimit);
+    return timing;
+}
+
+}
 
 
 DeviceAgent::DeviceAgent()
@@ -31,6 +109,12 @@ DeviceAgent::DeviceAgent()
     _dev_type = 0;
     _callback = NULL;
     _is_new_device = false;
+    _logic_stacking_channels = NULL;
+}
+
+DeviceAgent::~DeviceAgent()
+{
+    clear_stacking_channels();
 }
 
 void DeviceAgent::update()
@@ -213,9 +297,35 @@ bool DeviceAgent::is_trigger_enabled()
     return false;
 }
 
-bool DeviceAgent::start()
+bool DeviceAgent::start(bool instant)
 {
     assert(_dev_handle);
+
+    if (is_logic_stacking()){
+        if (!is_logic_stacking_ready())
+            return false;
+
+        uint16_t secondary_trigger_percent = 0;
+        if (!configure_stacking_capture(instant, &secondary_trigger_percent))
+            return false;
+
+        ds_collect_target targets[2];
+        memset(targets, 0, sizeof(targets));
+
+        targets[0].handle = _logic_stacking_config.secondary_handle;
+        targets[0].role = instant ? DS_COLLECT_TARGET_INSTANT : DS_COLLECT_TARGET_SECONDARY_SYNC_RISING;
+        targets[0].sync_channel = _logic_stacking_config.secondary_sync_channel;
+        targets[0].trigger_pos_percent = secondary_trigger_percent;
+
+        targets[1].handle = _logic_stacking_config.master_handle;
+        targets[1].role = instant ? DS_COLLECT_TARGET_INSTANT : DS_COLLECT_TARGET_MASTER_CURRENT_TRIGGER;
+        targets[1].sync_channel = 0;
+
+        if (ds_start_collect_multi(targets, 2) == SR_OK)
+            return true;
+
+        return false;
+    }
 
     if (ds_start_collect() == SR_OK){
         return true;
@@ -226,6 +336,10 @@ bool DeviceAgent::start()
 bool DeviceAgent::stop()
 {
     assert(_dev_handle);
+
+    if (is_logic_stacking_ready() && ds_stop_collect_multi() == SR_OK){
+        return true;
+    }
 
     if (ds_stop_collect() == SR_OK){
         return true;
@@ -241,6 +355,9 @@ void DeviceAgent::release()
 bool DeviceAgent::have_enabled_channel()
 {
     assert(_dev_handle);
+    if (is_logic_stacking())
+        return _logic_stacking_channel_map.empty() == false;
+
     return ds_channel_is_enabled() > 0;
 }
 
@@ -304,7 +421,244 @@ bool DeviceAgent::is_collecting()
 GSList *DeviceAgent::get_channels()
 {
     assert(_dev_handle);
+    if (is_logic_stacking()){
+        if (_logic_stacking_channels == NULL)
+            rebuild_stacking_channels();
+        return _logic_stacking_channels;
+    }
+
     return ds_get_actived_device_channels();
+}
+
+bool DeviceAgent::set_logic_stacking_config(const pv::LogicStackingConfig &config)
+{
+    if (config.enabled && !config.has_channel_model())
+        return false;
+
+    const bool channel_model_changed =
+        !_logic_stacking_config.has_same_channel_model(config);
+
+    _logic_stacking_config = config;
+
+    if (channel_model_changed){
+        clear_stacking_channels();
+
+        if (_logic_stacking_config.has_channel_model())
+            rebuild_stacking_channels();
+    }
+
+    config_changed();
+    return true;
+}
+
+const pv::LogicStackingConfig& DeviceAgent::logic_stacking_config() const
+{
+    return _logic_stacking_config;
+}
+
+bool DeviceAgent::is_logic_stacking() const
+{
+    // Stacking may be configured even while saved analyzer handles still need remapping.
+    return _logic_stacking_config.has_channel_model() &&
+           _driver_name == "DSLogic";
+}
+
+bool DeviceAgent::is_logic_stacking_ready() const
+{
+    // Capture/device writes require both handles to be valid and the master to be active.
+    return is_logic_stacking() &&
+           _logic_stacking_config.is_valid() &&
+           _dev_handle == _logic_stacking_config.master_handle;
+}
+
+const std::vector<pv::LogicStackingChannel>& DeviceAgent::logic_stacking_channels()
+{
+    if (is_logic_stacking() && _logic_stacking_channels == NULL)
+        rebuild_stacking_channels();
+
+    return _logic_stacking_channel_map;
+}
+
+void DeviceAgent::clear_stacking_channels()
+{
+    for (GSList *l = _logic_stacking_channels; l; l = l->next){
+        sr_channel *ch = (sr_channel*)l->data;
+        if (ch != NULL){
+            if (ch->name)
+                g_free(ch->name);
+            if (ch->trigger)
+                g_free(ch->trigger);
+            g_free(ch);
+        }
+    }
+
+    if (_logic_stacking_channels != NULL)
+        g_slist_free(_logic_stacking_channels);
+
+    _logic_stacking_channels = NULL;
+    _logic_stacking_channel_map.clear();
+}
+
+sr_channel* DeviceAgent::make_stacking_channel(int analyzer, int physical_index)
+{
+    sr_channel *ch = (sr_channel*)g_try_malloc0(sizeof(sr_channel));
+    if (ch == NULL)
+        return NULL;
+
+    const int global_index = analyzer == 0 ? physical_index : 32 + physical_index;
+    QString name = QString("A%1-D%2").arg(analyzer + 1).arg(physical_index);
+
+    ch->index = global_index;
+    ch->type = SR_CHANNEL_LOGIC;
+    ch->enabled = TRUE;
+    ch->name = g_strdup(name.toLocal8Bit().constData());
+    ch->trigger = g_strdup("");
+    ch->bits = 1;
+
+    return ch;
+}
+
+void DeviceAgent::rebuild_stacking_channels()
+{
+    clear_stacking_channels();
+
+    // Build synthetic channels from the saved model, even if hardware remapping is pending.
+    if (!_logic_stacking_config.has_channel_model())
+        return;
+
+    for (int analyzer = 0; analyzer < 2; analyzer++){
+        for (int physical = 0; physical < 32; physical++){
+            const bool is_sync = analyzer == 1 &&
+                                 physical == _logic_stacking_config.secondary_sync_channel;
+            const bool visible = _logic_stacking_config.show_sync_channel || !is_sync;
+
+            pv::LogicStackingChannel mapped;
+            mapped.analyzer = analyzer;
+            mapped.physical_index = physical;
+            mapped.global_index = analyzer == 0 ? physical : 32 + physical;
+            mapped.visible = visible;
+            mapped.sync = is_sync;
+
+            if (!visible)
+                continue;
+
+            sr_channel *ch = make_stacking_channel(analyzer, physical);
+            if (ch == NULL){
+                dsv_err("DeviceAgent::rebuild_stacking_channels, malloc failed.");
+                clear_stacking_channels();
+                return;
+            }
+
+            _logic_stacking_channels = g_slist_append(_logic_stacking_channels, ch);
+            _logic_stacking_channel_map.push_back(mapped);
+        }
+    }
+}
+
+bool DeviceAgent::set_handle_config_bool(ds_device_handle handle, int key, bool value)
+{
+    GVariant *gvar = g_variant_new_boolean(value);
+    return ds_set_device_config_by_handle(handle, NULL, NULL, key, gvar) == SR_OK;
+}
+
+bool DeviceAgent::set_handle_config_uint64(ds_device_handle handle, int key, uint64_t value)
+{
+    GVariant *gvar = g_variant_new_uint64(value);
+    return ds_set_device_config_by_handle(handle, NULL, NULL, key, gvar) == SR_OK;
+}
+
+bool DeviceAgent::set_handle_config_int16(ds_device_handle handle, int key, int value)
+{
+    GVariant *gvar = g_variant_new_int16(value);
+    return ds_set_device_config_by_handle(handle, NULL, NULL, key, gvar) == SR_OK;
+}
+
+bool DeviceAgent::set_handle_config_double(ds_device_handle handle, int key, double value)
+{
+    GVariant *gvar = g_variant_new_double(value);
+    return ds_set_device_config_by_handle(handle, NULL, NULL, key, gvar) == SR_OK;
+}
+
+bool DeviceAgent::enable_handle_probe(ds_device_handle handle, int probe_index, bool enable)
+{
+    return ds_enable_device_channel_index_by_handle(handle, probe_index, enable ? TRUE : FALSE) == SR_OK;
+}
+
+bool DeviceAgent::configure_stacking_capture(bool instant, uint16_t *secondary_trigger_percent)
+{
+    if (!is_logic_stacking_ready())
+        return false;
+
+    uint64_t samplerate = get_sample_rate();
+    uint64_t samplelimit = get_sample_limit();
+    uint64_t hw_depth = 0;
+    const uint16_t master_trigger_percent = ds_trigger_get_pos();
+    StackingSecondaryTiming secondary_timing;
+    secondary_timing.samplelimit = samplelimit;
+    secondary_timing.trigger_percent = master_trigger_percent;
+
+    if (samplerate == 0 || samplelimit == 0)
+        return false;
+
+    bool ok = true;
+    ok = set_config_bool(SR_CONF_INSTANT, instant) && ok;
+    ok = set_config_bool(SR_CONF_RLE, false) && ok;
+    ok = set_config_bool(SR_CONF_LOOP_MODE, false) && ok;
+    ok = set_config_int16(SR_CONF_OPERATION_MODE, LO_OP_BUFFER) && ok;
+    ok = set_config_int16(SR_CONF_BUFFER_OPTIONS, SR_BUF_UPLOAD) && ok;
+    ok = set_config_int16(SR_CONF_CHANNEL_MODE, DSL_BUFFER250x32) && ok;
+
+    ok = set_handle_config_bool(_logic_stacking_config.secondary_handle, SR_CONF_INSTANT, instant) && ok;
+    ok = set_handle_config_bool(_logic_stacking_config.secondary_handle, SR_CONF_RLE, false) && ok;
+    ok = set_handle_config_bool(_logic_stacking_config.secondary_handle, SR_CONF_LOOP_MODE, false) && ok;
+    ok = set_handle_config_int16(_logic_stacking_config.secondary_handle, SR_CONF_OPERATION_MODE, LO_OP_BUFFER) && ok;
+    ok = set_handle_config_int16(_logic_stacking_config.secondary_handle, SR_CONF_BUFFER_OPTIONS, SR_BUF_UPLOAD) && ok;
+    ok = set_handle_config_int16(_logic_stacking_config.secondary_handle, SR_CONF_CHANNEL_MODE, DSL_BUFFER250x32) && ok;
+
+    // Hidden sync inputs still need to be sampled so the merger can align the streams.
+    for (int i = 0; i < 32; i++){
+        ok = enable_probe(i, true) && ok;
+        ok = enable_handle_probe(_logic_stacking_config.secondary_handle, i, true) && ok;
+    }
+
+    if (!ok)
+        return false;
+
+    // Give the secondary enough post-trigger data when early master triggers shift A1 left.
+    if (!instant && get_config_uint64(SR_CONF_HW_DEPTH, hw_depth))
+        secondary_timing = stacking_secondary_timing(samplelimit,
+                                                    master_trigger_percent,
+                                                    hw_depth);
+
+    ok = set_handle_config_uint64(_logic_stacking_config.secondary_handle, SR_CONF_SAMPLERATE, samplerate) && ok;
+    ok = set_handle_config_uint64(_logic_stacking_config.secondary_handle,
+                                  SR_CONF_LIMIT_SAMPLES,
+                                  secondary_timing.samplelimit) && ok;
+    if (secondary_trigger_percent != NULL)
+        *secondary_trigger_percent = secondary_timing.trigger_percent;
+
+    bool clock_bool = false;
+    if (get_config_bool(SR_CONF_CLOCK_TYPE, clock_bool))
+        ok = set_handle_config_bool(_logic_stacking_config.secondary_handle, SR_CONF_CLOCK_TYPE, clock_bool) && ok;
+
+    if (get_config_bool(SR_CONF_CLOCK_EDGE, clock_bool))
+        ok = set_handle_config_bool(_logic_stacking_config.secondary_handle, SR_CONF_CLOCK_EDGE, clock_bool) && ok;
+
+    double v_th = 0;
+    if (get_config_double(SR_CONF_VTH, v_th))
+        ok = set_handle_config_double(_logic_stacking_config.secondary_handle, SR_CONF_VTH, v_th) && ok;
+
+    int filter = 0;
+    if (get_config_int16(SR_CONF_FILTER, filter))
+        ok = set_handle_config_int16(_logic_stacking_config.secondary_handle, SR_CONF_FILTER, filter) && ok;
+
+    uint64_t ext_samplerate = 0;
+    if (get_config_uint64(SR_CONF_EXT_SAMPLERATE, ext_samplerate))
+        ok = set_handle_config_uint64(_logic_stacking_config.secondary_handle,
+                                      SR_CONF_EXT_SAMPLERATE,
+                                      ext_samplerate) && ok;
+
+    return ok;
 }
 
  int DeviceAgent::get_hardware_operation_mode()
@@ -412,6 +766,42 @@ bool DeviceAgent::set_config(int key, GVariant *data, const sr_channel *ch, cons
     config_changed();
     return true;
  }
+
+bool DeviceAgent::set_stacking_shared_config(int key, GVariant *data)
+{
+    assert(_dev_handle);
+    assert(data);
+
+    if (!is_logic_stacking_ready())
+        return set_config(key, data);
+
+    g_variant_ref_sink(data);
+
+    int ret = ds_set_actived_device_config(NULL, NULL, key, data);
+    if (ret != SR_OK){
+        g_variant_unref(data);
+        if (ret != SR_ERR_NA)
+            dsv_err("%s%d", "ERROR:DeviceAgent::set_stacking_shared_config, Failed to set master config id:", key);
+        return false;
+    }
+
+    ret = ds_set_device_config_by_handle(_logic_stacking_config.secondary_handle,
+                                         NULL,
+                                         NULL,
+                                         key,
+                                         data);
+    g_variant_unref(data);
+
+    if (ret != SR_OK){
+        if (ret != SR_ERR_NA)
+            dsv_err("%s%d", "ERROR:DeviceAgent::set_stacking_shared_config, Failed to set secondary config id:", key);
+        config_changed();
+        return false;
+    }
+
+    config_changed();
+    return true;
+}
 
  bool DeviceAgent::get_config_int32(int key, int &value, const sr_channel *ch, const sr_channel_group *cg)
  {  
@@ -678,4 +1068,3 @@ bool DeviceAgent::set_config_double(int key, double value, const sr_channel *ch,
 }
 
 //---------------device config end -----------/
-

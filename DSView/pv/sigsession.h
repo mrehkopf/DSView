@@ -31,9 +31,11 @@
 #include <thread>
 #include <QDateTime>
 #include <list>
+#include <memory>
 
 #include "view/mathtrace.h"
 #include "data/mathstack.h"
+#include "logicstackingconfig.h"
 #include "interface/icallbacks.h"
 #include "dstimer.h"
 #include <libsigrok.h>
@@ -59,6 +61,7 @@ class DsoSnapshot;
 class LogicSnapshot;
 class DecoderModel;
 class MathStack;
+class LogicStackingMerger;
 
 namespace decode {
     class Decoder;
@@ -165,12 +168,15 @@ public:
     void Close();
     
     bool set_default_device();
-    bool set_device(ds_device_handle dev_handle);
+    bool set_device(ds_device_handle dev_handle, bool reset_session = true);
     bool set_file(QString name);
     void close_file(ds_device_handle dev_handle);
     bool start_capture(bool instant);
     bool stop_capture();
     bool switch_work_mode(int mode);
+    bool set_logic_stacking_config(const LogicStackingConfig &config);
+    const LogicStackingConfig& logic_stacking_config() const;
+    bool is_logic_stacking() const;
 
     uint64_t cur_samplerate();
     uint64_t cur_snap_samplerate();
@@ -527,7 +533,10 @@ private:
 	void feed_in_header(const sr_dev_inst *sdi);
 	void feed_in_meta(const sr_dev_inst *sdi, const sr_datafeed_meta &meta);
     void feed_in_trigger(const ds_trigger_pos &trigger_pos);
-	void feed_in_logic(const sr_datafeed_logic &o);
+		void feed_in_logic(const sr_datafeed_logic &o);
+        void data_feed_in_logic_stacking(const struct sr_dev_inst *sdi,
+                    const struct sr_datafeed_packet *packet);
+        void finish_logic_stacking_capture(uint16_t packet_status);
 
     void feed_in_dso(const sr_datafeed_dso &o);
 	void feed_in_analog(const sr_datafeed_analog &o);    
@@ -631,6 +640,7 @@ private:
     sr_status       _dso_status;
     bool            _dso_status_valid;
     uint64_t        _capture_work_time;
+    std::unique_ptr<data::LogicStackingMerger> _logic_stacking_merger;
    
 private:
 	// TODO: This should not be necessary. Multiple concurrent

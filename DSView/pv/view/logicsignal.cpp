@@ -28,6 +28,7 @@
 #include "view.h"
 #include "../dsvdef.h"
 #include "../log.h"
+#include "../sigsession.h"
 
 using namespace std;
 
@@ -66,6 +67,11 @@ LogicSignal::~LogicSignal()
 
 void LogicSignal::set_trig(int trig)
 {
+    if (!trigger_options_enabled()){
+        _trig = NONTRIG;
+        return;
+    }
+
     if (trig > NONTRIG && trig <= EDGTRIG)
         _trig = (LogicSetRegions)trig;
     else
@@ -74,6 +80,12 @@ void LogicSignal::set_trig(int trig)
 
 bool LogicSignal::commit_trig()
 {
+    if (!trigger_options_enabled())
+        return false;
+
+    if (_index_list.empty() || _index_list.front() >= MaxTriggerProbes)
+        return false;
+
     if (_trig == NONTRIG) {
         ds_trigger_probe_set(_index_list.front(), 'X', 'X');
         return false;
@@ -215,6 +227,10 @@ void LogicSignal::paint_caps(QPainter &p, QLineF *const lines,
 
 void LogicSignal::paint_type_options(QPainter &p, int right, const QPoint pt, QColor fore)
 {
+    const bool trigger_enabled = trigger_options_enabled();
+    if (!trigger_enabled)
+        _trig = NONTRIG;
+
     int y = get_y();
     const QRectF posTrig_rect  = get_rect(POSTRIG,  y, right);
     const QRectF higTrig_rect  = get_rect(HIGTRIG,  y, right);
@@ -228,33 +244,35 @@ void LogicSignal::paint_type_options(QPainter &p, int right, const QPoint pt, QC
     {   
         QColor color = View::Blue;
 
-        if (session->is_loop_mode()){
+        if (!trigger_enabled || session->is_loop_mode()){
             color = QColor(0x70, 0x70, 0x70,  255);
         }
 
-        p.setBrush(posTrig_rect.contains(pt) ? color.lighter() :
-                (_trig == POSTRIG) ? color : Qt::transparent);
+        p.setBrush((trigger_enabled && posTrig_rect.contains(pt)) ? color.lighter() :
+                (trigger_enabled && _trig == POSTRIG) ? color : Qt::transparent);
         p.drawRect(posTrig_rect);
-        p.setBrush(higTrig_rect.contains(pt) ? color.lighter() :
-                (_trig == HIGTRIG) ? color : Qt::transparent);
+        p.setBrush((trigger_enabled && higTrig_rect.contains(pt)) ? color.lighter() :
+                (trigger_enabled && _trig == HIGTRIG) ? color : Qt::transparent);
         p.drawRect(higTrig_rect);
-        p.setBrush(negTrig_rect.contains(pt) ? color.lighter() :
-                (_trig == NEGTRIG) ? color : Qt::transparent);
+        p.setBrush((trigger_enabled && negTrig_rect.contains(pt)) ? color.lighter() :
+                (trigger_enabled && _trig == NEGTRIG) ? color : Qt::transparent);
         p.drawRect(negTrig_rect);
-        p.setBrush(lowTrig_rect.contains(pt) ? color.lighter() :
-                (_trig == LOWTRIG) ? color : Qt::transparent);
+        p.setBrush((trigger_enabled && lowTrig_rect.contains(pt)) ? color.lighter() :
+                (trigger_enabled && _trig == LOWTRIG) ? color : Qt::transparent);
         p.drawRect(lowTrig_rect);
-        p.setBrush(edgeTrig_rect.contains(pt) ? color.lighter() :
-                (_trig == EDGTRIG) ? color : Qt::transparent);
+        p.setBrush((trigger_enabled && edgeTrig_rect.contains(pt)) ? color.lighter() :
+                (trigger_enabled && _trig == EDGTRIG) ? color : Qt::transparent);
         p.drawRect(edgeTrig_rect);
     }   
 
-    p.setPen(QPen(fore, 1, Qt::DashLine));
+    const QColor option_fore = trigger_enabled ? fore : QColor(0x70, 0x70, 0x70, 255);
+
+    p.setPen(QPen(option_fore, 1, Qt::DashLine));
     p.setBrush(Qt::transparent);
     p.drawLine(posTrig_rect.left(), posTrig_rect.bottom(),
                edgeTrig_rect.right(), edgeTrig_rect.bottom());
 
-    p.setPen(QPen(fore, 2, Qt::SolidLine));
+    p.setPen(QPen(option_fore, 2, Qt::SolidLine));
     p.setBrush(Qt::transparent);
     p.drawLine(posTrig_rect.left() + 5, posTrig_rect.bottom() - 5,
                posTrig_rect.center().x(), posTrig_rect.bottom() - 5);
@@ -492,6 +510,9 @@ bool LogicSignal::edges(uint64_t end, uint64_t start, uint64_t &rising, uint64_t
 
 bool LogicSignal::mouse_press(int right, const QPoint pt)
 {
+    if (!trigger_options_enabled())
+        return false;
+
     int y = get_y();
     const QRectF posTrig = get_rect(POSTRIG, y, right);
     const QRectF higTrig = get_rect(HIGTRIG, y, right);
@@ -585,6 +606,15 @@ void LogicSignal::set_data(data::LogicSnapshot* data)
 {
     assert(data);
     _data = data;
+}
+
+bool LogicSignal::trigger_options_enabled() const
+{
+    // Only primary channels can use the user trigger; secondary is armed only on its "sync" trigger input.
+    const int StackingPrimaryChannelCount = 32; // TODO dynamic channel count depending on analyzer model
+    return session == NULL ||
+           !session->is_logic_stacking() ||
+           _probe->index < StackingPrimaryChannelCount;
 }
 
 } // namespace view

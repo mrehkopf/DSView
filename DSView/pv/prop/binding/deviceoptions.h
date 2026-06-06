@@ -45,6 +45,8 @@ public:
 
 private:
 
+    static bool stacking_shared_option(int key);
+
 	static GVariant* config_getter(int key);
 
 	static void config_setter(int key, GVariant* value);

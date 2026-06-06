@@ -431,17 +431,6 @@ void ProtocolDock::del_all_protocol()
     if (_protocol_lay_items.size() > 0)
     {
         _session->clear_all_decoder();
-
-        for (auto it = _protocol_lay_items.begin(); it != _protocol_lay_items.end(); it++)
-        {
-             DESTROY_QT_LATER((*it)); //destory control
-        }
-
-        _protocol_lay_items.clear();
-        this->update();
-        protocol_updated();
-
-        adjustPannelSize();
     }
 }
 
@@ -1046,15 +1035,32 @@ bool ProtocolDock::protocol_sort_callback(const DecoderInfoItem *o1, const Decod
     _pro_search_button->setEnabled(bEnable);
  }
 
- void ProtocolDock::update_deocder_item_name(void *trace_handel, const char *name)
- {
+void ProtocolDock::update_deocder_item_name(void *trace_handel, const char *name)
+{
     for(auto p : _protocol_lay_items){
         if (p->_trace == trace_handel){
             p->set_label_name(QString(name));
             break;
         }
     }
- }
+}
+
+void ProtocolDock::clear_decoder_items()
+{
+    if (_protocol_lay_items.empty())
+        return;
+
+    for (auto it = _protocol_lay_items.begin(); it != _protocol_lay_items.end(); it++)
+    {
+         DESTROY_QT_LATER((*it));
+    }
+
+    _protocol_lay_items.clear();
+    this->update();
+    protocol_updated();
+
+    adjustPannelSize();
+}
 
 void ProtocolDock::UpdateLanguage()
 {

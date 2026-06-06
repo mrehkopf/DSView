@@ -28,6 +28,7 @@
 #include "data/analogsnapshot.h"
 #include "data/dsosnapshot.h"
 #include "data/logicsnapshot.h"
+#include "data/logicstackingmerger.h"
 #include "data/decoderstack.h"
 #include "data/decode/decoder.h"
 #include "data/decodermodel.h"
@@ -47,6 +48,7 @@
 #include <stdexcept>
 #include <sys/stat.h>
 #include <map>
+#include <vector>
 #include <QString>
 
 #include "data/decode/decoderstatus.h"
@@ -60,6 +62,57 @@
 
 namespace pv
 {
+    namespace {
+
+    typedef std::pair<int, GVariant*> DeviceConfigSnapshotItem;
+
+    // Used when a stacking remap silently changes the active master after session load.
+    // Without this, the new active device falls back to default samplerate/VTH/etc.
+    std::vector<DeviceConfigSnapshotItem> capture_device_session_options(DeviceAgent &device_agent)
+    {
+        std::vector<DeviceConfigSnapshotItem> snapshot;
+        GVariant *options = device_agent.get_config_list(NULL, SR_CONF_DEVICE_SESSIONS);
+        if (options == NULL)
+            return snapshot;
+
+        gsize option_count = 0;
+        const int *keys = (const int32_t*)g_variant_get_fixed_array(
+                    options, &option_count, sizeof(int32_t));
+
+        for (gsize i = 0; i < option_count; i++){
+            GVariant *value = device_agent.get_config(keys[i]);
+            if (value != NULL)
+                snapshot.push_back(DeviceConfigSnapshotItem(keys[i], value));
+        }
+
+        g_variant_unref(options);
+        return snapshot;
+    }
+
+    void release_device_session_options(std::vector<DeviceConfigSnapshotItem> &snapshot)
+    {
+        for (size_t i = 0; i < snapshot.size(); i++){
+            if (snapshot[i].second != NULL)
+                g_variant_unref(snapshot[i].second);
+        }
+        snapshot.clear();
+    }
+
+    void restore_device_session_options(DeviceAgent &device_agent,
+                                        std::vector<DeviceConfigSnapshotItem> &snapshot)
+    {
+        for (size_t i = 0; i < snapshot.size(); i++){
+            GVariant *value = snapshot[i].second;
+            if (value == NULL)
+                continue;
+
+            g_variant_ref(value);
+            device_agent.set_config(snapshot[i].first, value);
+        }
+    }
+
+    }
+
     SessionData::SessionData()
     {
         _cur_snap_samplerate = 0;
@@ -216,7 +269,7 @@ namespace pv
         return false;
     }
 
-    bool SigSession::set_device(ds_device_handle dev_handle)
+    bool SigSession::set_device(ds_device_handle dev_handle, bool reset_session)
     {
         assert(!_is_saving);
         assert(!_is_working);
@@ -224,7 +277,8 @@ namespace pv
 
         ds_device_handle old_dev = _device_agent.handle();
  
-        _callback->trigger_message(DSV_MSG_CURRENT_DEVICE_CHANGE_PREV);
+        if (reset_session)
+            _callback->trigger_message(DSV_MSG_CURRENT_DEVICE_CHANGE_PREV);
         // Release the old device.
         _device_agent.release();
         _device_status = ST_INIT;
@@ -236,8 +290,14 @@ namespace pv
         }
 
         _device_agent.update();
-        set_collect_mode(COLLECT_SINGLE);
-
+        // Normal device switches leave stacking mode; silent remaps preserve the virtual setup.
+        if (reset_session &&
+            _device_agent.logic_stacking_config().enabled &&
+            _device_agent.logic_stacking_config().master_handle != dev_handle){
+            LogicStackingConfig disabled = _device_agent.logic_stacking_config();
+            disabled.enabled = false;
+            _device_agent.set_logic_stacking_config(disabled);
+        }
         if (_device_agent.is_file()){
             std::string dev_name = pv::path::ToUnicodePath(_device_agent.name());
             dsv_info("Switch to file \"%s\" done.", dev_name.c_str());
@@ -245,19 +305,22 @@ namespace pv
         else
             dsv_info("Switch to device \"%s\" done.", _device_agent.name().toUtf8().data());
 
-        clear_all_decoder();
+        if (reset_session){
+            clear_all_decoder();
 
-        _view_data->clear();
-        _capture_data->clear();
-        _capture_data = _view_data;
- 
-        init_signals();
+            _view_data->clear();
+            _capture_data->clear();
+            _capture_data = _view_data;
+
+            init_signals();
+        }
 
         set_cur_snap_samplerate(_device_agent.get_sample_rate());
         set_cur_samplelimits(_device_agent.get_sample_limit());
 
         // The current device changed.
-        _callback->trigger_message(DSV_MSG_CURRENT_DEVICE_CHANGED);
+        if (reset_session)
+            _callback->trigger_message(DSV_MSG_CURRENT_DEVICE_CHANGED);
 
         int lastError = ds_get_last_error();
         bool ret = true;
@@ -306,6 +369,73 @@ namespace pv
         }
 
         return ret;
+    }
+
+    bool SigSession::set_logic_stacking_config(const LogicStackingConfig &config)
+    {
+        if (_is_working || _is_saving)
+            return false;
+
+        LogicStackingConfig cfg = config;
+        const bool channel_model_changed =
+            !_device_agent.logic_stacking_config().has_same_channel_model(cfg);
+        std::vector<DeviceConfigSnapshotItem> preserved_options;
+
+        if (cfg.enabled){
+            if (!cfg.has_channel_model())
+                return false;
+
+            if (cfg.is_valid() && _device_agent.handle() != cfg.master_handle){
+                // Handle-only remaps must keep restored device options and decoder bindings.
+                if (!channel_model_changed)
+                    preserved_options = capture_device_session_options(_device_agent);
+
+                if (!set_device(cfg.master_handle, channel_model_changed)){
+                    release_device_session_options(preserved_options);
+                    return false;
+                }
+
+                if (!preserved_options.empty())
+                    restore_device_session_options(_device_agent, preserved_options);
+            }
+        }
+
+        if (!_device_agent.set_logic_stacking_config(cfg)){
+            release_device_session_options(preserved_options);
+            return false;
+        }
+
+        if (cfg.enabled)
+            set_collect_mode(COLLECT_SINGLE);
+
+        if (channel_model_changed){
+            clear_all_decoder();
+            _view_data->clear();
+            _capture_data->clear();
+            _capture_data = _view_data;
+            init_signals();
+
+            if (_device_agent.have_instance()){
+                set_cur_snap_samplerate(_device_agent.get_sample_rate());
+                set_cur_samplelimits(_device_agent.get_sample_limit());
+            }
+
+            signals_changed();
+            update_view();
+        }
+
+        release_device_session_options(preserved_options);
+        return true;
+    }
+
+    const LogicStackingConfig& SigSession::logic_stacking_config() const
+    {
+        return _device_agent.logic_stacking_config();
+    }
+
+    bool SigSession::is_logic_stacking() const
+    {
+        return _device_agent.is_logic_stacking();
     }
 
     bool SigSession::set_file(QString name)
@@ -548,6 +678,16 @@ namespace pv
             return false;
         }
 
+        if (_device_agent.get_work_mode() == LOGIC &&
+            _device_agent.is_logic_stacking() &&
+            !_device_agent.is_logic_stacking_ready())
+        {
+            MsgBox::Show(L_S(STR_PAGE_MSG,
+                             S_ID(IDS_MSG_STACKING_REMAP_REQUIRED_START),
+                             "Stacking mode needs two mapped DSLogic U3Pro32 analyzers. Open Stacking settings and select the master and secondary devices."));
+            return false;
+        }
+
         clear_all_decode_task2();
         clear_decode_result(); 
         
@@ -567,6 +707,11 @@ namespace pv
         int mode = _device_agent.get_work_mode();
         if (mode == LOGIC)
         {
+            if (_device_agent.is_logic_stacking()){
+                set_collect_mode(COLLECT_SINGLE);
+                _is_stream_mode = false;
+            }
+
             if (is_repeat_mode()
                     && _device_agent.is_hardware() 
                     && _device_agent.is_stream_mode()){
@@ -722,9 +867,20 @@ namespace pv
 
         capture_init();
 
+        if (_device_agent.is_logic_stacking()){
+            _logic_stacking_merger.reset(new data::LogicStackingMerger());
+            _logic_stacking_merger->reset(_device_agent.logic_stacking_config(),
+                                         _device_agent.get_sample_limit(),
+                                         _device_agent.get_sample_rate(),
+                                         _is_instant);
+        }
+        else{
+            _logic_stacking_merger.reset();
+        }
+
         _is_task_end = false;
 
-        if (_device_agent.start() == false){
+        if (_device_agent.start(_is_instant) == false){
             dsv_err("Start collect error!");
             return false;
         }
@@ -773,6 +929,9 @@ namespace pv
         { 
            _device_agent.get_config_bool(SR_CONF_WAIT_UPLOAD, wait_upload);
         }
+
+        if (wait_upload && (_device_agent.is_logic_stacking() || !_is_triged))
+            wait_upload = false;
 
         if (!wait_upload)
         {
@@ -1393,6 +1552,109 @@ namespace pv
         _data_updated = true;
     }
 
+    void SigSession::finish_logic_stacking_capture(uint16_t packet_status)
+    {
+        dsv_info("------------SR_DF_END packet (logic stacking mode).");
+
+        bool ok = packet_status == SR_PKT_OK;
+
+        if (ok && _logic_stacking_merger){
+            ok = _logic_stacking_merger->flush_to_snapshot(
+                    _capture_data->get_logic(),
+                    _device_agent.get_channels(),
+                    _device_agent.logic_stacking_channels());
+
+            if (ok && !_logic_stacking_merger->warning().isEmpty())
+                _callback->delay_prop_msg(_logic_stacking_merger->warning());
+        }
+
+        if (ok){
+            if (!_is_triged){
+                _is_triged = true;
+                _trig_time = QDateTime::currentDateTime();
+            }
+
+            _callback->frame_began();
+            set_receive_data_len(_device_agent.get_sample_limit());
+            _data_updated = true;
+        }
+
+        _capture_data->get_logic()->capture_ended();
+        _capture_data->get_dso()->capture_ended();
+        _capture_data->get_analog()->capture_ended();
+        _is_task_end = true;
+
+        if (ok){
+            _callback->trigger_message(DSV_MSG_REV_END_PACKET);
+        }
+        else{
+            _error = _capture_data->get_logic()->memory_failed() ? Malloc_err : Pkt_data_err;
+            _callback->session_error();
+        }
+
+        _logic_stacking_merger.reset();
+    }
+
+    void SigSession::data_feed_in_logic_stacking(const struct sr_dev_inst *sdi,
+                                                 const struct sr_datafeed_packet *packet)
+    {
+        assert(_logic_stacking_merger);
+
+        const ds_device_handle handle = ds_get_device_handle_from_inst(sdi);
+        const LogicStackingConfig &config = _device_agent.logic_stacking_config();
+        const bool is_master = handle == config.master_handle;
+
+        switch (packet->type)
+        {
+        case SR_DF_HEADER:
+            if (is_master)
+                feed_in_header(sdi);
+            break;
+
+        case SR_DF_META:
+            if (is_master && packet->payload)
+                feed_in_meta(sdi, *(const sr_datafeed_meta *)packet->payload);
+            break;
+
+        case SR_DF_TRIGGER:
+            assert(packet->payload);
+            _logic_stacking_merger->set_trigger(handle, *(const ds_trigger_pos *)packet->payload);
+            if (is_master)
+                feed_in_trigger(*(const ds_trigger_pos *)packet->payload);
+            break;
+
+        case SR_DF_LOGIC:
+            assert(packet->payload);
+            assert(!_is_task_end);
+            if (!_logic_stacking_merger->append_logic(handle, *(const sr_datafeed_logic *)packet->payload)){
+                _error = Pkt_data_err;
+                _callback->session_error();
+            }
+            break;
+
+        case SR_DF_OVERFLOW:
+            if (_error == No_err){
+                _error = Data_overflow;
+                _callback->session_error();
+            }
+            break;
+
+        case SR_DF_END:
+            if (packet->status != SR_PKT_OK){
+                finish_logic_stacking_capture(packet->status);
+                return;
+            }
+
+            _logic_stacking_merger->mark_end(handle);
+            if (_logic_stacking_merger->complete())
+                finish_logic_stacking_capture(packet->status);
+            break;
+
+        default:
+            break;
+        }
+    }
+
     void SigSession::data_feed_in(const struct sr_dev_inst *sdi,
                                   const struct sr_datafeed_packet *packet)
     {
@@ -1409,6 +1671,12 @@ namespace pv
         {
             _error = Pkt_data_err;
             _callback->session_error();
+            return;
+        }
+
+        if (_device_agent.is_logic_stacking()){
+            if (_logic_stacking_merger)
+                data_feed_in_logic_stacking(sdi, packet);
             return;
         }
 
@@ -1677,7 +1945,8 @@ namespace pv
     void SigSession::remove_decoder(int index)
     {
         int size = (int)_decode_traces.size();
-        assert(index < size);
+        if (index < 0 || index >= size)
+            return;
 
         auto it = _decode_traces.begin() + index;
         auto trace = (*it);
@@ -1697,11 +1966,17 @@ namespace pv
             delete trace;
             signals_changed();
         }
+
+        if (_decode_traces.empty())
+            _decoder_model->setDecoderStack(NULL);
     }
 
     void SigSession::remove_decoder_by_key_handel(void *handel)
     {
         int dex = get_trace_index_by_key_handel(handel);
+        if (dex < 0)
+            return;
+
         remove_decoder(dex);
     }
 
@@ -1729,6 +2004,9 @@ namespace pv
     void SigSession::rst_decoder_by_key_handel(void *handel)
     {
         int dex = get_trace_index_by_key_handel(handel);
+        if (dex < 0)
+            return;
+
         rst_decoder(dex);
     }
 
@@ -1927,8 +2205,12 @@ namespace pv
 
     void SigSession::clear_all_decoder(bool bUpdateView)
     {
-        if (_decode_traces.empty())
+        if (_decode_traces.empty()){
+            _decoder_model->setDecoderStack(NULL);
+            if (_decoder_pannel != NULL && !_bClose)
+                _decoder_pannel->clear_decoder_items();
             return;
+        }
 
         // create the wait task deque
         int dex = -1;
@@ -1948,6 +2230,9 @@ namespace pv
         }
         _decode_traces.clear();
         _decoder_model->setDecoderStack(NULL);
+
+        if (_decoder_pannel != NULL && !_bClose)
+            _decoder_pannel->clear_decoder_items();
 
         if (!_bClose && bUpdateView)
             signals_changed();

@@ -120,6 +120,7 @@ namespace pv
             void setting_adj();
             void enable_toggle(bool enable);
             void update_mode_icon();
+            void update_stacking_button_status();
 
             bool action_run_stop();
             bool action_instant_stop();
@@ -141,6 +142,7 @@ namespace pv
             void on_samplerate_sel(int index);
             void on_samplecount_sel(int index);
             void on_configure();
+            void on_stacking_configure();
             void zero_adj();
             void on_run_stop_action();
             void on_instant_stop_action();    
@@ -151,6 +153,7 @@ namespace pv
             XToolButton         _device_type;
             DsComboBox          _device_selector;
             XToolButton         _configure_button;           
+            XToolButton         _stacking_button;
             DsComboBox          _sample_count;
             QLabel              *_sample_at;
             DsComboBox          _sample_rate;          
@@ -172,6 +175,8 @@ namespace pv
             ds_device_handle    _next_switch_device;
             int                 _last_device_index;
             bool                _is_run_as_instant;
+            bool                _run_stop_pending;
+            bool                _instant_stop_pending;
             view::View          *_view;
 
             bool                _updating_sample_rate;

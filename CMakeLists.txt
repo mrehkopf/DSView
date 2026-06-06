@@ -266,8 +266,10 @@ set(DSView_SOURCES
     DSView/pv/data/snapshot.cpp
     DSView/pv/data/signaldata.cpp
     DSView/pv/data/logicsnapshot.cpp
+    DSView/pv/data/logicstackingmerger.cpp
     DSView/pv/data/analogsnapshot.cpp
     DSView/pv/dialogs/deviceoptions.cpp
+    DSView/pv/dialogs/stackingoptions.cpp
     DSView/pv/prop/property.cpp
     DSView/pv/prop/int.cpp
     DSView/pv/prop/enum.cpp
@@ -384,6 +386,9 @@ set(DSView_HEADERS
     DSView/pv/sigsession.h
     DSView/pv/mainwindow.h
     DSView/pv/dialogs/deviceoptions.h
+    DSView/pv/dialogs/stackingoptions.h
+    DSView/pv/logicstackingconfig.h
+    DSView/pv/data/logicstackingmerger.h
     DSView/pv/prop/property.h
     DSView/pv/prop/int.h
     DSView/pv/prop/enum.h
@@ -752,5 +757,4 @@ if(ENABLE_TESTS)
 	enable_testing()
 	add_test(test ${CMAKE_CURRENT_BINARY_DIR}/DSView/test/DSView-test)
 endif(ENABLE_TESTS)
-
 

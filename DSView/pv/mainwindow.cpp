@@ -703,6 +703,37 @@ namespace pv
             sessionVar["CollectMode"] = _session->get_collect_mode();
         }
 
+        if (_device_agent->is_hardware() && _device_agent->get_work_mode() == LOGIC)
+        {
+            QJsonObject stackingObj;
+            const LogicStackingConfig &stacking = _session->logic_stacking_config();
+            stackingObj["enabled"] = stacking.enabled;
+            stackingObj["master_handle"] = QString::number((qulonglong)stacking.master_handle);
+            stackingObj["secondary_handle"] = QString::number((qulonglong)stacking.secondary_handle);
+            stackingObj["secondary_sync_channel"] = stacking.secondary_sync_channel;
+            stackingObj["show_sync_channel"] = stacking.show_sync_channel;
+            stackingObj["secondary_manual_shift_ps"] = QString::number((qlonglong)stacking.secondary_manual_shift_ps);
+
+            ds_device_base_info *devices = NULL;
+            int device_count = 0;
+            if (ds_get_device_list(&devices, &device_count) == SR_OK && devices != NULL){
+                for (int i = 0; i < device_count; i++){
+                    const ds_device_base_info *dev = devices + i;
+                    if (dev->handle == stacking.master_handle){
+                        stackingObj["master_name"] = QString::fromLocal8Bit(dev->name);
+                        stackingObj["master_unique_id"] = QString::fromLocal8Bit(dev->unique_id);
+                    }
+                    else if (dev->handle == stacking.secondary_handle){
+                        stackingObj["secondary_name"] = QString::fromLocal8Bit(dev->name);
+                        stackingObj["secondary_unique_id"] = QString::fromLocal8Bit(dev->unique_id);
+                    }
+                }
+                g_free(devices);
+            }
+
+            sessionVar["LogicStacking"] = stackingObj;
+        }
+
         gvar_opts = _device_agent->get_config_list(NULL, SR_CONF_DEVICE_SESSIONS);
         if (gvar_opts == NULL)
         {
@@ -848,6 +879,70 @@ namespace pv
             {
                 MsgBox::Show(NULL, L_S(STR_PAGE_MSG, S_ID(IDS_MSG_PROFILE_NOT_COMPATIBLE), "Profile is not compatible with current device or mode!"), this);
                 return false;
+            }
+        }
+
+        if (_device_agent->is_hardware())
+        {
+            LogicStackingConfig stacking;
+            bool stacking_remap_required = false;
+            if (conf_dev_mode == LOGIC && sessionObj.contains("LogicStacking"))
+            {
+                QJsonObject stackingObj = sessionObj["LogicStacking"].toObject();
+                stacking.enabled = stackingObj["enabled"].toBool();
+                stacking.master_handle = (ds_device_handle)stackingObj["master_handle"].toString().toULongLong();
+                stacking.secondary_handle = (ds_device_handle)stackingObj["secondary_handle"].toString().toULongLong();
+                stacking.secondary_sync_channel = stackingObj["secondary_sync_channel"].toInt();
+                stacking.show_sync_channel = stackingObj["show_sync_channel"].toBool();
+                stacking.secondary_manual_shift_ps = stackingObj["secondary_manual_shift_ps"].toString().toLongLong();
+
+                if (stacking.enabled){
+                    const QString master_uid = stackingObj["master_unique_id"].toString();
+                    const QString secondary_uid = stackingObj["secondary_unique_id"].toString();
+                    const QString master_name = stackingObj["master_name"].toString();
+                    const QString secondary_name = stackingObj["secondary_name"].toString();
+                    ds_device_handle matched_master = NULL_HANDLE;
+                    ds_device_handle matched_secondary = NULL_HANDLE;
+
+                    ds_device_base_info *devices = NULL;
+                    int device_count = 0;
+                    if (ds_get_device_list(&devices, &device_count) == SR_OK && devices != NULL){
+                        for (int i = 0; i < device_count; i++){
+                            const ds_device_base_info *dev = devices + i;
+                            const QString name = QString::fromLocal8Bit(dev->name);
+                            const QString uid = QString::fromLocal8Bit(dev->unique_id);
+
+                            if (matched_master == NULL_HANDLE &&
+                                ((!master_uid.isEmpty() && uid == master_uid) ||
+                                 (master_uid.isEmpty() && name == master_name) ||
+                                 dev->handle == stacking.master_handle)){
+                                matched_master = dev->handle;
+                            }
+
+                            if (matched_secondary == NULL_HANDLE &&
+                                ((!secondary_uid.isEmpty() && uid == secondary_uid) ||
+                                 (secondary_uid.isEmpty() && name == secondary_name) ||
+                                 dev->handle == stacking.secondary_handle)){
+                                matched_secondary = dev->handle;
+                            }
+                        }
+                        g_free(devices);
+                    }
+
+                    stacking.master_handle = matched_master;
+                    stacking.secondary_handle = matched_secondary;
+                    // Keep the virtual stacking setup alive so channel names/decoders can restore.
+                    stacking_remap_required = !stacking.is_valid();
+                }
+            }
+
+            if (!_session->set_logic_stacking_config(stacking))
+                return false;
+
+            if (stacking_remap_required){
+                delay_prop_msg(L_S(STR_PAGE_MSG,
+                                   S_ID(IDS_MSG_STACKING_REMAP_REQUIRED_LOAD),
+                                   "The analyzers saved in this stacking session were not found. Open Stacking settings and remap the master and secondary devices to use the saved setup."));
             }
         }
 
@@ -1080,6 +1175,7 @@ namespace pv
 
         // update UI settings
         _sampling_bar->update_sample_rate_list();
+        _sampling_bar->reload();
         _trigger_widget->device_updated();
         _view->header_updated();
 

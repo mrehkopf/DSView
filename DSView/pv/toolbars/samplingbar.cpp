@@ -24,9 +24,13 @@
 #include <QAction>
 #include <QLabel>
 #include <QAbstractItemView>
+#include <QStyle>
+#include <QSizePolicy>
+#include <QTimer>
 #include <math.h>
 #include <libusb-1.0/libusb.h>
 #include "../dialogs/deviceoptions.h"
+#include "../dialogs/stackingoptions.h"
 #include "../dialogs/waitingdialog.h"
 #include "../dialogs/dsmessagebox.h"
 #include "../view/dsosignal.h"
@@ -61,6 +65,7 @@ namespace pv
                                                                          _device_type(this),
                                                                          _device_selector(this),
                                                                          _configure_button(this),
+                                                                         _stacking_button(this),
                                                                          _sample_count(this),
                                                                          _sample_rate(this),
                                                                          _run_stop_button(this),
@@ -71,6 +76,8 @@ namespace pv
             _updating_sample_rate = false;
             _updating_sample_count = false;
             _is_run_as_instant = false;
+            _run_stop_pending = false;
+            _instant_stop_pending = false;
 
             _last_device_handle = NULL_HANDLE;
             _last_device_index = -1;
@@ -103,6 +110,9 @@ namespace pv
             addWidget(&_device_selector);
             _configure_button.setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
             addWidget(&_configure_button);
+            _stacking_button.setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+            _stacking_button.setCheckable(true);
+            addWidget(&_stacking_button);
 
             addWidget(&_sample_count);
             //tr
@@ -132,6 +142,7 @@ namespace pv
 
             connect(&_device_selector, SIGNAL(currentIndexChanged(int)), this, SLOT(on_device_selected()));
             connect(&_configure_button, SIGNAL(clicked()), this, SLOT(on_configure()));
+            connect(&_stacking_button, SIGNAL(clicked()), this, SLOT(on_stacking_configure()));
             connect(&_run_stop_button, SIGNAL(clicked()), this, SLOT(on_run_stop()));
             connect(&_instant_button, SIGNAL(clicked()), this, SLOT(on_instant_stop()));
             connect(&_sample_count, SIGNAL(currentIndexChanged(int)), this, SLOT(on_samplecount_sel(int)));
@@ -176,7 +187,8 @@ namespace pv
                 }
             }
             _configure_button.setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_DEVICE_OPTION), "Options"));
-           _mode_button.setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_CAPTURE_MODE), "Mode"));
+            _stacking_button.setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_STACKING), "Stacking"));
+            _mode_button.setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_CAPTURE_MODE), "Mode"));
 
             int mode = _device_agent->get_work_mode();
             bool is_working = _session->is_working();
@@ -237,6 +249,7 @@ namespace pv
             {
                 QString iconPath = GetIconPath();
                 _configure_button.setIcon(QIcon(iconPath + "/params.svg"));
+                _stacking_button.setIcon(QIcon(iconPath + "/stack.svg"));
             
                 QString icon2 = _session->is_working() ? "stop.svg" : "start.svg";
                 _run_stop_button.setIcon(QIcon(iconPath + "/" + icon2));
@@ -247,6 +260,7 @@ namespace pv
                 _action_loop->setIcon(QIcon(iconPath + LOOP_ACTION_ICON));
 
                 update_mode_icon();
+                update_stacking_button_status();
             }
         }
 
@@ -311,6 +325,28 @@ namespace pv
             }
 
             _session->broadcast_msg(DSV_MSG_END_DEVICE_OPTIONS);
+        }
+
+        void SamplingBar::on_stacking_configure()
+        {
+            if (_device_agent->have_instance() == false)
+                return;
+
+            if (_session->is_working())
+                return;
+
+            pv::dialogs::StackingOptions dlg(this, _session);
+            connect(_session->device_event_object(), SIGNAL(device_updated()), &dlg, SLOT(reject()));
+
+            if (dlg.exec() == QDialog::Accepted){
+                // a stacking remap may silently switch the active master device
+                update_device_list();
+                update_sample_rate_list();
+                reload();
+            }
+            else{
+                update_stacking_button_status();
+            }
         }
 
         void SamplingBar::zero_adj()
@@ -816,6 +852,8 @@ namespace pv
                                                       sample_count);
 
                         bool rle_mode = _sample_count.currentText().contains(RLEString);
+                        if (_device_agent->is_logic_stacking())
+                            rle_mode = false;
                         _device_agent->set_config_bool(
                                                   SR_CONF_RLE,
                                                   rle_mode);
@@ -826,14 +864,20 @@ namespace pv
 
         void SamplingBar::on_run_stop()
         {
+            if (_run_stop_pending)
+                return;
+
             _run_stop_button.setEnabled(false);
             QTimer::singleShot(10, this, &SamplingBar::on_run_stop_action);
         }
 
         void SamplingBar::on_run_stop_action()
         {
-            action_run_stop();
-            _run_stop_button.setEnabled(true);
+            const bool was_working = _session->is_working();
+            const bool accepted = action_run_stop();
+
+            _run_stop_pending = was_working && accepted && _session->is_working();
+            update_view_status();
         }
       
         // start or stop capture
@@ -896,14 +940,21 @@ namespace pv
             if (_instant_action->isVisible() == false){
                 return;
             }
+
+            if (_instant_stop_pending)
+                return;
+
             _instant_button.setEnabled(false);
             QTimer::singleShot(10, this, &SamplingBar::on_instant_stop_action);
         }
 
         void SamplingBar::on_instant_stop_action()
         {
-            action_instant_stop();
-            _instant_button.setEnabled(true);
+            const bool was_working = _session->is_working();
+            const bool accepted = action_instant_stop();
+
+            _instant_stop_pending = was_working && accepted && _session->is_working();
+            update_view_status();
         }
 
         bool SamplingBar::action_instant_stop()
@@ -1017,6 +1068,14 @@ namespace pv
             }
         }
 
+        void SamplingBar::update_stacking_button_status()
+        {
+            const int mode = _device_agent->get_work_mode();
+            const bool available = mode == LOGIC && _device_agent->is_hardware_logic();
+            _stacking_button.setCheckable(true);
+            _stacking_button.setChecked(available && _device_agent->is_logic_stacking());
+        }
+
         void SamplingBar::reload()
         {
             QString iconPath = GetIconPath();
@@ -1024,6 +1083,8 @@ namespace pv
             _action_loop->setVisible(false);
 
             int mode = _device_agent->get_work_mode();
+            _stacking_button.setVisible(mode == LOGIC && _device_agent->is_hardware_logic());
+
             if (mode == LOGIC)
             {
                 if (_device_agent->is_file()){
@@ -1033,14 +1094,18 @@ namespace pv
                 {
                     update_mode_icon();
                     _mode_action->setVisible(true);
-                    _action_repeat->setVisible(true);    
+                    _action_repeat->setVisible(!_device_agent->is_logic_stacking());
 
                     if (_session->is_loop_mode() && _device_agent->is_stream_mode() == false 
                         && _device_agent->is_hardware()){
                         _session->set_collect_mode(COLLECT_SINGLE);
                     }
 
-                    if (_device_agent->is_stream_mode() || _device_agent->is_demo())
+                    if (_device_agent->is_logic_stacking())
+                        _session->set_collect_mode(COLLECT_SINGLE);
+
+                    if ((_device_agent->is_stream_mode() || _device_agent->is_demo()) &&
+                        !_device_agent->is_logic_stacking())
                         _action_loop->setVisible(true);
                 }
                 _run_stop_action->setVisible(true);
@@ -1061,6 +1126,7 @@ namespace pv
 
             retranslateUi();
             reStyle();
+            update_stacking_button_status();
             update();
         }
 
@@ -1068,6 +1134,12 @@ namespace pv
         {
             QString iconPath = GetIconPath();
             QAction *act = qobject_cast<QAction *>(sender());
+
+            if (_device_agent->is_logic_stacking() && act != _action_single){
+                _session->set_collect_mode(COLLECT_SINGLE);
+                update_mode_icon();
+                return;
+            }
 
             if (act == _action_single)
             {  
@@ -1136,6 +1208,7 @@ namespace pv
             _updating_device_list = true;
             struct ds_device_base_info *p = NULL;
             ds_device_handle    cur_dev_handle = NULL_HANDLE;
+            int max_text_width = 0;
 
             _device_selector.clear();
 
@@ -1202,6 +1275,9 @@ namespace pv
             _device_type.setEnabled(bEnable);
             _mode_button.setEnabled(bEnable);
             _configure_button.setEnabled(bEnable);
+            _stacking_button.setEnabled(bEnable);
+            _stacking_button.setVisible(mode == LOGIC && _session->get_device()->is_hardware_logic());
+            update_stacking_button_status();
             _device_selector.setEnabled(bEnable);
             _action_loop->setVisible(false);
 
@@ -1240,11 +1316,17 @@ namespace pv
             }
 
             if (_session->is_working()){
-                if (_is_run_as_instant)
+                if (_is_run_as_instant){
                     _run_stop_button.setEnabled(false);
-                else
+                    _instant_button.setEnabled(!_instant_stop_pending);
+                }
+                else{
+                    _run_stop_button.setEnabled(!_run_stop_pending);
                     _instant_button.setEnabled(false);
+                }
             } else {
+                _run_stop_pending = false;
+                _instant_stop_pending = false;
                 _run_stop_button.setEnabled(true);
                 _instant_button.setEnabled(true);                
             }

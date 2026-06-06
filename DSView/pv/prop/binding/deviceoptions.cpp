@@ -42,6 +42,15 @@ namespace pv {
 namespace prop {
 namespace binding {
 
+bool DeviceOptions::stacking_shared_option(int key)
+{
+    return key == SR_CONF_VTH ||
+           key == SR_CONF_FILTER ||
+           key == SR_CONF_CLOCK_TYPE ||
+           key == SR_CONF_CLOCK_EDGE ||
+           key == SR_CONF_EXT_SAMPLERATE;
+}
+
 DeviceOptions::DeviceOptions()
 {
 	GVariant *gvar_opts, *gvar_list;
@@ -67,6 +76,9 @@ DeviceOptions::DeviceOptions()
 			continue;
 
 		const int key = info->key;
+
+        if (_device_agent->is_logic_stacking() && !stacking_shared_option(key))
+            continue;
 
 		gvar_list = _device_agent->get_config_list(NULL, key);
 
@@ -156,7 +168,10 @@ void DeviceOptions::config_setter(int key, GVariant* value)
 {
 	SigSession *session = AppControl::Instance()->GetSession();
 	DeviceAgent *_device_agent = session->get_device();
-    _device_agent->set_config(key, value);
+    if (_device_agent->is_logic_stacking())
+        _device_agent->set_stacking_shared_config(key, value);
+    else
+        _device_agent->set_config(key, value);
 }
 
 void DeviceOptions::bind_bool(const QString &name, const QString label, int key)
@@ -373,4 +388,3 @@ void DeviceOptions::bind_list(const QString &name, const QString label, int key,
 } // binding
 } // prop
 } // pv
-

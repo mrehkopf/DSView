@@ -107,6 +107,7 @@ class IDecoderPannel
 {
 public:
     virtual void update_deocder_item_name(void *trace_handel, const char *name)=0;
+    virtual void clear_decoder_items()=0;
 };
 
 enum ParentNativeEvent
