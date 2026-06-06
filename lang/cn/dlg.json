@@ -124,6 +124,10 @@
         "text": "选项"
     },
     {
+        "id": "IDS_DLG_SHARED_OPTIONS",
+        "text": "堆叠公共选项"
+    },
+    {
         "id": "IDS_DLG_ENABLE_ALL",
         "text": "全部启用"
     },
@@ -806,5 +810,37 @@
     {
         "id": "IDS_FFT_MODE_LINEARRSM",
         "text": "线性 RMS"
+    },
+    {
+        "id": "IDS_DLG_LOGIC_STACKING",
+        "text": "逻辑堆叠"
+    },
+    {
+        "id": "IDS_DLG_ENABLE_TWO_ANALYZER_STACKING",
+        "text": "启用双分析仪堆叠"
+    },
+    {
+        "id": "IDS_DLG_SHOW_SECONDARY_SYNC_CHANNEL",
+        "text": "显示次分析仪同步通道"
+    },
+    {
+        "id": "IDS_DLG_NS",
+        "text": " ns"
+    },
+    {
+        "id": "IDS_DLG_MASTER",
+        "text": "主分析仪"
+    },
+    {
+        "id": "IDS_DLG_SECONDARY",
+        "text": "次分析仪"
+    },
+    {
+        "id": "IDS_DLG_SECONDARY_SYNC_INPUT",
+        "text": "次分析仪同步输入"
+    },
+    {
+        "id": "IDS_DLG_SECONDARY_MANUAL_SHIFT",
+        "text": "次分析仪手动偏移"
     }
 ]

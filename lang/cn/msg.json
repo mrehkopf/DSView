@@ -393,5 +393,41 @@
     {
         "id": "IDS_MSG_NO_DECODED_RESULT",
         "text": "无可导出的数据!"
+    },
+    {
+        "id": "IDS_MSG_STACKING_CONNECT_TWO_ANALYZERS",
+        "text": "请先连接两台 DSLogic U3Pro32 分析仪。"
+    },
+    {
+        "id": "IDS_MSG_STACKING_SELECT_DIFFERENT_ANALYZERS",
+        "text": "请选择两台不同的 DSLogic U3Pro32 分析仪。"
+    },
+    {
+        "id": "IDS_MSG_STACKING_SESSION_BUSY",
+        "text": "会话忙碌时无法应用堆叠模式。"
+    },
+    {
+        "id": "IDS_MSG_STACKING_MASTER_INCOMPLETE",
+        "text": "堆叠主分析仪提供了 %1/%2 个请求样本。"
+    },
+    {
+        "id": "IDS_MSG_STACKING_SECONDARY_INCOMPLETE",
+        "text": "堆叠次分析仪覆盖不完整: 偏移=%1 样本, 来源=%2 样本, 需要=[%3,%4]。"
+    },
+    {
+        "id": "IDS_MSG_STACKING_INSTANT_MANUAL_SHIFT",
+        "text": "堆叠即时采集仅使用手动偏移; 已跳过同步沿对齐。"
+    },
+    {
+        "id": "IDS_MSG_STACKING_SYNC_TRIGGER_MISSING",
+        "text": "两台分析仪未同时报告堆叠同步触发; 仅使用手动偏移。"
+    },
+    {
+        "id": "IDS_MSG_STACKING_REMAP_REQUIRED_LOAD",
+        "text": "未找到此堆叠会话中保存的分析仪。请打开堆叠设置并重新映射主设备和次设备，以使用保存的设置。"
+    },
+    {
+        "id": "IDS_MSG_STACKING_REMAP_REQUIRED_START",
+        "text": "堆叠模式需要映射两台 DSLogic U3Pro32 分析仪。请打开堆叠设置并选择主设备和次设备。"
     }
 ]

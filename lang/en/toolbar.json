@@ -182,6 +182,10 @@
     {
         "id": "IDS_TOOLBAR_HELP_LOG",
         "text": "L&og Options"
+    },
+    {
+        "id": "IDS_TOOLBAR_STACKING",
+        "text": "Stacking"
     }
 
 

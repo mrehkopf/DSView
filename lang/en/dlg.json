@@ -124,6 +124,10 @@
         "text": "Options"
     },
     {
+        "id": "IDS_DLG_SHARED_OPTIONS",
+        "text": "Stacking Common Options"
+    },
+    {
         "id": "IDS_DLG_ENABLE_ALL",
         "text": "Enable All"
     },
@@ -810,5 +814,37 @@
     {
         "id": "IDS_FFT_MODE_LINEARRSM",
         "text": "Linear RMS"
+    },
+    {
+        "id": "IDS_DLG_LOGIC_STACKING",
+        "text": "Logic Stacking"
+    },
+    {
+        "id": "IDS_DLG_ENABLE_TWO_ANALYZER_STACKING",
+        "text": "Enable two-analyzer stacking"
+    },
+    {
+        "id": "IDS_DLG_SHOW_SECONDARY_SYNC_CHANNEL",
+        "text": "Show secondary sync channel"
+    },
+    {
+        "id": "IDS_DLG_NS",
+        "text": " ns"
+    },
+    {
+        "id": "IDS_DLG_MASTER",
+        "text": "Master"
+    },
+    {
+        "id": "IDS_DLG_SECONDARY",
+        "text": "Secondary"
+    },
+    {
+        "id": "IDS_DLG_SECONDARY_SYNC_INPUT",
+        "text": "Secondary sync input"
+    },
+    {
+        "id": "IDS_DLG_SECONDARY_MANUAL_SHIFT",
+        "text": "Secondary manual shift"
     }
 ]

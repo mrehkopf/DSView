@@ -394,5 +394,41 @@
     {
         "id": "IDS_MSG_NO_DECODED_RESULT",
         "text": "No data to export!"
+    },
+    {
+        "id": "IDS_MSG_STACKING_CONNECT_TWO_ANALYZERS",
+        "text": "Connect two DSLogic U3Pro32 analyzers first."
+    },
+    {
+        "id": "IDS_MSG_STACKING_SELECT_DIFFERENT_ANALYZERS",
+        "text": "Select two different DSLogic U3Pro32 analyzers."
+    },
+    {
+        "id": "IDS_MSG_STACKING_SESSION_BUSY",
+        "text": "Stacking mode could not be applied while the session is busy."
+    },
+    {
+        "id": "IDS_MSG_STACKING_MASTER_INCOMPLETE",
+        "text": "Stacking master only provided %1 of %2 requested samples."
+    },
+    {
+        "id": "IDS_MSG_STACKING_SECONDARY_INCOMPLETE",
+        "text": "Stacking secondary coverage is incomplete: shift=%1 samples, source=%2 samples, required=[%3,%4]."
+    },
+    {
+        "id": "IDS_MSG_STACKING_INSTANT_MANUAL_SHIFT",
+        "text": "Instant capture used manual shift only. Trigger point alignment was skipped."
+    },
+    {
+        "id": "IDS_MSG_STACKING_SYNC_TRIGGER_MISSING",
+        "text": "Sync trigger was not reported by both analyzers. Only manual shift was applied."
+    },
+    {
+        "id": "IDS_MSG_STACKING_REMAP_REQUIRED_LOAD",
+        "text": "The analyzers saved in this stacking session were not found. Open Stacking settings and remap the master and secondary devices to use the saved setup."
+    },
+    {
+        "id": "IDS_MSG_STACKING_REMAP_REQUIRED_START",
+        "text": "Stacking mode needs two mapped DSLogic U3Pro32 analyzers. Open Stacking settings and select the master and secondary devices."
     }
 ]

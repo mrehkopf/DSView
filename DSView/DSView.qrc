@@ -145,5 +145,7 @@
         <file>icons/dark/log.svg</file>
         <file>icons/light/update.svg</file>
         <file>icons/dark/update.svg</file>
+        <file>icons/light/stack.svg</file>
+        <file>icons/dark/stack.svg</file>
     </qresource>
 </RCC>
