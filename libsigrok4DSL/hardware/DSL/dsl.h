@@ -97,7 +97,7 @@
 #define QUAR_MODE_BIT 6     // 0: normal sample rate, 1: quadruple sample rate with quartered channels (only effective when required)
 #define ANALOG_MODE_BIT 7   // 0: digital mode, 1: analog mode
 #define FILTER_BIT 8        // 0: no filter, 1: 1T filter
-#define INSTANT_BIT 9       // ? does not affect instant acquisition, TRIG_EN_BIT (0) is used for that
+#define INSTANT_BIT 9       // ? DSO only. Does not affect instant acquisition, TRIG_EN_BIT (0) is used for that
 #define SLOW_ACQ_BIT 10     // 0: normal acquisition, 1: slow acquisition when bytes per ms < 1024
 #define STRIG_MODE_BIT 11   // 0: normal trigger, 1: serial trigger
 #define STREAM_MODE_BIT 12  // 0: buffer mode, 1: stream mode

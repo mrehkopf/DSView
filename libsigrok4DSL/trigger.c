@@ -92,6 +92,34 @@ SR_PRIV int ds_trigger_destroy(void)
     return SR_OK;
 }
 
+SR_PRIV int ds_trigger_copy(struct ds_trigger *out)
+{
+    if (!out)
+        return SR_ERR_ARG;
+
+    if (!trigger) {
+        sr_err("ds_trigger_copy() error, trigger have'nt be inited.");
+        return SR_ERR_CALL_STATUS;
+    }
+
+    memcpy(out, trigger, sizeof(struct ds_trigger));
+    return SR_OK;
+}
+
+SR_PRIV int ds_trigger_apply(const struct ds_trigger *src)
+{
+    if (!src)
+        return SR_ERR_ARG;
+
+    if (!trigger) {
+        if (ds_trigger_init() != SR_OK)
+            return SR_ERR_MALLOC;
+    }
+
+    memcpy(trigger, src, sizeof(struct ds_trigger));
+    return SR_OK;
+}
+
 
 /**
  * set trigger based on stage

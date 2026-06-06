@@ -325,6 +325,14 @@ enum DSLOGIC_OPERATION_MODE
     LO_OP_LPTEST = 4,
 };
 
+enum DSLOGIC_BUFFER_OPT_MODE
+{
+    /** Stop immediately */
+    SR_BUF_STOP = 0,
+    /** Upload captured data */
+    SR_BUF_UPLOAD = 1,
+};
+
 enum DSO_MEASURE_TYPE {
     DSO_MS_BEGIN = 0,
     DSO_MS_FREQ,
@@ -1351,6 +1359,21 @@ struct ds_device_full_info
 	struct sr_dev_inst *di;
 };
 
+enum ds_collect_target_role
+{
+	DS_COLLECT_TARGET_MASTER_CURRENT_TRIGGER = 0,
+	DS_COLLECT_TARGET_SECONDARY_SYNC_RISING = 1,
+	DS_COLLECT_TARGET_INSTANT = 2,
+};
+
+struct ds_collect_target
+{
+	ds_device_handle handle;
+	int role;
+	uint16_t sync_channel;
+	uint16_t trigger_pos_percent;
+};
+
 struct ds_task_progress
 {
 	int progress;
@@ -1458,6 +1481,11 @@ SR_API const GSList *ds_get_actived_device_mode_list();
  */
 SR_API int ds_get_actived_device_info(struct ds_device_full_info *fill_info);
 
+SR_API int ds_get_device_info_by_handle(ds_device_handle handle,
+							struct ds_device_full_info *fill_info);
+
+SR_API ds_device_handle ds_get_device_handle_from_inst(const struct sr_dev_inst *sdi);
+
 /**
  * Get actived device work model. mode list:LOGIC、ANALOG、DSO
  */
@@ -1468,10 +1496,15 @@ SR_API int ds_get_actived_device_mode();
  */
 SR_API int ds_start_collect();
 
+SR_API int ds_start_collect_multi(const struct ds_collect_target *targets,
+							int count);
+
 /**
  * Stop collect data, but not close the device.
  */
 SR_API int ds_stop_collect();
+
+SR_API int ds_stop_collect_multi();
 
 /**
  * Check if the device is collecting.
@@ -1501,11 +1534,24 @@ SR_API int ds_set_actived_device_config(const struct sr_channel *ch,
 SR_API int ds_get_actived_device_config_list(const struct sr_channel_group *cg,
                           int key, GVariant **data);
 
+SR_API int ds_get_device_config_by_handle(ds_device_handle handle,
+										 const struct sr_channel *ch,
+										 const struct sr_channel_group *cg,
+										 int key, GVariant **data);
+
+SR_API int ds_set_device_config_by_handle(ds_device_handle handle,
+										 const struct sr_channel *ch,
+										 const struct sr_channel_group *cg,
+										 int key, GVariant *data);
+
 SR_API const struct sr_config_info* ds_get_actived_device_config_info(int key);
 
 SR_API const struct sr_config_info* ds_get_actived_device_config_info_by_name(const char *optname);
 
 SR_API int ds_get_actived_device_status(struct sr_status *status, gboolean prg);
+
+SR_API int ds_get_device_status_by_handle(ds_device_handle handle,
+										 struct sr_status *status, gboolean prg);
 
 SR_API struct sr_config *ds_new_config(int key, GVariant *data);
 
@@ -1523,6 +1569,9 @@ SR_API int ds_enable_device_channel(const struct sr_channel *ch, gboolean enable
 
 SR_API int ds_enable_device_channel_index(int ch_index, gboolean enable);
 
+SR_API int ds_enable_device_channel_index_by_handle(ds_device_handle handle,
+										int ch_index, gboolean enable);
+
 SR_API int ds_set_device_channel_name(int ch_index, const char *name);
 
 /**
@@ -1531,6 +1580,8 @@ SR_API int ds_set_device_channel_name(int ch_index, const char *name);
 int ds_channel_is_enabled();
 
 GSList* ds_get_actived_device_channels();
+
+GSList* ds_get_device_channels_by_handle(ds_device_handle handle);
 
 /*-----------------trigger---------------*/
 int ds_trigger_is_enabled();

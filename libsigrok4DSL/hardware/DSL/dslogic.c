@@ -38,15 +38,6 @@ static const char *maxHeights[] = {
     "5X",
 };
 
-/** Device buffer mode */
-enum DSLOGIC_BUFFER_OPT_MODE
-{
-    /** Stop immediately */
-    SR_BUF_STOP = 0,
-    /** Upload captured data */
-    SR_BUF_UPLOAD = 1,
-};
-
 static const struct sr_list_item opmode_list[] = {
     {LO_OP_BUFFER,"Buffer Mode"},
     {LO_OP_STREAM,"Stream Mode"},
@@ -1331,18 +1322,20 @@ static int cleanup(void)
 static void remove_sources(struct DSL_context *devc)
 {
     int i;
+    const struct sr_dev_inst *sdi = devc->cb_data;
+
     if(devc->usbfd) {
         sr_info("%s: remove fds from polling", __func__);
         /* Remove fds from polling. */
         for (i = 0; devc->usbfd[i] != -1; i++)
-            sr_source_remove(devc->usbfd[i]);
+            sr_source_remove_by_device(devc->usbfd[i], sdi);
         g_free(devc->usbfd);
         devc->usbfd = NULL;
     }
 
     if(devc->usb_thread) {
         sr_info("%s: stop USB event thread", __func__);
-        sr_source_remove(-1);
+        sr_source_remove_by_device(-1, sdi);
         devc->usb_thread_quit = TRUE;
         devc->usb_thread = NULL;
     }
