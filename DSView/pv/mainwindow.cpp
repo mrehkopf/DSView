@@ -713,6 +713,11 @@ namespace pv
             stackingObj["secondary_sync_channel"] = stacking.secondary_sync_channel;
             stackingObj["show_sync_channel"] = stacking.show_sync_channel;
             stackingObj["secondary_manual_shift_ps"] = QString::number((qlonglong)stacking.secondary_manual_shift_ps);
+            stackingObj["reference_alignment_enabled"] = stacking.reference_alignment_enabled;
+            stackingObj["drift_correction_enabled"] = stacking.drift_correction_enabled;
+            stackingObj["drift_master_channel"] = stacking.drift_master_channel;
+            stackingObj["drift_secondary_channel"] = stacking.drift_secondary_channel;
+            stackingObj["reference_edge_mode"] = stacking.reference_edge_mode;
 
             ds_device_base_info *devices = NULL;
             int device_count = 0;
@@ -895,6 +900,15 @@ namespace pv
                 stacking.secondary_sync_channel = stackingObj["secondary_sync_channel"].toInt();
                 stacking.show_sync_channel = stackingObj["show_sync_channel"].toBool();
                 stacking.secondary_manual_shift_ps = stackingObj["secondary_manual_shift_ps"].toString().toLongLong();
+                stacking.reference_alignment_enabled = stackingObj["reference_alignment_enabled"].toBool();
+                stacking.drift_correction_enabled = stackingObj["drift_correction_enabled"].toBool();
+                stacking.drift_master_channel = stackingObj["drift_master_channel"].toInt();
+                stacking.drift_secondary_channel = stackingObj["drift_secondary_channel"].toInt();
+                stacking.reference_edge_mode = stackingObj.contains("reference_edge_mode") ?
+                    stackingObj["reference_edge_mode"].toInt(LogicStackingReferenceRising) :
+                    LogicStackingReferenceRising;
+                if (!LogicStackingConfig::reference_edge_mode_valid(stacking.reference_edge_mode))
+                    stacking.reference_edge_mode = LogicStackingReferenceRising;
 
                 if (stacking.enabled){
                     const QString master_uid = stackingObj["master_unique_id"].toString();

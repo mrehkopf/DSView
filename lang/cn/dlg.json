@@ -842,5 +842,37 @@
     {
         "id": "IDS_DLG_SECONDARY_MANUAL_SHIFT",
         "text": "次分析仪手动偏移"
+    },
+    {
+        "id": "IDS_DLG_STACKING_DRIFT_CORRECTION",
+        "text": "使用参考信号校正时钟漂移"
+    },
+    {
+        "id": "IDS_DLG_STACKING_REFERENCE_ALIGNMENT",
+        "text": "使用参考信号对齐"
+    },
+    {
+        "id": "IDS_DLG_STACKING_MASTER_REFERENCE",
+        "text": "主分析仪参考输入"
+    },
+    {
+        "id": "IDS_DLG_STACKING_SECONDARY_REFERENCE",
+        "text": "次分析仪参考输入"
+    },
+    {
+        "id": "IDS_DLG_STACKING_REFERENCE_EDGE",
+        "text": "参考边沿"
+    },
+    {
+        "id": "IDS_DLG_STACKING_REFERENCE_RISING",
+        "text": "上升沿"
+    },
+    {
+        "id": "IDS_DLG_STACKING_REFERENCE_FALLING",
+        "text": "下降沿"
+    },
+    {
+        "id": "IDS_DLG_STACKING_REFERENCE_BOTH",
+        "text": "两者"
     }
 ]

@@ -846,5 +846,37 @@
     {
         "id": "IDS_DLG_SECONDARY_MANUAL_SHIFT",
         "text": "Secondary manual shift"
+    },
+    {
+        "id": "IDS_DLG_STACKING_DRIFT_CORRECTION",
+        "text": "Correct clock drift using reference signal"
+    },
+    {
+        "id": "IDS_DLG_STACKING_REFERENCE_ALIGNMENT",
+        "text": "Align using reference signal"
+    },
+    {
+        "id": "IDS_DLG_STACKING_MASTER_REFERENCE",
+        "text": "Master reference input"
+    },
+    {
+        "id": "IDS_DLG_STACKING_SECONDARY_REFERENCE",
+        "text": "Secondary reference input"
+    },
+    {
+        "id": "IDS_DLG_STACKING_REFERENCE_EDGE",
+        "text": "Reference edge"
+    },
+    {
+        "id": "IDS_DLG_STACKING_REFERENCE_RISING",
+        "text": "Rising"
+    },
+    {
+        "id": "IDS_DLG_STACKING_REFERENCE_FALLING",
+        "text": "Falling"
+    },
+    {
+        "id": "IDS_DLG_STACKING_REFERENCE_BOTH",
+        "text": "Both"
     }
 ]
