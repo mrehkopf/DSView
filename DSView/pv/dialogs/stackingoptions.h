@@ -39,11 +39,16 @@ public slots:
 
 private slots:
     void on_enabled_changed(bool enabled);
+    void on_reference_changed();
 
 private:
     void populate_devices();
+    void populate_channel_labels();
     void load_config();
     ds_device_handle selected_handle(const QComboBox *combo) const;
+    QString channel_label(int analyzer, int physical_index) const;
+    void set_channel_combo_label(QComboBox *combo, int index, const QString &label);
+    void update_channel_combo_popup_width(QComboBox *combo) const;
 
 private:
     SigSession *_session;
@@ -55,6 +60,11 @@ private:
     QComboBox *_sync_channel;
     QCheckBox *_show_sync;
     QDoubleSpinBox *_manual_shift_ns;
+    QCheckBox *_reference_alignment;
+    QCheckBox *_drift_correction;
+    QComboBox *_drift_master_channel;
+    QComboBox *_drift_secondary_channel;
+    QComboBox *_reference_edge_mode;
 };
 
 }
