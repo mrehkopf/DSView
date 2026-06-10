@@ -15,6 +15,7 @@
 
 #include <stdint.h>
 #include <QString>
+#include <utility>
 #include <vector>
 #include <libsigrok.h>
 #include "../logicstackingconfig.h"
@@ -61,11 +62,18 @@ private:
         void reset(ds_device_handle h);
     };
 
+    struct ReferenceEdge
+    {
+        int64_t sample = 0;
+        bool rising = false;
+    };
+
     SourceBuffer* source_for_handle(ds_device_handle handle);
     const SourceBuffer* source_for_analyzer(int analyzer) const;
     bool ensure_channel_order(SourceBuffer &source);
     uint64_t read_word(const SourceBuffer &source, int physical_index, uint64_t block) const;
     uint64_t shifted_word(const SourceBuffer &source, int physical_index, int64_t source_start) const;
+    bool bit_at(const SourceBuffer &source, int physical_index, int64_t sample) const;
     uint64_t source_sample_count(const SourceBuffer &source) const;
     bool analyzer_visible(int analyzer,
                           const std::vector<LogicStackingChannel> &visible_map) const;
@@ -73,6 +81,31 @@ private:
     void append_coverage_warnings(const std::vector<LogicStackingChannel> &visible_map);
     int64_t manual_shift_samples() const;
     int64_t secondary_shift_samples();
+    void collect_reference_edges(const SourceBuffer &source,
+                                 int physical_index,
+                                 std::vector<ReferenceEdge> &edges) const;
+    int64_t reference_pair_window(const std::vector<ReferenceEdge> &edges) const;
+    void add_reference_pairs(bool rising,
+                             const std::vector<ReferenceEdge> &master_edges,
+                             const std::vector<ReferenceEdge> &secondary_edges,
+                             int64_t alignment_shift,
+                             int64_t pair_window,
+                             std::vector<std::pair<int64_t, int64_t> > &pairs) const;
+    bool collect_reference_pairs(int64_t alignment_shift,
+                                 std::vector<std::pair<int64_t, int64_t> > &pairs,
+                                 int64_t &pair_window);
+    bool apply_reference_alignment(const std::vector<std::pair<int64_t, int64_t> > &pairs,
+                                   int64_t pair_window);
+    bool fit_reference_affine(const std::vector<std::pair<int64_t, int64_t> > &pairs,
+                              long double &scale,
+                              long double &offset) const;
+    void update_secondary_anchor();
+    void ensure_reference_correction();
+    long double secondary_source_for_dest(uint64_t dest_sample) const;
+    int64_t rounded_secondary_source(uint64_t dest_sample) const;
+    uint64_t scaled_secondary_word(const SourceBuffer &source,
+                                   int physical_index,
+                                   uint64_t dest_sample) const;
     bool build_chunk(uint64_t start_sample,
                      uint64_t sample_count,
                      const std::vector<LogicStackingChannel> &visible_map,
@@ -87,6 +120,11 @@ private:
     bool _instant;
     bool _secondary_shift_ready;
     int64_t _secondary_shift;
+    bool _reference_correction_ready;
+    bool _secondary_drift_applied;
+    long double _secondary_scale;
+    int64_t _secondary_anchor_dest;
+    long double _secondary_anchor_source;
     QString _warning;
 };
 
