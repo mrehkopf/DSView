@@ -429,5 +429,29 @@
     {
         "id": "IDS_MSG_STACKING_REMAP_REQUIRED_START",
         "text": "堆叠模式需要映射两台 DSLogic U3Pro32 分析仪。请打开堆叠设置并选择主设备和次设备。"
+    },
+    {
+        "id": "IDS_MSG_STACKING_DRIFT_APPLIED",
+        "text": "已应用堆叠漂移校正: 次分析仪漂移 %1 ppm, 使用 %2 个参考边沿。"
+    },
+    {
+        "id": "IDS_MSG_STACKING_DRIFT_FAILED",
+        "text": "已跳过堆叠漂移校正: 所选通道上没有足够的匹配参考边沿。"
+    },
+    {
+        "id": "IDS_MSG_STACKING_DRIFT_REJECTED",
+        "text": "已跳过堆叠漂移校正: 估算漂移 %1 ppm 超出预期范围。"
+    },
+    {
+        "id": "IDS_MSG_STACKING_ALIGNMENT_APPLIED",
+        "text": "已应用堆叠参考对齐: 次分析仪偏移 %1 样本 (%2 ns), 使用 %3 个参考边沿。"
+    },
+    {
+        "id": "IDS_MSG_STACKING_ALIGNMENT_FAILED",
+        "text": "已跳过堆叠参考对齐: 所选通道上没有足够的匹配参考边沿。"
+    },
+    {
+        "id": "IDS_MSG_STACKING_ALIGNMENT_REJECTED",
+        "text": "已跳过堆叠参考对齐: 参考边沿偏移变化 %1 样本。"
     }
 ]

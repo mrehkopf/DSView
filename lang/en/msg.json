@@ -421,7 +421,7 @@
     },
     {
         "id": "IDS_MSG_STACKING_SYNC_TRIGGER_MISSING",
-        "text": "Sync trigger was not reported by both analyzers. Only manual shift was applied."
+        "text": "Sync trigger was not reported by both analyzers. Only manual shift applied."
     },
     {
         "id": "IDS_MSG_STACKING_REMAP_REQUIRED_LOAD",
@@ -430,5 +430,29 @@
     {
         "id": "IDS_MSG_STACKING_REMAP_REQUIRED_START",
         "text": "Stacking mode needs two mapped DSLogic U3Pro32 analyzers. Open Stacking settings and select the master and secondary devices."
+    },
+    {
+        "id": "IDS_MSG_STACKING_DRIFT_APPLIED",
+        "text": "Stacking drift correction applied: secondary drift %1 ppm from %2 reference edges."
+    },
+    {
+        "id": "IDS_MSG_STACKING_DRIFT_FAILED",
+        "text": "Stacking drift correction skipped: not enough matching reference edges on the selected channels."
+    },
+    {
+        "id": "IDS_MSG_STACKING_DRIFT_REJECTED",
+        "text": "Stacking drift correction skipped: estimated drift %1 ppm is outside the expected range."
+    },
+    {
+        "id": "IDS_MSG_STACKING_ALIGNMENT_APPLIED",
+        "text": "Stacking reference alignment applied: secondary offset %1 samples (%2 ns) from %3 reference edges."
+    },
+    {
+        "id": "IDS_MSG_STACKING_ALIGNMENT_FAILED",
+        "text": "Stacking reference alignment skipped: not enough matching reference edges on the selected channels."
+    },
+    {
+        "id": "IDS_MSG_STACKING_ALIGNMENT_REJECTED",
+        "text": "Stacking reference alignment skipped: reference edge offsets vary by %1 samples."
     }
 ]

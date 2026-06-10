@@ -19,6 +19,13 @@
 
 namespace pv {
 
+enum LogicStackingReferenceEdgeMode
+{
+    LogicStackingReferenceRising = 0,
+    LogicStackingReferenceFalling = 1,
+    LogicStackingReferenceBoth = 2
+};
+
 struct LogicStackingConfig
 {
     bool enabled = false;
@@ -27,13 +34,21 @@ struct LogicStackingConfig
     int secondary_sync_channel = 0;
     bool show_sync_channel = false;
     int64_t secondary_manual_shift_ps = 0;
+    bool reference_alignment_enabled = false;
+    bool drift_correction_enabled = false;
+    int drift_master_channel = 0;
+    int drift_secondary_channel = 0;
+    int reference_edge_mode = LogicStackingReferenceRising;
 
     // The virtual 64-channel model can be restored before physical devices are remapped.
     bool has_channel_model() const
     {
         return enabled &&
-               secondary_sync_channel >= 0 &&
-               secondary_sync_channel < 32;
+               channel_index_valid(secondary_sync_channel) &&
+               (!(reference_alignment_enabled || drift_correction_enabled) ||
+                (channel_index_valid(drift_master_channel) &&
+                 channel_index_valid(drift_secondary_channel) &&
+                 reference_edge_mode_valid(reference_edge_mode)));
     }
 
     bool is_valid() const
@@ -50,6 +65,18 @@ struct LogicStackingConfig
         return enabled == other.enabled &&
                secondary_sync_channel == other.secondary_sync_channel &&
                show_sync_channel == other.show_sync_channel;
+    }
+
+    static bool channel_index_valid(int index)
+    {
+        return index >= 0 && index < 32;
+    }
+
+    static bool reference_edge_mode_valid(int mode)
+    {
+        return mode == LogicStackingReferenceRising ||
+               mode == LogicStackingReferenceFalling ||
+               mode == LogicStackingReferenceBoth;
     }
 };
 
