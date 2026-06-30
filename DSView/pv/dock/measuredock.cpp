@@ -646,8 +646,6 @@ void MeasureDock::update_dist()
 {
     auto &cursor_list = _view.get_cursorList();
 
-    QColor bkColor = AppConfig::Instance().GetStyleColor(); 
-
     auto mode_rows = get_mode_rows();
 
     for (auto &inf : mode_rows->_dist_row_list)

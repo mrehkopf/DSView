@@ -274,8 +274,6 @@ void PopupLineEditInput::Popup(QWidget *editline)
     _textInput->setFixedSize(editline->size());
     this->setFixedSize(editline->size());
 
-    QPoint pt = mapToGlobal(editline->rect().bottomLeft());    
-
     QPoint p1 = editline->pos();
     QPoint p2 = editline->mapToGlobal(p1);
     int x = p2.x() - p1.x();

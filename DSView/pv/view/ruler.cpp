@@ -757,7 +757,6 @@ void Ruler::draw_cursor_sel(QPainter &p)
 
     if (!cursor_list.empty()) {
         int index = 1;
-        auto i = cursor_list.begin();
 
         for (auto curosr : cursor_list) {
             const QRectF cursorRect = get_cursor_sel_rect(index);

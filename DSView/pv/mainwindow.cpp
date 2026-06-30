@@ -1397,9 +1397,9 @@ namespace pv
 
         if (language == LAN_CN)
         {
-            _qtTrans.load(":/qt_" + QString::number(language));
+            (void)_qtTrans.load(":/qt_" + QString::number(language));
             qApp->installTranslator(&_qtTrans);
-            _myTrans.load(":/my_" + QString::number(language));
+            (void)_myTrans.load(":/my_" + QString::number(language));
             qApp->installTranslator(&_myTrans);
         }
         else if (language == LAN_EN || language == LAN_DE)

@@ -208,10 +208,11 @@ static GSList *scan(GSList *options)
     num = 0;
     is_speed_not_match = 0;
 
-    if (options != NULL)
+    if (options != NULL) {
         sr_info("Scan DSCope device with options.");
-    else 
+    } else {
         sr_info("Scan DSCope device...");
+    }
 
 	conn = NULL;
 	for (l = options; l; l = l->next) {
@@ -429,7 +430,7 @@ static uint64_t dso_preoff(const struct sr_channel* ch)
 static uint64_t dso_offset(const struct sr_dev_inst *sdi, const struct sr_channel* ch)
 {
     uint64_t pwm_off = 0;
-    int offset_coarse, offset_fine;
+    int offset_coarse = 0, offset_fine = 0;
     int trans_coarse, trans_fine;
     struct DSL_context *devc = sdi->priv;
     const double offset_mid = (1 << (ch->bits - 1));
@@ -1853,7 +1854,7 @@ static int dev_open(struct sr_dev_inst *sdi)
     gboolean fpga_done;
     int ret;
     GSList *l;
-    gboolean zeroed;
+    gboolean zeroed = TRUE;
     struct DSL_context *devc = sdi->priv;
 
     if ((ret = dsl_dev_open(di, sdi, &fpga_done)) == SR_OK) {

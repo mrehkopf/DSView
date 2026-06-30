@@ -251,7 +251,7 @@ void MainFrame::OnParentNativeEvent(ParentNativeEvent msg)
 
 void MainFrame::OnParentNaitveWindowEvent(int msg)
 {
- 
+    (void)msg;
 #ifdef _WIN32
     if (_parentNativeWidget != NULL 
             && msg == PARENT_EVENT_DISPLAY_CHANGED){
@@ -408,12 +408,8 @@ bool MainFrame::eventFilter(QObject *object, QEvent *event)
 { 
     const QEvent::Type type = event->type();
     const QMouseEvent *const mouse_event = (QMouseEvent*)event;
-    int newWidth = 0;
-    int newHeight = 0;
-    int newLeft = 0;
-    int newTop = 0;
 
-#ifdef _WIN32 
+#ifdef _WIN32
     if (_parentNativeWidget != NULL){
         return QFrame::eventFilter(object, event);
     }
@@ -468,7 +464,7 @@ bool MainFrame::eventFilter(QObject *object, QEvent *event)
  
         QPoint pt;
         int k = 1;
-        pt = mouse_event->globalPos(); 
+        pt = mouse_event->globalPosition().toPoint(); 
 
         int datX = pt.x() - _clickPos.x();
         int datY = pt.y() - _clickPos.y();
@@ -572,7 +568,7 @@ bool MainFrame::eventFilter(QObject *object, QEvent *event)
             _bDraging = true;
         _timer.start(50); 
 
-        _clickPos = mouse_event->globalPos();
+        _clickPos = mouse_event->globalPosition().toPoint();
         _dragStartRegion = GetFormRegion();
     } 
     else if (type == QEvent::MouseButtonRelease) {
