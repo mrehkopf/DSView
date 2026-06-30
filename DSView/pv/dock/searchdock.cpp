@@ -182,7 +182,6 @@ void SearchDock::on_previous()
             _is_busy = false;
         });
 
-        Qt::WindowFlags flags = Qt::CustomizeWindowHint;
         QString title = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SEARCH_PREVIOUS), "Search Previous...");
         QString cancelText = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_CANCEL), "Cancel");
         EdgeSearchProgressDialog dlg(this, title, cancelText);
@@ -245,7 +244,6 @@ void SearchDock::on_next()
             _is_busy = false;
         });
 
-        Qt::WindowFlags flags = Qt::CustomizeWindowHint;
         QString title = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SEARCH_NEXT), "Search Next...");
         QString cancelText = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_CANCEL), "Cancel");
         EdgeSearchProgressDialog dlg(this, title, cancelText);

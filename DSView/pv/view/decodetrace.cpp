@@ -487,6 +487,7 @@ void DecodeTrace::draw_range(const pv::data::decode::Annotation &a, QPainter &p,
     double end, int y, QColor fore, QColor back)
 {
     (void)fore;
+    (void)back;
 
     AppConfig &app = AppConfig::Instance();
     bool fontStretch = app.appOptions.decoderDynamicFontWidth;
@@ -531,9 +532,7 @@ void DecodeTrace::draw_range(const pv::data::decode::Annotation &a, QPainter &p,
 
 	// Try to find an annotation that will fit
 	QString best_annotation;
-	int best_width = 0;
     int max_width = rect.width();
-    bool isCondensed = false;
     QFontMetrics fm = p.fontMetrics();
     QFont condensed_font = p.font();
     double MIN_STRETCH = fontStretch
@@ -562,8 +561,6 @@ void DecodeTrace::draw_range(const pv::data::decode::Annotation &a, QPainter &p,
         if (stretch >= MIN_STRETCH) {
             // fitting annotation found with condensing
             best_annotation = a;
-            best_width = ceil((double)w * (stretch / 100.0));
-            isCondensed = true;
             break;
         }
 	}

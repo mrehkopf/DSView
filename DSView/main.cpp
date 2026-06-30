@@ -159,11 +159,15 @@ bool bHighScale = true;
 		bHighScale = false;
 	} 
 #endif
+#if QT_VERSION < QT_VERSION_CHECK(6,0,0)
 	if (bHighScale){
 		QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
       	QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
 	}
-#endif 
+#else
+	(void)bHighScale;
+#endif
+#endif
 
 	//----------------------init app
     QApplication a(argcFinal, argvFinal);

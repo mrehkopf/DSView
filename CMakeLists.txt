@@ -31,8 +31,8 @@ set(DS_TITLE DSView)
 set(DS_DESCRIPTION "A GUI for instruments of DreamSourceLab")
 
 set(DS_VERSION_MAJOR 1)
-set(DS_VERSION_MINOR 4)
-set(DS_VERSION_MICRO 2)
+set(DS_VERSION_MINOR 5)
+set(DS_VERSION_MICRO 0)
 set(DS_VERSION_STRING  ${DS_VERSION_MAJOR}.${DS_VERSION_MINOR}.${DS_VERSION_MICRO})
 
 configure_file (
@@ -46,8 +46,8 @@ configure_file (
 include(FindPkgConfig)
 include(GNUInstallDirs)
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake") 
-#list(APPEND CMAKE_PREFIX_PATH "xxx.cmake find path") 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake")
+#list(APPEND CMAKE_PREFIX_PATH "xxx.cmake find path")
 
 find_package(PkgConfig)
 
@@ -135,7 +135,7 @@ else()
         endif()
     endif()
 endif()
-  
+
 #===============================================================================
 #= FFTW
 #-------------------------------------------------------------------------------
@@ -322,7 +322,7 @@ set(DSView_SOURCES
     DSView/pv/dialogs/protocolexp.cpp
     DSView/pv/dialogs/fftoptions.cpp
     DSView/pv/data/mathstack.cpp
-    DSView/pv/view/mathtrace.cpp   
+    DSView/pv/view/mathtrace.cpp
     DSView/pv/toolbars/titlebar.cpp
     DSView/pv/mainframe.cpp
     DSView/pv/widgets/border.cpp
@@ -443,7 +443,7 @@ set(DSView_HEADERS
     DSView/pv/view/signal.h
     DSView/pv/view/logicsignal.h
     DSView/pv/view/analogsignal.h
-    DSView/pv/view/dsosignal.h 
+    DSView/pv/view/dsosignal.h
     DSView/pv/dock/protocoldock.h
     DSView/pv/data/decoderstack.h
     DSView/pv/view/decodetrace.h
@@ -471,7 +471,7 @@ set(DSView_HEADERS
     DSView/pv/ui/fn.h
     DSView/pv/ui/xtoolbutton.h
 )
- 
+
 #===============================================================================
 #= libsigrok4DSL source
 #-------------------------------------------------------------------------------
@@ -514,7 +514,7 @@ set(libsigrok4DSL_HEADERS
     libsigrok4DSL/hardware/DSL/command.h
     libsigrok4DSL/hardware/DSL/dsl.h
 )
- 
+
 #===============================================================================
 #= libsigrokdecode4DSL source
 #-------------------------------------------------------------------------------
@@ -690,7 +690,7 @@ if(WIN32)
 	install(DIRECTORY DSView/res DESTINATION .)
 	install(DIRECTORY DSView/demo DESTINATION .)
 	install(DIRECTORY lang DESTINATION .)
-	install(DIRECTORY libsigrokdecode4DSL/decoders 
+	install(DIRECTORY libsigrokdecode4DSL/decoders
 			DESTINATION .
 			PATTERN "__pycache__" EXCLUDE)
 	install(DIRECTORY cross-compile-windows/python-setup/python-dist/. DESTINATION .)
@@ -703,7 +703,7 @@ else()
 	install(FILES DSView/icons/logo.svg DESTINATION share/icons/hicolor/scalable/apps RENAME dsview.svg)
 	install(FILES DSView/icons/logo.svg DESTINATION share/pixmaps RENAME dsview.svg)
 
-	if(CMAKE_SYSTEM_NAME MATCHES "Linux")	
+	if(CMAKE_SYSTEM_NAME MATCHES "Linux")
 		install(FILES DSView/DSView.desktop DESTINATION /usr/share/applications RENAME dsview.desktop)
 
 		add_compile_definitions(_DEFAULT_SOURCE)

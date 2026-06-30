@@ -555,7 +555,6 @@ bool StoreSession::meta_gen(data::Snapshot *snapshot, std::string &str)
     struct sr_channel *probe;
     int probecnt;
     char *s;
-    struct sr_status status;
     char meta[300] = {0};
   
     sprintf(meta, "%s", "[version]\n"); str += meta;
@@ -1190,8 +1189,6 @@ void StoreSession::export_exec(data::Snapshot *snapshot)
         void* data_buffer = analog_snapshot->get_data();
         unsigned int usize = 8192;        
         struct sr_datafeed_analog ap;
-        
-        unsigned char* read_buf = (unsigned char*)data_buffer;
 
         const uint64_t ring_start = analog_snapshot->get_ring_start();
  

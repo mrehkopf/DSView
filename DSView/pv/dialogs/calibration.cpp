@@ -201,7 +201,7 @@ void Calibration::update_device_info()
     for (const GSList *l = _device_agent->get_channels(); l; l = l->next) {
         sr_channel *const probe = (sr_channel*)l->data;
         dex++;
-        assert(dex < _params.size());
+        assert((size_t)dex < _params.size());
         auto *form = &_params[dex];
 
         assert(form->probe == probe);

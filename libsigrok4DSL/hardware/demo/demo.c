@@ -72,13 +72,13 @@ static int b_load_directory = 0;
 static char* demo_mode_names[3] = {"logic", "dso", "analog"};
 
 static const struct DEMO_channels logic_channel_modes[] = {
-    {DEMO_LOGIC125x16,  LOGIC,  SR_CHANNEL_LOGIC,  16, 1, SR_MHZ(1), SR_Mn(1),
+    {(enum DEMO_CHANNEL_ID)DEMO_LOGIC125x16,  LOGIC,  SR_CHANNEL_LOGIC,  16, 1, SR_MHZ(1), SR_Mn(1),
      SR_KHZ(50), SR_MHZ(125), "Use 16 Channels (Max 125MHz)"},
-    {DEMO_LOGIC250x12,  LOGIC,  SR_CHANNEL_LOGIC,  12, 1, SR_MHZ(1), SR_Mn(1),
+    {(enum DEMO_CHANNEL_ID)DEMO_LOGIC250x12,  LOGIC,  SR_CHANNEL_LOGIC,  12, 1, SR_MHZ(1), SR_Mn(1),
      SR_KHZ(50), SR_MHZ(250), "Use 12 Channels (Max 250MHz)"},
-    {DEMO_LOGIC500x6,  LOGIC,  SR_CHANNEL_LOGIC,  6, 1, SR_MHZ(1), SR_Mn(1),
+    {(enum DEMO_CHANNEL_ID)DEMO_LOGIC500x6,  LOGIC,  SR_CHANNEL_LOGIC,  6, 1, SR_MHZ(1), SR_Mn(1),
      SR_KHZ(50), SR_MHZ(500), "Use 6 Channels (Max 500MHz)"},
-    {DEMO_LOGIC1000x3,  LOGIC,  SR_CHANNEL_LOGIC,  3, 1, SR_MHZ(1), SR_Mn(1),
+    {(enum DEMO_CHANNEL_ID)DEMO_LOGIC1000x3,  LOGIC,  SR_CHANNEL_LOGIC,  3, 1, SR_MHZ(1), SR_Mn(1),
      SR_KHZ(50), SR_GHZ(1), "Use 3 Channels (Max 1GHz)"},
 };
 
@@ -1135,7 +1135,7 @@ static int config_set(int id, GVariant *data, struct sr_dev_inst *sdi,
                 if(logic_channel_modes[i].id == (enum DEMO_CHANNEL_ID)nv)
                 {
                     vdev->logic_ch_mode_index = i;
-                    vdev->logic_ch_mode = (enum DEMO_CHANNEL_ID)nv;
+                    vdev->logic_ch_mode = (enum DEMO_LOGIC_CHANNEL_ID)nv;
                     load_virtual_device_session(sdi);
                     vdev->channel_mode_change = TRUE;
                     break;
