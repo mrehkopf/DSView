@@ -1073,6 +1073,12 @@ void ProtocolDock::UpdateFont()
     ui::set_form_font(this, font);
     _table_view->setFont(font);
 
+    // The decoded-results model provides no size hint, so the table keeps its
+    // default row height and clips larger fonts. Grow the rows with the font,
+    // leaving room for cell margins and descenders.
+    QFontMetrics cell_fm(font);
+    _table_view->verticalHeader()->setDefaultSectionSize(qRound(cell_fm.height() * 1.5));
+
     for(auto lay : _protocol_lay_items){
         lay->update_font();
     }

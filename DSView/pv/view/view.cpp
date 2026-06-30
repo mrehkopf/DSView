@@ -27,6 +27,7 @@
 #include <QEvent>
 #include <QMouseEvent>
 #include <QScrollBar>
+#include <QFontMetrics>
 #include <algorithm>
 
 #include "groupsignal.h"
@@ -106,6 +107,10 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
 
    _session = session;
    _device_agent = session->get_device();
+
+   _trace_height_factor = AppConfig::Instance().appOptions.traceHeightFactor;
+   if (_trace_height_factor < MinTraceHeightFactor || _trace_height_factor > MaxTraceHeightFactor)
+       _trace_height_factor = 1.0;
 
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
@@ -332,6 +337,41 @@ bool View::zoom(double steps, int offset)
     }
 
     return ret;
+}
+
+void View::vzoom(double steps)
+{
+    if (_device_agent->have_instance() == false)
+        return;
+
+    // Vertical scaling only makes sense for the logic trace window.
+    if (_device_agent->get_work_mode() != LOGIC)
+        return;
+
+    // Halve the step size (relative to horizontal zoom) for finer adjustment.
+    double factor = _trace_height_factor * std::pow(3.0/2.0, steps * 0.5);
+    factor = max(min(factor, MaxTraceHeightFactor), MinTraceHeightFactor);
+
+    if (factor == _trace_height_factor)
+        return;
+
+    _trace_height_factor = factor;
+
+    AppConfig &app = AppConfig::Instance();
+    app.appOptions.traceHeightFactor = factor;
+    app.SaveApp();
+
+    signals_changed(NULL);
+    _header->update();
+    viewport_update();
+    update_scroll();
+}
+
+double View::get_trace_font_scale()
+{
+    if (_device_agent->have_instance() && _device_agent->get_work_mode() == LOGIC)
+        return _trace_height_factor;
+    return 1.0;
 }
 
 void View::timebase_changed()
@@ -785,18 +825,29 @@ void View::signals_changed(const Trace* eventTrace)
             int v;
             bool ret;
 
+            // Minimum row height must accommodate the configured font so that
+            // in-trace text (e.g. decoder annotations) is not cut off.
+            QFont trace_font;
+            trace_font.setPointSizeF(AppConfig::Instance().GetTraceFontSize());
+            const int min_row_height = max((int)HeightUnit,
+                                           QFontMetrics(trace_font).height() + 4);
+
             ret = _device_agent->get_config_byte(SR_CONF_MAX_HEIGHT_VALUE, v);
             if (ret) {
                 max_height = (v + 1) * HeightUnit;
             }
             if (height < 2*actualMargin) {
                 //actualMargin /= 2;
-                _signalHeight = max((double)HeightUnit, (_time_viewport->height()
+                _signalHeight = max((double)min_row_height, (_time_viewport->height()
                                           - 2 * actualMargin * label_size) * 1.0 / total_rows);
             }
             else {
-                _signalHeight = max((double)HeightUnit, (height >= max_height) ? max_height : height);
+                _signalHeight = max((double)min_row_height, (height >= max_height) ? max_height : height);
             }
+
+            // Apply the user-controlled vertical scaling so logic signals can
+            // grow to use the full window height (see View::vzoom).
+            _signalHeight = max((double)min_row_height, _signalHeight * _trace_height_factor);
         }
         else if (_device_agent->get_work_mode() == DSO) {
             _signalHeight = max((double)HeightUnit, (_header->height()

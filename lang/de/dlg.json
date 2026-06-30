@@ -1,107 +1,107 @@
 [
     {
         "id": "IDS_DLG_LOG_OPTIONS",
-        "text": "Log Options"
+        "text": "Protokolloptionen"
     },
     {
         "id": "IDS_DLG_LOG_LEVEL",
-        "text": "Log Level"
+        "text": "Protokollstufe"
     },
     {
         "id": "IDS_DLG_SAVE_FILE",
-        "text": "Save To File"
+        "text": "In Datei speichern"
     },
     {
         "id": "IDS_DLG_OPEN_FILE",
-        "text": "Open File"
+        "text": "Datei öffnen"
     },
     {
         "id": "IDS_DLG_OPEN_SEESION",
-        "text": "Open Session"
+        "text": "Sitzung öffnen"
     },
     {
         "id": "IDS_DLG_SAVE_SEESION",
-        "text": "Save Session"
+        "text": "Sitzung speichern"
     },
     {
         "id": "IDS_DLG_DOCUMENT",
-        "text": "Document"
+        "text": "Dokument"
     },
     {
         "id": "IDS_DLG_TRIGGER_DOCK_TITLE",
-        "text": "Trigger Setting"
+        "text": "Triggereinstellung"
     },
     {
         "id": "IDS_DLG_PROTOCOL_DOCK_TITLE",
-        "text": "Decoders"
+        "text": "Dekodierer"
     },
     {
         "id": "IDS_DLG_MEASURE_DOCK_TITLE",
-        "text": "Measurement"
+        "text": "Messung"
     },
     {
         "id": "IDS_DLG_SEARCH_DOCK_TITLE",
-        "text": "Search"
+        "text": "Suchen"
     },
     {
         "id": "IDS_DLG_SAVE_AS",
-        "text": "Save As"
+        "text": "Speichern unter"
     },
     {
         "id": "IDS_DLG_CHECK_USB_SPEED_ERROR",
-        "text": "Plugging the current device into a USB 2.0 port will significantly impact its performance.\nPlease replug it into a USB 3.0 port."
+        "text": "Das aktuelle Gerät an einen USB 2.0 Anschluss anzuschließen beeinträchtigt die Leistung erheblich.\nBitte an einen USB 3.0 Anschluss umstecken."
     },
     {
         "id": "IDS_DLG_CHECK_SESSION_FILE_VERSION_ERROR",
-        "text": "This file is in an old format.\nIt loads slowly.\nYou can re-save it after loading."
+        "text": "Diese Datei liegt in einem alten Format vor.\nSie wird langsam geladen.\nSie können sie nach dem Laden erneut speichern."
     },
     {
         "id": "IDS_DLG_ABOUT",
-        "text": "About"
+        "text": "Über"
     },
     {
         "id": "IDS_DLG_DISPLAY_OPTIONS",
-        "text": "Display options"
+        "text": "Anzeigeoptionen"
     },
     {
         "id": "IDS_DLG_QUICK_SCROLL",
-        "text": "Waveform Scroll with Mouse Drag"
+        "text": "Wellenform-Scrollen mit Mausbewegung"
     },
     {
         "id": "IDS_DLG_SAVE",
-        "text": "Save"
+        "text": "Speichern"
     },
     {
         "id": "IDS_DLG_RESET",
-        "text": "Reset"
+        "text": "Zurücksetzen"
     },
     {
         "id": "IDS_DLG_EXIT",
-        "text": "Exit"
+        "text": "Beenden"
     },
     {
         "id": "IDS_DLG_MANUAL_CALIBRATION",
-        "text": "Manual Calibration"
+        "text": "Manuelle Kalibrierung"
     },
     {
         "id": "IDS_DLG_CHANNEL",
-        "text": "Channel"
+        "text": "Kanal"
     },
     {
         "id": "IDS_DLG_SAVE_CALIBRATION_RESULTS",
-        "text": "Saving calibration results... Please wait a moment."
+        "text": "Kalibrierungsergebnisse werden gespeichert... Bitte warten."
     },
     {
         "id": "IDS_DLG_CANCEL",
-        "text": "Cancel"
+        "text": "Abbrechen"
     },
     {
         "id": "IDS_DLG_RELOAD_CALIBRATION_RESULTS",
-        "text": "Reloading the previous calibration results... Please wait a moment."
+        "text": "Vorherige Kalibrierungsergebnisse werden neu geladen... Bitte warten."
     },
     {
         "id": "IDS_DLG_DECODER_OPTIONS",
-        "text": "Decoder Options"
+        "text": "Dekodierer-Optionen"
     },
     {
         "id": "IDS_DLG_CURSOR",
@@ -109,399 +109,395 @@
     },
     {
         "id": "IDS_DLG_CURSOR_FOR_DECODE_START",
-        "text": "Decoding Start Position"
+        "text": "Dekodierungs-Startposition"
     },
     {
         "id": "IDS_DLG_CURSOR_FOR_DECODE_END",
-        "text": "Decoding End Position"
+        "text": "Dekodierungs-Endposition"
     },
     {
         "id": "IDS_DLG_DEVICE_OPTIONS",
-        "text": "Device Options"
+        "text": "Geräteoptionen"
     },
     {
         "id": "IDS_DLG_MODE",
-        "text": "Options"
+        "text": "Optionen"
     },
     {
         "id": "IDS_DLG_ENABLE_ALL",
-        "text": "Enable All"
+        "text": "Alle aktivieren"
     },
     {
         "id": "IDS_DLG_DISABLE_ALL",
-        "text": "Disable All"
+        "text": "Alle deaktivieren"
     },
     {
         "id": "IDS_DLG_ENABLE",
-        "text": "Enable: "
+        "text": "Aktivieren: "
     },
     {
         "id": "IDS_DLG_AUTO_CALIBRATION",
-        "text": "Auto Calibration"
+        "text": "Automatische Kalibrierung"
     },
     {
         "id": "IDS_DLG_CALIBRATION",
-        "text": "Calibration"
+        "text": "Kalibrierung"
     },
     {
         "id": "IDS_DLG_MEASUREMENTS",
-        "text": "Measurements"
+        "text": "Messungen"
     },
     {
         "id": "IDS_DLG_FFT_ENABLE",
-        "text": "FFT Enable: "
+        "text": "FFT aktivieren: "
     },
     {
         "id": "IDS_DLG_FFT_LENGTH",
-        "text": "FFT Length: "
+        "text": "FFT-Länge: "
     },
     {
         "id": "IDS_DLG_SAMPLE_INTERVAL",
-        "text": "Sample Interval: "
+        "text": "Abtastintervall: "
     },
     {
         "id": "IDS_DLG_FFT_SOURCE",
-        "text": "FFT Source: "
+        "text": "FFT-Quelle: "
     },
     {
         "id": "IDS_DLG_FFT_WINDOW",
-        "text": "FFT Window: "
+        "text": "FFT-Fenster: "
     },
     {
         "id": "IDS_DLG_DC_IGNORED",
-        "text": "DC Ignored: "
+        "text": "DC ignoriert: "
     },
     {
         "id": "IDS_DLG_Y-AXIS_MODE",
-        "text": "Y-axis Mode: "
+        "text": "Y-Achsen-Modus: "
     },
     {
         "id": "IDS_DLG_DBV_RANGE",
-        "text": "DBV Range: "
+        "text": "DBV-Bereich: "
     },
     {
         "id": "IDS_DLG_FFT_OPTIONS",
-        "text": "FFT Options"
+        "text": "FFT-Optionen"
     },
     {
         "id": "IDS_DLG_INTERVAL_S",
-        "text": "Interval(s): "
+        "text": "Intervall (s): "
     },
     {
         "id": "IDS_DLG_REPETITIVE_INTERVAL",
-        "text": "Repetitive Interval"
+        "text": "Wiederholungsintervall"
     },
     {
         "id": "IDS_DLG_X_AXIS",
-        "text": "X-axis"
+        "text": "X-Achse"
     },
     {
         "id": "IDS_DLG_Y_AXIS",
-        "text": "Y-axis"
+        "text": "Y-Achse"
     },
     {
         "id": "IDS_DLG_LISSAJOUS_OPTIONS",
-        "text": "Lissajous Options"
+        "text": "Lissajous-Optionen"
     },
     {
         "id": "IDS_DLG_ADD",
-        "text": "Add"
+        "text": "Hinzufügen"
     },
     {
         "id": "IDS_DLG_SUBSTRACT",
-        "text": "Substract"
+        "text": "Subtrahieren"
     },
     {
         "id": "IDS_DLG_MULTIPLY",
-        "text": "Multiply"
+        "text": "Multiplizieren"
     },
     {
         "id": "IDS_DLG_DIVIDE",
-        "text": "Divide"
+        "text": "Dividieren"
     },
     {
         "id": "IDS_DLG_MATH_TYPE",
-        "text": "Math Type"
+        "text": "Mathematiktyp"
     },
     {
         "id": "IDS_DLG_1ST_SOURCE",
-        "text": "1st Source"
+        "text": "1. Quelle"
     },
     {
         "id": "IDS_DLG_2ST_SOURCE",
-        "text": "2nd Source"
+        "text": "2. Quelle"
     },
     {
         "id": "IDS_DLG_MATH_OPTIONS",
-        "text": "Math Options"
+        "text": "Mathematik-Optionen"
     },
     {
         "id": "IDS_DLG_EXPORT_FORMAT",
-        "text": "Export Format: "
+        "text": "Exportformat: "
     },
     {
         "id": "IDS_DLG_PROTOCOL_EXPORT",
-        "text": "Protocol Export"
+        "text": "Protokoll-Export"
     },
     {
         "id": "IDS_DLG_EXPORT_DATA",
-        "text": "Export Data: "
+        "text": "Daten exportieren: "
     },
     {
         "id": "IDS_DLG_EXPORT_PROTOCOL_LIST_RESULT",
-        "text": "Exporting decoding results... Please wait a moment."
+        "text": "Dekodierungsergebnisse werden exportiert... Bitte warten."
     },
     {
         "id": "IDS_DLG_FIT_TO_WINDOW",
-        "text": "Adapting window size"
+        "text": "An Fenstergröße anpassen"
     },
     {
         "id": "IDS_DLG_FIXED",
-        "text": "Fixed"
+        "text": "Fest"
     },
     {
         "id": "IDS_DLG_MAP_ZOOM",
-        "text": "Jump Zoom: "
+        "text": "Sprungzoom: "
     },
     {
         "id": "IDS_DLG_DECODED_PROTOCOLS",
-        "text": "Decoded Protocols: "
+        "text": "Dekodierte Protokolle: "
     },
     {
         "id": "IDS_DLG_PROTOCOL_LIST_VIEWER",
-        "text": "Decoding Results"
+        "text": "Dekodierungsergebnisse"
     },
     {
         "id": "IDS_DLG_REGION",
-        "text": "Region"
+        "text": "Bereich"
     },
     {
         "id": "IDS_DLG_SEARCH_LABEL",
-        "text": "X: Don't care\n0: Low level\n1: High level\nR: Rising edge\nF: Falling edge\nC: Rising/Falling edge"
+        "text": "X: Beliebig\n0: Niedriger Pegel\n1: Hoher Pegel\nR: Steigende Flanke\nF: Fallende Flanke\nC: Steigende/Fallende Flanke"
     },
     {
         "id": "IDS_DLG_SEARCH_OPTIONS",
-        "text": "Search Options"
+        "text": "Suchoptionen"
     },
     {
         "id": "IDS_DLG_SAVING",
-        "text": "Saving..."
+        "text": "Speichern..."
     },
     {
         "id": "IDS_DLG_ORIGINAL_DATA",
-        "text": "Original data"
+        "text": "Originaldaten"
     },
     {
         "id": "IDS_DLG_COMPRESSED_DATA",
-        "text": "Compressed data"
+        "text": "Komprimierte Daten"
     },
     {
         "id": "IDS_DLG_EXPORT",
-        "text": "Export"
+        "text": "Exportieren"
     },
     {
         "id": "IDS_DLG_EXPORTING",
-        "text": "Exporting..."
+        "text": "Exportieren..."
     },
     {
         "id": "IDS_DLG_DONT_CONNECT_PROBES",
-        "text": "Don't connect any probes!"
+        "text": "Keine Sonden anschließen!"
     },
     {
         "id": "IDS_DLG_LOAD_CURRENT_SETTING",
-        "text": "Loading current settings... Please wait a moment."
+        "text": "Aktuelle Einstellungen werden geladen... Bitte warten."
     },
     {
         "id": "IDS_DLG_WAITING",
-        "text": "Waiting"
+        "text": "Warten"
     },
     {
         "id": "IDS_DLG_FINISHED",
-        "text": "Finished!"
+        "text": "Fertig!"
     },
     {
         "id": "IDS_DLG_US",
-        "text": "uS"
+        "text": "µs"
     },
     {
         "id": "IDS_DLG_MS",
-        "text": "mS"
+        "text": "ms"
     },
     {
         "id": "IDS_DLG_S",
-        "text": "S"
+        "text": "s"
     },
     {
         "id": "IDS_DLG_TRIGGER_POSITION",
-        "text": "Trigger Position: "
+        "text": "Triggerposition: "
     },
     {
         "id": "IDS_DLG_HOLD_OFF_TIME",
-        "text": "Hold Off Time: "
+        "text": "Haltezeit: "
     },
     {
         "id": "IDS_DLG_NOISE_SENSITIVITY",
-        "text": "Trigger Sensitivity: "
+        "text": "Trigger-Empfindlichkeit: "
     },
     {
         "id": "IDS_DLG_TRIGGER_SOURCES",
-        "text": "Trigger Sources: "
+        "text": "Triggerquellen: "
     },
     {
         "id": "IDS_DLG_TRIGGER_TYPES",
-        "text": "Trigger Types: "
+        "text": "Triggertypen: "
     },
     {
         "id": "IDS_DLG_RISING_EDGE",
-        "text": "Rising Edge"
+        "text": "Steigende Flanke"
     },
     {
         "id": "IDS_DLG_FALLING_EDGE",
-        "text": "Falling Edge"
+        "text": "Fallende Flanke"
     },
     {
         "id": "IDS_DLG_AUTO",
-        "text": "Auto"
+        "text": "Automatisch"
     },
     {
         "id": "IDS_DLG_CHANNEL_0",
-        "text": "Channel 0"
+        "text": "Kanal 0"
     },
     {
         "id": "IDS_DLG_CHANNEL_1",
-        "text": "Channel 1"
+        "text": "Kanal 1"
     },
     {
         "id": "IDS_DLG_CHANNEL_0_AND_1",
-        "text": "Channel 0 && 1"
+        "text": "Kanal 0 && 1"
     },
     {
         "id": "IDS_DLG_CHANNEL_0_OR_1",
-        "text": "Channel 0 | 1"
+        "text": "Kanal 0 | 1"
     },
     {
         "id": "IDS_DLG_KEY_DECODER_SEARCH",
-        "text": "Decoder search..."
+        "text": "Dekodierer suchen..."
     },
     {
         "id": "IDS_DLG_TIME_SAMPLES",
-        "text": "Time / Samples"
+        "text": "Zeit / Abtastwerte"
     },
     {
         "id": "IDS_DLG_MOUSE_MEASUREMENT",
-        "text": "Mouse measurement"
+        "text": "Mausmessung"
     },
     {
         "id": "IDS_DLG_ENABLE_FLOATING_MEASUREMENT",
-        "text": "Enable floating measurement"
+        "text": "Schwebende Messung aktivieren"
     },
     {
         "id": "IDS_DLG_CURSOR_DISTANCE",
-        "text": "Cursor Distance"
+        "text": "Cursorabstand"
     },
     {
         "id": "IDS_DLG_EDGES",
-        "text": "Edges"
+        "text": "Flanken"
     },
     {
         "id": "IDS_DLG_CURSORS",
-        "text": "Cursors"
+        "text": "Cursor"
     },
     {
         "id": "IDS_DLG_RIS_OR_FAL_EDGE",
-        "text": "Rising/Falling/Edges"
+        "text": "Steigende/Fallende Flanken"
     },
     {
         "id": "IDS_DLG_W",
-        "text": "Width: "
+        "text": "Breite: "
     },
     {
         "id": "IDS_DLG_P",
-        "text": "Period: "
+        "text": "Periode: "
     },
     {
         "id": "IDS_DLG_F",
-        "text": "Freq: "
+        "text": "Freq.: "
     },
     {
         "id": "IDS_DLG_D",
-        "text": "Duty: "
+        "text": "Tast: "
     },
     {
         "id": "IDS_DLG_SEARCH",
-        "text": "search"
+        "text": "Suchen"
     },
     {
         "id": "IDS_DLG_MATCHING_ITEMS",
-        "text": "Matching Items:"
+        "text": "Treffer:"
     },
     {
         "id": "IDS_DLG_OUT_OF_MEMORY",
-        "text": "Out of Memory"
+        "text": "Kein Speicher mehr"
     },
     {
         "id": "IDS_DLG_SEARCHING",
-        "text": "Searching..."
+        "text": "Suchen..."
     },
     {
         "id": "IDS_DLG_SEARCH_PREVIOUS",
-        "text": "Search Previous..."
+        "text": "Vorherigen suchen..."
     },
     {
         "id": "IDS_DLG_SEARCH_NEXT",
-        "text": "Search Next..."
+        "text": "Nächsten suchen..."
     },
     {
         "id": "IDS_DLG_SIMPLE_TRIGGER",
-        "text": "Simple Trigger"
+        "text": "Einfacher Trigger"
     },
     {
         "id": "IDS_DLG_ADVANCED_TRIGGER",
-        "text": "Advanced Trigger"
-    },
-    {
-        "id": "IDS_DLG_TRIGGER_POSITION",
-        "text": "Trigger Position: "
+        "text": "Erweiterter Trigger"
     },
     {
         "id": "IDS_DLG_TOTAL_TRIGGER_STAGES",
-        "text": "Total Trigger Stages: "
+        "text": "Gesamte Triggerstufen: "
     },
     {
         "id": "IDS_DLG_START_FLAG",
-        "text": "Start Flag: "
+        "text": "Startflag: "
     },
     {
         "id": "IDS_DLG_STOP_FLAG",
-        "text": "Stop Flag: "
+        "text": "Stoppflag: "
     },
     {
         "id": "IDS_DLG_CLOCK_FLAG",
-        "text": "Clock Flag: "
+        "text": "Taktflag: "
     },
     {
         "id": "IDS_DLG_DATA_CHANNEL",
-        "text": "Data Channel: "
+        "text": "Datenkanal: "
     },
     {
         "id": "IDS_DLG_DATA_VALUE",
-        "text": "Data Value: "
+        "text": "Datenwert: "
     },
     {
         "id": "IDS_DLG_SERIAL_TRIGGER",
-        "text": "Serial Trigger"
-    },   
+        "text": "Serieller Trigger"
+    },
     {
         "id": "IDS_DLG_STAGE_TRIGGER",
-        "text": "Stage Trigger"
+        "text": "Stufentrigger"
     },
     {
         "id": "IDS_DLG_SERIAL_NOTE_LABEL",
-        "text": "X: Don't care\n0: Low level\n1: High level\nR: Rising edge\nF: Falling edge\nC: Rising/Falling edge"
-    },  
+        "text": "X: Beliebig\n0: Niedriger Pegel\n1: Hoher Pegel\nR: Steigende Flanke\nF: Fallende Flanke\nC: Steigende/Fallende Flanke"
+    },
     {
         "id": "IDS_DLG_DATA_BITS",
-        "text": "Data Bits"
+        "text": "Datenbits"
     },
     {
         "id": "IDS_DLG_INV",
@@ -509,23 +505,23 @@
     },
     {
         "id": "IDS_DLG_COUNTER",
-        "text": "Counter"
+        "text": "Zähler"
     },
     {
         "id": "IDS_DLG_CONTIGUOUS",
-        "text": "Contiguous"
+        "text": "Zusammenhängend"
     },
     {
         "id": "IDS_DLG_STAGE",
-        "text": "Stage"
+        "text": "Stufe"
     },
     {
         "id": "IDS_DLG_OR",
-        "text": "Or"
+        "text": "Oder"
     },
     {
         "id": "IDS_DLG_AND",
-        "text": "And"
+        "text": "Und"
     },
     {
         "id": "IDS_DLG_HZ",
@@ -533,215 +529,215 @@
     },
     {
         "id": "IDS_DLG_UNSHOWN",
-        "text": "Unshown"
+        "text": "Ausgeblendet"
     },
     {
         "id": "ZOOM_IN_FOR_DETAILS",
-        "text": "Zoom in for details"
+        "text": "Für Details hineinzoomen"
     },
     {
         "id": "IDS_DLG_DECODETRACE_ERROR1",
-        "text": "Error: "
+        "text": "Fehler: "
     },
     {
         "id": "IDS_DLG_DECODETRACE_ERROR2",
-        "text": "Error: ..."
+        "text": "Fehler: ..."
     },
     {
         "id": "IDS_DLG_ADD_GROUP",
-        "text": "Add Group"
+        "text": "Gruppe hinzufügen"
     },
     {
         "id": "IDS_DLG_DEL_GROUP",
-        "text": "Del Group"
+        "text": "Gruppe entfernen"
     },
     {
         "id": "IDS_DLG_SET_CHANNEL_COLOUR",
-        "text": "Set Channel Colour"
+        "text": "Kanalfarbe festlegen"
     },
     {
         "id": "IDS_DLG_LISSAJOUS_FIGURE",
-        "text": "Lissajous Figure"
+        "text": "Lissajous-Figur"
     },
     {
         "id": "IDS_DLG_DATA_SOURCE_ERROR",
-        "text": "Data source error."
+        "text": "Datenquellenfehler."
     },
     {
         "id": "IDS_DLG_ADD_X_CURSOR",
-        "text": "Add X-cursor"
+        "text": "X-Cursor hinzufügen"
     },
     {
         "id": "IDS_DLG_ADD_Y_CURSOR",
-        "text": "Add Y-cursor"
+        "text": "Y-Cursor hinzufügen"
     },
     {
         "id": "IDS_DLG_AUTO_ROLL",
-        "text": "Auto(Roll)"
+        "text": "Auto(Rollen)"
     },
     {
         "id": "IDS_DLG_WAITING_TRIG",
-        "text": "Waiting Trig"
+        "text": "Warte auf Trigger"
     },
     {
         "id": "IDS_DLG_TRIG_D",
-        "text": "Trig'd"
+        "text": "Getriggert"
     },
     {
         "id": "IDS_DLG_TRIGGERED",
-        "text": "Triggered! "
+        "text": "Getriggert! "
     },
     {
         "id": "IDS_DLG_CAPTURED",
-        "text": "% Captured"
+        "text": "% Erfasst"
     },
     {
         "id": "IDS_DLG_WAITING_FOR_TRIGGER",
-        "text": "Waiting for Trigger! "
+        "text": "Warte auf Trigger! "
     },
     {
         "id": "IDS_DLG_RISING",
-        "text": "Rising: "
+        "text": "Steigend: "
     },
     {
         "id": "IDS_DLG_FALLING",
-        "text": "Falling: "
-    },   
+        "text": "Fallend: "
+    },
     {
         "id": "IDS_DLG_Edges_1",
-        "text": "Edges: "
+        "text": "Flanken: "
     },
     {
         "id": "IDS_DLG_WIDTH",
-        "text": "Width: "
+        "text": "Breite: "
     },
     {
         "id": "IDS_DLG_PERIOD",
-        "text": "Period: "
+        "text": "Periode: "
     },
     {
         "id": "IDS_DLG_FREQUENCY",
-        "text": "Frequency: "
+        "text": "Frequenz: "
     },
     {
         "id": "IDS_DLG_DUTY_CYCLE",
-        "text": "Duty Cycle: "
+        "text": "Tastverhältnis: "
     },
     {
         "id": "IDS_DLG_SAMPLES_MEAS",
-        "text": "Samples: "
+        "text": "Abtastwerte: "
     },
     {
         "id": "IDS_DLG_SAMPLES",
-        "text": "Samples"
+        "text": "Abtastwerte"
     },
     {
         "id": "IDS_DLG_TIME",
-        "text": "Time"
+        "text": "Zeit"
     },
     {
         "id": "IDS_DLG_RULER_UNITS",
-        "text": "Ruler / Cursor units"
+        "text": "Lineal / Cursor-Einheiten"
     },
     {
         "id": "IDS_DLG_MEASURE",
-        "text": "Measure"
+        "text": "Messen"
     },
     {
         "id": "IDS_DLG_TRIGGER_TIME",
-        "text": "Trigger Time: "
+        "text": "Triggerzeit: "
     },
     {
         "id": "IDS_DLG_SAMPLES_CAPTURED",
-        "text": "Samples Captured!"
+        "text": "Abtastwerte erfasst!"
     },
     {
         "id": "IDS_DLG_FILE_THRESHOLD",
-        "text": "Threshold: "
+        "text": "Schwellenwert: "
     },
     {
         "id": "IDS_DLG_VIEW_CAPTURE",
-        "text": "Capturing"
+        "text": "Aufnehmen"
     },
     {
         "id": "IDS_DLG_CHAN_NUM_ERR2",
-        "text": "Requires the data of two channels."
+        "text": "Benötigt die Daten von zwei Kanälen."
     },
     {
         "id": "IDS_DLG_PATH_NAME",
-        "text": "path"
+        "text": "Pfad"
     },
     {
         "id": "IDS_DLG_DECODER_IF_TRANS",
-        "text": "Translate param names"
+        "text": "Parameternamen übersetzen"
     },
     {
         "id": "IDS_DLG_LOG_PATH",
-        "text": "File Path"
+        "text": "Dateipfad"
     },
     {
         "id": "IDS_DLG_OPEN",
-        "text": "Open"
+        "text": "Öffnen"
     },
     {
         "id": "IDS_DLG_CLEARE",
-        "text": "Clear"
+        "text": "Löschen"
     },
     {
         "id": "IDS_DLG_APPEND_MODE",
-        "text": "Append mode"
+        "text": "Anhängemodus"
     },
     {
         "id": "IDS_DLG_TRIG_DISPLAY_MIDDLE",
-        "text": "Trig pos display at the middle"
+        "text": "Triggerpos. in der Mitte anzeigen"
     },
     {
         "id": "IDS_DLG_DISPLAY_PROFILE_IN_BAR",
-        "text": "Display the profile in title bar"
+        "text": "Profil in der Titelleiste anzeigen"
     },
     {
         "id": "IDS_DLG_DISPLAY_ANTIALIAS",
-        "text": "Antialiasing"
+        "text": "Kantenglättung"
     },
     {
         "id": "IDS_DLG_SERIAL_HEX",
-        "text": "Hex :"
+        "text": "Hex:"
     },
     {
         "id": "IDS_DLG_SERIAL_INPUT_AS_HEX",
-        "text": "Input with hex format"
+        "text": "Eingabe im Hex-Format"
     },
     {
         "id": "IDS_DLG_USE_ABORT_DATA_REPEAT",
-        "text": "Update latest data for repeat mode stop"
+        "text": "Neueste Daten beim Stopp im Wiederholmodus aktualisieren"
     },
     {
         "id": "IDS_DLG_FONT_SIZE",
-        "text": "Font Size"
+        "text": "Schriftgröße"
     },
     {
         "id": "IDS_DLG_GROUP_LOGIC",
-        "text": "Logic Analyzer"
+        "text": "Logikanalysator"
     },
     {
         "id": "IDS_DLG_GROUP_DSO",
-        "text": "Oscilloscope"
+        "text": "Oszilloskop"
     },
     {
         "id": "IDS_DLG_GROUP_UI",
-        "text": "UI"
+        "text": "Benutzeroberfläche"
     },
     {
         "id": "IDS_DLG_ABORT",
-        "text": "Abort"
+        "text": "Abbrechen"
     },
     {
         "id": "IDS_DLG_AUTO_SCROLL_LATEAST_DATA",
-        "text": "Auto scroll to latest data"
+        "text": "Automatisch zu den neuesten Daten scrollen"
     },
     {
         "id": "IDS_DLG_DATA_OUT_OFF_RANGE",
-        "text": "Data out off range"
+        "text": "Daten außerhalb des Bereichs"
     },
     {
         "id": "IDS_DLG_START_CURSOR",
@@ -749,15 +745,15 @@
     },
     {
         "id": "IDS_DLG_END_CURSOR",
-        "text": "End"
+        "text": "Ende"
     },
     {
         "id": "IDS_DSO_CTR_EN",
-        "text": "EN"
+        "text": "EIN"
     },
     {
         "id": "IDS_DSO_CTR_DIS",
-        "text": "DIS"
+        "text": "AUS"
     },
     {
         "id": "IDS_DSO_CTR_GND",
@@ -789,7 +785,7 @@
     },
     {
         "id": "IDS_FFT_WINDOW_RECTANGLE",
-        "text": "Rectangle"
+        "text": "Rechteck"
     },
     {
         "id": "IDS_FFT_WINDOW_HANN",
@@ -805,7 +801,7 @@
     },
     {
         "id": "IDS_FFT_WINDOW_FLATTOP",
-        "text": "Flat_top"
+        "text": "Flache Spitze"
     },
     {
         "id": "IDS_FFT_MODE_LINEARRSM",
@@ -813,30 +809,30 @@
     },
     {
         "id": "IDS_DLG_DECODER_DYNAMIC_FONT_WIDTH",
-        "text": "Decoder adaptive font width"
+        "text": "Adaptive Dekodierer-Schriftbreite"
     },
     {
         "id": "IDS_DLG_DEFAULT_FONT",
-        "text": "Default"
+        "text": "Standard"
     },
     {
         "id": "IDS_DLG_MAX_FONT_WIDTH",
-        "text": "Max font width:"
+        "text": "Max. Schriftbreite:"
     },
     {
         "id": "IDS_DLG_MIN_FONT_WIDTH",
-        "text": "Min font width:"
+        "text": "Min. Schriftbreite:"
     },
     {
         "id": "IDS_DLG_VERTICAL_SCROLL_ACTION",
-        "text": "Vertical Scroll Action"
+        "text": "Vertikale Scroll-Aktion"
     },
     {
         "id": "IDS_DLG_VERTICAL_SCROLL_ACTION_SMOOTH_ZOOM",
-        "text": "Zoom"
+        "text": "Zoomen"
     },
     {
         "id": "IDS_DLG_VERTICAL_SCROLL_ACTION_VERTICAL_SCROLL",
-        "text": "Scroll"
+        "text": "Scrollen"
     }
 ]

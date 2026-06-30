@@ -29,6 +29,7 @@
 
 #define LAN_CN  25
 #define LAN_EN  31
+#define LAN_DE  7
 
 #define THEME_STYLE_DARK   "dark"
 #define THEME_STYLE_LIGHT  "light"
@@ -76,6 +77,7 @@ struct AppOptions
     bool  autoScrollLatestData;
     bool  verticalScrollIsZoom;
     float fontSize;
+    float traceHeightFactor;
     QString rulerTimeUnits;
     bool antialias;
     int minDecoderFontWidthPercent;
@@ -166,6 +168,10 @@ public:
   }
 
   static void GetFontSizeRange(float *minSize, float *maxSize);
+
+  // The configured application font size, clamped to the valid range. Used
+  // for trace-area text so it honours the user's font-size setting.
+  float GetTraceFontSize();
 
   bool IsDarkStyle();
 

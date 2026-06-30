@@ -92,6 +92,10 @@ public:
 
     static const int WellSamplesPerPixel = 2048;
     static constexpr double MaxViewRate = 1.0;
+
+    // Bounds for the vertical (trace height) scaling factor.
+    static constexpr double MinTraceHeightFactor = 0.5;
+    static constexpr double MaxTraceHeightFactor = 20.0;
     static const int MaxPixelsPerSample = 100;
 
     static const int StatusHeight = 20;
@@ -168,6 +172,13 @@ public:
 	void zoom(double steps);
     bool zoom(double steps, int offset);
 
+    /**
+     * Scales the vertical size of the traces (logic mode) so signals can
+     * use more of the available window height. Positive steps grow the
+     * traces, negative steps shrink them. The factor is persisted.
+     */
+    void vzoom(double steps);
+
 	/**
 	 * Sets the scale and offset.
 	 * @param scale The new view scale in seconds per pixel.
@@ -200,6 +211,17 @@ public:
     inline int get_signalHeight(){
         return _signalHeight;
     }
+
+    inline double get_trace_height_factor(){
+        return _trace_height_factor;
+    }
+
+    /**
+     * Scale applied to trace-area text so it grows together with the trace
+     * height. Returns the vertical scaling factor in logic mode and 1.0 in
+     * every other mode (where trace height is not scaled).
+     */
+    double get_trace_font_scale();
 
     int headerWidth();
 
@@ -468,6 +490,7 @@ private:
     int64_t     _preOffset;
     int         _spanY;
     int         _signalHeight;
+    double      _trace_height_factor;
     bool        _updating_scroll;
 
     // trigger position fix
