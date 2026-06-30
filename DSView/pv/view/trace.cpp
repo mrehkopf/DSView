@@ -98,11 +98,44 @@ Trace::Trace(const Trace &t) :
 int Trace::get_name_width()
 {
     QFont font;
-    float fSize = AppConfig::Instance().appOptions.fontSize;
-    font.setPointSizeF(fSize <= 10 ? fSize : 10);
+    float fSize = AppConfig::Instance().GetTraceFontSize();
+    // Keep the reserved label width in sync with the scaled label font so
+    // channel names are not clipped when the trace height is scaled up.
+    fSize *= get_label_scale();
+    font.setPointSizeF(fSize);
     QFontMetrics fm(font);
 
     return fm.boundingRect(get_name()).width();
+}
+
+double Trace::get_label_scale()
+{
+    return (_view != NULL) ? _view->get_trace_font_scale() : 1.0;
+}
+
+int Trace::get_squareWidth()
+{
+    return (int)(SquareWidth * get_label_scale());
+}
+
+int Trace::get_squareMargin()
+{
+    return (int)(Margin * get_label_scale());
+}
+
+int Trace::get_leftWidth()
+{
+    return get_squareWidth() / 2 + get_squareMargin();
+}
+
+int Trace::get_rightWidth()
+{
+    return 2 * get_squareMargin() + _typeWidth * get_squareWidth() + 1.5 * get_squareWidth();
+}
+
+int Trace::get_headerHeight()
+{
+    return get_squareWidth();
 }
 
 void Trace::set_name(QString name)
@@ -374,10 +407,10 @@ int Trace::rows_size()
 
 QRectF Trace::get_rect(const char *s, int y, int right)
 {
-    const QSizeF color_size(get_leftWidth() - Margin, SquareWidth);
-   // const QSizeF name_size(right - get_leftWidth() - get_rightWidth(), SquareWidth);
-    const QSizeF name_size(right - get_leftWidth() - get_rightWidth(), SquareWidth);
-    const QSizeF label_size(SquareWidth, SquareWidth);
+    const int squareWidth = get_squareWidth();
+    const QSizeF color_size(get_leftWidth() - get_squareMargin(), squareWidth);
+    const QSizeF name_size(right - get_leftWidth() - get_rightWidth(), squareWidth);
+    const QSizeF label_size(squareWidth, squareWidth);
 
     if (!strcmp(s, "name"))
         return QRectF(
@@ -397,8 +430,8 @@ QRectF Trace::get_rect(const char *s, int y, int right)
     else
         return QRectF(
             2,
-            y - SquareWidth / 2,
-            SquareWidth, SquareWidth);
+            y - squareWidth / 2,
+            squareWidth, squareWidth);
 }
 
 } // namespace view

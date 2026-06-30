@@ -135,9 +135,9 @@ void Header::paintEvent(QPaintEvent*)
     fore.setAlpha(View::ForeAlpha);
  
     QFont font(painter.font());
-    float fSize = AppConfig::Instance().appOptions.fontSize;
-    if (fSize > 10)
-        fSize = 10;
+    float fSize = AppConfig::Instance().GetTraceFontSize();
+    // Grow channel-label text together with the trace height (logic mode).
+    fSize *= _view.get_trace_font_scale();
     font.setPointSizeF(fSize);
     painter.setFont(font);
 
@@ -389,8 +389,10 @@ void Header::changeName(QMouseEvent *event)
     {
         header_resize();
         QFont font = this->font();
-        float fsize = AppConfig::Instance().appOptions.fontSize;
-        font.setPointSizeF(fsize <= 10 ? fsize: 10);
+        float fsize = AppConfig::Instance().GetTraceFontSize();
+        // Match the scaled label font used when painting the channel name.
+        fsize *= _context_trace->get_label_scale();
+        font.setPointSizeF(fsize);
         nameEdit->setFont(font);
 
         nameEdit->setText(_context_trace->get_name());

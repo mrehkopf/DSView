@@ -254,38 +254,44 @@ void LogicSignal::paint_type_options(QPainter &p, int right, const QPoint pt, QC
     p.drawLine(posTrig_rect.left(), posTrig_rect.bottom(),
                edgeTrig_rect.right(), edgeTrig_rect.bottom());
 
-    p.setPen(QPen(fore, 2, Qt::SolidLine));
+    // Scale the glyph insets/stroke so the trigger symbols grow with the box.
+    const double sc = get_label_scale();
+    const double i5 = 5 * sc;
+    const double i7 = 7 * sc;
+    const double i2 = 2 * sc;
+
+    p.setPen(QPen(fore, max(2.0, 2 * sc), Qt::SolidLine));
     p.setBrush(Qt::transparent);
-    p.drawLine(posTrig_rect.left() + 5, posTrig_rect.bottom() - 5,
-               posTrig_rect.center().x(), posTrig_rect.bottom() - 5);
-    p.drawLine(posTrig_rect.center().x(), posTrig_rect.bottom() - 5,
-               posTrig_rect.center().x(), posTrig_rect.top() + 5);
-    p.drawLine(posTrig_rect.center().x(), posTrig_rect.top() + 5,
-               posTrig_rect.right() - 5, posTrig_rect.top() + 5);
+    p.drawLine(QPointF(posTrig_rect.left() + i5, posTrig_rect.bottom() - i5),
+               QPointF(posTrig_rect.center().x(), posTrig_rect.bottom() - i5));
+    p.drawLine(QPointF(posTrig_rect.center().x(), posTrig_rect.bottom() - i5),
+               QPointF(posTrig_rect.center().x(), posTrig_rect.top() + i5));
+    p.drawLine(QPointF(posTrig_rect.center().x(), posTrig_rect.top() + i5),
+               QPointF(posTrig_rect.right() - i5, posTrig_rect.top() + i5));
 
-    p.drawLine(higTrig_rect.left() + 5, higTrig_rect.top() + 5,
-               higTrig_rect.right() - 5, higTrig_rect.top() + 5);
+    p.drawLine(QPointF(higTrig_rect.left() + i5, higTrig_rect.top() + i5),
+               QPointF(higTrig_rect.right() - i5, higTrig_rect.top() + i5));
 
-    p.drawLine(negTrig_rect.left() + 5, negTrig_rect.top() + 5,
-               negTrig_rect.center().x(), negTrig_rect.top() + 5);
-    p.drawLine(negTrig_rect.center().x(), negTrig_rect.top() + 5,
-               negTrig_rect.center().x(), negTrig_rect.bottom() - 5);
-    p.drawLine(negTrig_rect.center().x(), negTrig_rect.bottom() - 5,
-               negTrig_rect.right() - 5, negTrig_rect.bottom() - 5);
+    p.drawLine(QPointF(negTrig_rect.left() + i5, negTrig_rect.top() + i5),
+               QPointF(negTrig_rect.center().x(), negTrig_rect.top() + i5));
+    p.drawLine(QPointF(negTrig_rect.center().x(), negTrig_rect.top() + i5),
+               QPointF(negTrig_rect.center().x(), negTrig_rect.bottom() - i5));
+    p.drawLine(QPointF(negTrig_rect.center().x(), negTrig_rect.bottom() - i5),
+               QPointF(negTrig_rect.right() - i5, negTrig_rect.bottom() - i5));
 
-    p.drawLine(lowTrig_rect.left() + 5, lowTrig_rect.bottom() - 5,
-               lowTrig_rect.right() - 5, lowTrig_rect.bottom() - 5);
+    p.drawLine(QPointF(lowTrig_rect.left() + i5, lowTrig_rect.bottom() - i5),
+               QPointF(lowTrig_rect.right() - i5, lowTrig_rect.bottom() - i5));
 
-    p.drawLine(edgeTrig_rect.left() + 5, edgeTrig_rect.top() + 5,
-               edgeTrig_rect.center().x() - 2, edgeTrig_rect.top() + 5);
-    p.drawLine(edgeTrig_rect.center().x() + 2 , edgeTrig_rect.top() + 5,
-               edgeTrig_rect.right() - 5, edgeTrig_rect.top() + 5);
-    p.drawLine(edgeTrig_rect.center().x(), edgeTrig_rect.top() + 7,
-               edgeTrig_rect.center().x(), edgeTrig_rect.bottom() - 7);
-    p.drawLine(edgeTrig_rect.left() + 5, edgeTrig_rect.bottom() - 5,
-               edgeTrig_rect.center().x() - 2, edgeTrig_rect.bottom() - 5);
-    p.drawLine(edgeTrig_rect.center().x() + 2, edgeTrig_rect.bottom() - 5,
-               edgeTrig_rect.right() - 5, edgeTrig_rect.bottom() - 5);
+    p.drawLine(QPointF(edgeTrig_rect.left() + i5, edgeTrig_rect.top() + i5),
+               QPointF(edgeTrig_rect.center().x() - i2, edgeTrig_rect.top() + i5));
+    p.drawLine(QPointF(edgeTrig_rect.center().x() + i2 , edgeTrig_rect.top() + i5),
+               QPointF(edgeTrig_rect.right() - i5, edgeTrig_rect.top() + i5));
+    p.drawLine(QPointF(edgeTrig_rect.center().x(), edgeTrig_rect.top() + i7),
+               QPointF(edgeTrig_rect.center().x(), edgeTrig_rect.bottom() - i7));
+    p.drawLine(QPointF(edgeTrig_rect.left() + i5, edgeTrig_rect.bottom() - i5),
+               QPointF(edgeTrig_rect.center().x() - i2, edgeTrig_rect.bottom() - i5));
+    p.drawLine(QPointF(edgeTrig_rect.center().x() + i2, edgeTrig_rect.bottom() - i5),
+               QPointF(edgeTrig_rect.right() - i5, edgeTrig_rect.bottom() - i5));
 }
 
 bool LogicSignal::measure(const QPointF &p, uint64_t &index0, uint64_t &index1, uint64_t &index2)
@@ -517,33 +523,36 @@ bool LogicSignal::mouse_press(int right, const QPoint pt)
 
 QRectF LogicSignal::get_rect(LogicSetRegions type, int y, int right)
 {
-    const QSizeF name_size(right - get_leftWidth() - get_rightWidth(), SquareWidth);
+    const int squareWidth = get_squareWidth();
+    const int squareMargin = get_squareMargin();
+    const QSizeF name_size(right - get_leftWidth() - get_rightWidth(), squareWidth);
+    const int base_x = get_leftWidth() + name_size.width() + squareMargin;
 
     if (type == POSTRIG)
         return QRectF(
-            get_leftWidth() + name_size.width() + Margin,
-            y - SquareWidth / 2,
-            SquareWidth, SquareWidth);
+            base_x,
+            y - squareWidth / 2,
+            squareWidth, squareWidth);
     else if (type == HIGTRIG)
         return QRectF(
-            get_leftWidth() + name_size.width() + SquareWidth + Margin,
-            y - SquareWidth / 2,
-            SquareWidth, SquareWidth);
+            base_x + squareWidth,
+            y - squareWidth / 2,
+            squareWidth, squareWidth);
     else if (type == NEGTRIG)
         return QRectF(
-            get_leftWidth() + name_size.width() + 2 * SquareWidth + Margin,
-            y - SquareWidth / 2,
-            SquareWidth, SquareWidth);
+            base_x + 2 * squareWidth,
+            y - squareWidth / 2,
+            squareWidth, squareWidth);
     else if (type == LOWTRIG)
         return QRectF(
-            get_leftWidth() + name_size.width() + 3 * SquareWidth + Margin,
-            y - SquareWidth / 2,
-            SquareWidth, SquareWidth);
+            base_x + 3 * squareWidth,
+            y - squareWidth / 2,
+            squareWidth, squareWidth);
     else if (type == EDGTRIG)
         return QRectF(
-            get_leftWidth() + name_size.width() + 4 * SquareWidth + Margin,
-            y - SquareWidth / 2,
-            SquareWidth, SquareWidth);
+            base_x + 4 * squareWidth,
+            y - squareWidth / 2,
+            squareWidth, squareWidth);
     else
         return QRectF(0, 0, 0, 0);
 }

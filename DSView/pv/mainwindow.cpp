@@ -1402,7 +1402,7 @@ namespace pv
             _myTrans.load(":/my_" + QString::number(language));
             qApp->installTranslator(&_myTrans);
         }
-        else if (language == LAN_EN)
+        else if (language == LAN_EN || language == LAN_DE)
         {
             qApp->removeTranslator(&_qtTrans);
             qApp->removeTranslator(&_myTrans);

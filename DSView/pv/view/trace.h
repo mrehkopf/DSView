@@ -161,17 +161,23 @@ public:
     /**
      * Geom
      */
-    inline int get_leftWidth(){
-        return SquareWidth/2 + Margin;
-    }
 
-    inline int get_rightWidth(){
-        return 2 * Margin + _typeWidth * SquareWidth + 1.5 * SquareWidth;
-    }
+    /**
+     * Scale applied to the header-label geometry (square/box sizes, margins)
+     * so the labels and trigger buttons grow together with the trace height.
+     * Returns 1.0 when no view is attached or the trace height is not scaled.
+     */
+    double get_label_scale();
 
-    inline int get_headerHeight(){
-        return SquareWidth;
-    }
+    // Square and margin sizes scaled by get_label_scale().
+    int get_squareWidth();
+    int get_squareMargin();
+
+    int get_leftWidth();
+
+    int get_rightWidth();
+
+    int get_headerHeight();
 
     /**
      * Gets the old vertical layout offset of this signal.

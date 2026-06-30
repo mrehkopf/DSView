@@ -173,9 +173,9 @@ void Viewport::doPaint()
     style()->drawPrimitive(QStyle::PE_Widget, &o, &p, this);
 
     QFont font = p.font();
-    float fSize = AppConfig::Instance().appOptions.fontSize;
-    if (fSize > 10)
-        fSize = 10;
+    float fSize = AppConfig::Instance().GetTraceFontSize();
+    // Grow trace-area text together with the trace height (logic mode).
+    fSize *= _view.get_trace_font_scale();
     font.setPointSizeF(fSize);
     p.setFont(font);
 
@@ -1390,8 +1390,16 @@ void Viewport::wheelEvent(QWheelEvent *event)
 
         if (isVertical)
         {
+            const bool vZoom = (event->modifiers() & Qt::ControlModifier) &&
+                               (event->modifiers() & Qt::ShiftModifier);
+
+            if (vZoom) {
+                // Ctrl+Shift+wheel: scale the trace height in the y axis so
+                // signals can use the full window height.
+                _view.vzoom(zoom_scale);
+            }
             // Vertical scrolling is interpreted as zooming in/out
-            if(doVScroll) {
+            else if(doVScroll) {
                 _view.verticalScrollBar()->setValue(_view.verticalScrollBar()->value() - delta);
             } else {
                 _view.zoom(zoom_scale, x);
@@ -1773,6 +1781,17 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
         }
 
         if (_measure_en) {
+            // Scale the hover info popup together with the traces/text.
+            const double sc = _view.get_trace_font_scale();
+
+            // Use an explicit (scaled, non-condensed) font so the popup text
+            // and its box stay consistent regardless of prior painter state.
+            QFont measure_font = p.font();
+            measure_font.setStretch(QFont::Unstretched);
+            float mfSize = AppConfig::Instance().GetTraceFontSize();
+            measure_font.setPointSizeF(mfSize * sc);
+            p.setFont(measure_font);
+
             int typical_width = p.boundingRect(0, 0, INT_MAX, INT_MAX,
                 Qt::AlignLeft | Qt::AlignTop, _mm_width_time).width();
             typical_width = max(typical_width, p.boundingRect(0, 0, INT_MAX, INT_MAX,
@@ -1781,16 +1800,19 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
                 Qt::AlignLeft | Qt::AlignTop, _mm_freq).width());
             typical_width = max(typical_width, p.boundingRect(0, 0, INT_MAX, INT_MAX,
                 Qt::AlignLeft | Qt::AlignTop, _mm_duty).width());
-            typical_width = typical_width + 100;
+            typical_width = typical_width + (int)(100 * sc);
 
             const QString mm_period_samples_long = _mm_period_samples + " " + L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SAMPLES), " samples");
             const QString mm_width_samples_long = _mm_width_samples + " " + L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SAMPLES), " samples");
+            const double box_h = 140.0 * sc;
+            const double pad = 5.0 * sc;
+            const double row_h = 20.0 * sc;
             const double width = _view.get_view_width() - _view.verticalScrollBar()->geometry().width();
             const double height = _view.get_view_height() - _view.horizontalScrollBar()->geometry().height() - View::StatusHeight;
             const double left = hoverpoint_x;
             const double top = hoverpoint_y;
             const double right = left + typical_width;
-            const double bottom = top + 140;
+            const double bottom = top + box_h;
             double hover_x, hover_y;
             if(right > width) {
                 hover_x = left - typical_width - MouseEdgeClearance;
@@ -1798,7 +1820,7 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
                 hover_x = left + MousePointerClearance;
             }
             if(bottom > height) {
-                hover_y = top - 140 - MousePointerClearance;
+                hover_y = top - box_h - MousePointerClearance;
                 if(right <= width) {
                     hover_x = left + MouseEdgeClearance;
                 }
@@ -1806,13 +1828,14 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
                 hover_y = top + MousePointerClearance;
             }
             QPointF org_pos = QPointF(hover_x, hover_y);
-            QRectF measure_rect = QRectF(org_pos.x(), org_pos.y(), (double)typical_width, 140.0);
-            QRectF measure1_rect = QRectF(org_pos.x()+5, org_pos.y()+5, (double)typical_width-10, 20.0);
-            QRectF measure2_rect = QRectF(org_pos.x()+5, org_pos.y()+25, (double)typical_width-10, 20.0);
-            QRectF measure3_rect = QRectF(org_pos.x()+5, org_pos.y()+50, (double)typical_width-10, 20.0);
-            QRectF measure4_rect = QRectF(org_pos.x()+5, org_pos.y()+70, (double)typical_width-10, 20.0);
-            QRectF measure5_rect = QRectF(org_pos.x()+5, org_pos.y()+95, (double)typical_width-10, 20.0);
-            QRectF measure6_rect = QRectF(org_pos.x()+5, org_pos.y()+115, (double)typical_width-10, 20.0);
+            const double tw = (double)typical_width - 2 * pad;
+            QRectF measure_rect  = QRectF(org_pos.x(), org_pos.y(), (double)typical_width, box_h);
+            QRectF measure1_rect = QRectF(org_pos.x()+pad, org_pos.y()+pad,        tw, row_h);
+            QRectF measure2_rect = QRectF(org_pos.x()+pad, org_pos.y()+25.0*sc,    tw, row_h);
+            QRectF measure3_rect = QRectF(org_pos.x()+pad, org_pos.y()+50.0*sc,    tw, row_h);
+            QRectF measure4_rect = QRectF(org_pos.x()+pad, org_pos.y()+70.0*sc,    tw, row_h);
+            QRectF measure5_rect = QRectF(org_pos.x()+pad, org_pos.y()+95.0*sc,    tw, row_h);
+            QRectF measure6_rect = QRectF(org_pos.x()+pad, org_pos.y()+115.0*sc,   tw, row_h);
 
             p.setPen(Qt::NoPen);
             p.setBrush(back.black() > 0x80 ? View::TransparentLightBlue : View::TransparentLightYellow);

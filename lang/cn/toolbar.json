@@ -164,6 +164,10 @@
         "text": "中文(&C)"
     },
     {
+        "id": "IDS_TOOLBAR_HELP_LANG_DE",
+        "text": "德语(&D)"
+    },
+    {
         "id": "IDS_TOOLBAR_HELP_ABOUT",
         "text": "关于(&A)"
     },

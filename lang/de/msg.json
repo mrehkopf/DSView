@@ -1,0 +1,390 @@
+[
+    {
+        "id": "IDS_MSG_OK",
+        "text": "Ok"
+    },
+    {
+        "id": "IDS_MSG_SKIP",
+        "text": "Überspringen"
+    },
+    {
+        "id": "IDS_MSG_CANCEL",
+        "text": "Abbrechen"
+    },
+    {
+        "id": "IDS_MSG_ATTENTION",
+        "text": "Achtung"
+    },
+    {
+        "id": "IDS_MSG_ERROR",
+        "text": "Fehler"
+    },
+    {
+        "id": "IDS_MSG_INFORMATION",
+        "text": "Information"
+    },
+    {
+        "id": "IDS_MSG_CONTINUE",
+        "text": "Weiter"
+    },
+    {
+        "id": "IDS_MSG_AUTO_CALIB_START",
+        "text": "Die automatische Kalibrierung wird gestartet. Keine Sonden anschließen. \nDies kann einen Moment dauern!"
+    },
+    {
+        "id": "IDS_MSG_AUTO_CALIB",
+        "text": "Automatische Kalibrierung"
+    },
+    {
+        "id": "IDS_MSG_ADJUST_SAVE",
+        "text": "Bitte Nullpunkt-Offset anpassen und das Ergebnis speichern"
+    },
+    {
+        "id": "IDS_MSG_SAVE_CAPDATE",
+        "text": "Aufgezeichnete Daten speichern?"
+    },
+    {
+        "id": "IDS_MSG_NOT_FOND_DEFAULT_PROFILE",
+        "text": "Keine Standardsitzung für dieses Gerät gefunden!"
+    },
+    {
+        "id": "IDS_MSG_OPEN_FILE_ERROR",
+        "text": "Fehler beim Öffnen der Datei!"
+    },
+    {
+        "id": "IDS_MSG_PROFILE_NOT_COMPATIBLE",
+        "text": "Sitzung ist nicht kompatibel mit dem aktuellen Gerät oder Modus!"
+    },
+    {
+        "id": "IDS_MSG_RESTORE_WINDOW_ERROR",
+        "text": "Fehler beim Wiederherstellen des Fensterstatus!"
+    },
+    {
+        "id": "IDS_MSG_DECODE_INVAILD_CURSOR",
+        "text": "Ungültiger Cursorindex für den Abtastbereich!"
+    },
+    {
+        "id": "IDS_MSG_SEL_FILENAME",
+        "text": "Bitte einen Dateinamen auswählen."
+    },
+    {
+        "id": "IDS_MSG_DECODER_REPEAT",
+        "text": "Doppelte ID oder Name in den Dekodierern gefunden:"
+    },
+    {
+        "id": "IDS_MSG_DECODER_LIST_EMPTY",
+        "text": "Dekodierliste ist leer!"
+    },
+    {
+        "id": "IDS_MSG_NO_SEL_DECODER",
+        "text": "Bitte einen Dekodierer auswählen!"
+    },
+    {
+        "id": "IDS_MSG_FIND_BASE_DECODER_ERROR",
+        "text": "Kein entsprechender Basis-Dekodierer gefunden!"
+    },
+    {
+        "id": "IDS_MSG_NO_DECODER_DEL",
+        "text": "Kein Dekodierer zum Entfernen vorhanden!"
+    },
+    {
+        "id": "IDS_MSG_DECODER_CONFIRM_DEL_ALL",
+        "text": "Alle Dekodierer wirklich entfernen?"
+    },
+    {
+        "id": "IDS_MSG_DECODER_CONFIRM_DEL",
+        "text": "Diesen Dekodierer wirklich entfernen?"
+    },
+    {
+        "id": "IDS_MSG_CLOSE_DEVICE",
+        "text": "Dieses Gerät wirklich entfernen?"
+    },
+    {
+        "id": "IDS_MSG_SET_DEF_CAL_SETTING",
+        "text": "Alle Kalibrierungseinstellungen werden als Standard gespeichert!"
+    },
+    {
+        "id": "IDS_MSG_ALL_CHANNEL_DISABLE",
+        "text": "Alle Kanäle deaktiviert! Bitte mindestens einen Kanal aktivieren."
+    },
+    {
+        "id": "IDS_MSG_MAX_CHANNEL_COUNT_WARNING",
+        "text": "Aktueller Modus unterstützt maximal {0} Kanäle!"
+    },
+    {
+        "id": "IDS_MSG_TRI_SET_ISSUE",
+        "text": "Problem mit der Triggereinstellung"
+    },
+    {
+        "id": "IDS_MSG_CHANGE_HOR_TRI_POS_FAIL",
+        "text": "Änderung der horizontalen Triggerposition fehlgeschlagen!"
+    },
+    {
+        "id": "IDS_MSG_CHANGE_TRI_HOLDOFF_TIME_FAIL",
+        "text": "Änderung der Trigger-Haltezeit fehlgeschlagen!"
+    },
+    {
+        "id": "IDS_MSG_CHANGE_SENSITIVITY_FAIL",
+        "text": "Änderung der Trigger-Empfindlichkeit fehlgeschlagen!"
+    },
+    {
+        "id": "IDS_MSG_CHANGE_SOURCE_FAIL",
+        "text": "Änderung der Triggerquelle fehlgeschlagen!"
+    },
+    {
+        "id": "IDS_MSG_CHANGE_CHANNEL_FAIL",
+        "text": "Änderung des Triggerkanals fehlgeschlagen!"
+    },
+    {
+        "id": "IDS_MSG_CHANGE_TYPE_FAIL",
+        "text": "Änderung des Triggertyps fehlgeschlagen!"
+    },
+    {
+        "id": "IDS_MSG_PLEASE_INSERT_CURSOR",
+        "text": "Bitte zuerst einen Cursor einfügen, um die Cursormessung zu verwenden."
+    },
+    {
+        "id": "IDS_MSG_SEARCH",
+        "text": "Suchen"
+    },
+    {
+        "id": "IDS_MSG_NO_SAMPLE_DATA",
+        "text": "Keine Abtastdaten vorhanden!"
+    },
+    {
+        "id": "IDS_MSG_SEARCH_AT_START",
+        "text": "Suchcursor an Anfangsposition!"
+    },
+    {
+        "id": "IDS_MSG_PATTERN_NOT_FOUND",
+        "text": "Muster nicht gefunden!"
+    },
+    {
+        "id": "IDS_MSG_SEARCH_AT_END",
+        "text": "Suchcursor an Endposition!"
+    },
+    {
+        "id": "IDS_MSG_TRIGGER",
+        "text": "Trigger"
+    },
+    {
+        "id": "IDS_MSG_STREAM_NO_AD_TRIGGER",
+        "text": "Stream-Modus unterstützt keinen erweiterten Trigger!"
+    },
+    {
+        "id": "IDS_MSG_AD_TRIGGER_NEED_HARDWARE",
+        "text": "Erweiterter Trigger benötigt DSLogic-Hardware-Unterstützung!"
+    },
+    {
+        "id": "IDS_MSG_SET_TRI_MULTI_CHANNEL",
+        "text": "Trigger auf mehreren Kanälen gesetzt!\nAufnahme wird nur ausgelöst, wenn alle gesetzten Kanäle zur gleichen Abtastzeit erfüllt sind"
+    },
+    {
+        "id": "IDS_MSG_NOT_SHOW_AGAIN",
+        "text": "Nicht mehr anzeigen"
+    },
+    {
+        "id": "IDS_MSG_CLEAR_TRIG",
+        "text": "Trigger löschen"
+    },
+    {
+        "id": "IDS_MSG_IGNORE",
+        "text": "Ignorieren"
+    },
+    {
+        "id": "IDS_MSG_OPEN",
+        "text": "Öffnen"
+    },
+    {
+        "id": "IDS_MSG_FAIL_TO_LOAD",
+        "text": "Laden fehlgeschlagen"
+    },
+    {
+        "id": "IDS_MSG_HARDWARE_ERROR",
+        "text": "Hardwarefehler"
+    },
+    {
+        "id": "IDS_MSG_HARDWARE_ERROR_DET",
+        "text": "Bitte Gerät erneut einstecken, um die Hardwarekonfiguration zu aktualisieren!"
+    },
+    {
+        "id": "IDS_MSG_MALLOC_ERROR",
+        "text": "Speicherreservierungsfehler"
+    },
+    {
+        "id": "IDS_MSG_MALLOC_ERROR_DET",
+        "text": "Nicht genug Speicher für diese Abtastung!\nBitte Abtasttiefe reduzieren!"
+    },
+    {
+        "id": "IDS_MSG_PACKET_ERROR",
+        "text": "Paketfehler"
+    },
+    {
+        "id": "IDS_MSG_PACKET_ERROR_DET",
+        "text": "Das empfangene Paketformat ist falsch!"
+    },
+    {
+        "id": "IDS_MSG_DATA_OVERFLOW",
+        "text": "Datenüberlauf"
+    },
+    {
+        "id": "IDS_MSG_DATA_OVERFLOW_DET",
+        "text": "USB-Bandbreite kann die aktuelle Abtastrate nicht unterstützen!\nBitte Abtastrate reduzieren!"
+    },
+    {
+        "id": "IDS_MSG_UNDEFINED_ERROR",
+        "text": "Unbekannter Fehler"
+    },
+    {
+        "id": "IDS_MSG_UNDEFINED_ERROR_DET",
+        "text": "Unerwarteter Fehler!"
+    },
+    {
+        "id": "IDS_MSG_STORESESS_SAVESTART_ERROR1",
+        "text": "DSView unterstützt derzeit keine\nDateispeicherung für mehrere Datentypen."
+    },
+    {
+        "id": "IDS_MSG_STORESESS_SAVESTART_ERROR2",
+        "text": "Keine Daten zum Speichern."
+    },
+    {
+        "id": "IDS_MSG_STORESESS_SAVESTART_ERROR3",
+        "text": "Kein Dateiname."
+    },
+    {
+        "id": "IDS_MSG_STORESESS_SAVESTART_ERROR4",
+        "text": "Erstellen der temporären Dateidaten fehlgeschlagen."
+    },
+    {
+        "id": "IDS_MSG_STORESESS_SAVESTART_ERROR5",
+        "text": "Erstellen der Dekodierer-Dateidaten fehlgeschlagen."
+    },
+    {
+        "id": "IDS_MSG_STORESESS_SAVESTART_ERROR6",
+        "text": "Erstellen der Sitzungs-Dateidaten fehlgeschlagen."
+    },
+    {
+        "id": "IDS_MSG_STORESESS_SAVESTART_ERROR7",
+        "text": "Erstellen der ZIP-Datei fehlgeschlagen."
+    },
+    {
+        "id": "IDS_MSG_STORESESS_SAVEPROC_ERROR1",
+        "text": "ZIP-Datei konnte nicht erstellt werden, Speicherreservierungsfehler."
+    },
+    {
+        "id": "IDS_MSG_STORESESS_SAVEPROC_ERROR2",
+        "text": "ZIP-Datei konnte nicht erstellt werden, bitte Schreibberechtigung für diesen Pfad prüfen."
+    },
+    {
+        "id": "IDS_MSG_STORESESS_EXPORTSTART_ERROR1",
+        "text": "DSView unterstützt derzeit keinen\nDateiexport für mehrere Datentypen."
+    },
+    {
+        "id": "IDS_MSG_STORESESS_EXPORTSTART_ERROR2",
+        "text": "Keine Daten zum Speichern."
+    },
+    {
+        "id": "IDS_MSG_STORESESS_EXPORTSTART_ERROR3",
+        "text": "Kein Dateiname gesetzt."
+    },
+    {
+        "id": "IDS_MSG_STORESESS_EXPORTSTART_ERROR4",
+        "text": "Ungültiges Exportformat."
+    },
+    {
+        "id": "IDS_MSG_STORESESS_EXPORTPROC_ERROR1",
+        "text": "Datentyp wird nicht unterstützt."
+    },
+    {
+        "id": "IDS_MSG_STORESESS_EXPORTPROC_ERROR2",
+        "text": "Pufferspeicher fehlgeschlagen."
+    },
+    {
+        "id": "IDS_MSG_SAVE_FILE",
+        "text": "Datei speichern"
+    },
+    {
+        "id": "IDS_MSG_EXPORT_DATA",
+        "text": "Daten exportieren"
+    },
+    {
+        "id": "IDS_MSG_DECODERSTACK_DECODE_WORK_ERROR",
+        "text": "Ein oder mehrere erforderliche Kanäle wurden nicht angegeben!"
+    },
+    {
+        "id": "IDS_MSG_DECODERSTACK_DECODE_DATA_ERROR",
+        "text": "Mindestens einer der ausgewählten Kanäle ist nicht aktiviert."
+    },
+    {
+        "id": "IDS_MSG_DECODERSTACK_DECODE_STACK_ERROR",
+        "text": "Dekodierer-Instanz konnte nicht erstellt werden"
+    },
+    {
+        "id": "IDS_MSG_MESSAGE",
+        "text": "Nachricht"
+    },
+    {
+        "id": "IDS_MSG_BOX_CONFIRM",
+        "text": "Bestätigen"
+    },
+    {
+        "id": "IDS_MSG_NO_DATA",
+        "text": "Keine Daten vorhanden!"
+    },
+    {
+        "id": "IDS_MSG_TO_SWITCH_DEVICE",
+        "text": "Zum neuen Gerät wechseln?"
+    },
+    {
+        "id": "IDS_MSG_DISABLED_CHANNEL_TRIG",
+        "text": "Deaktivierte Kanäle können nicht für den Trigger verwendet werden!"
+    },
+    {
+        "id": "IDS_MSG_TO_RECONNECT_FOR_FIRMWARE",
+        "text": "Die Firmware-Version ist falsch, bitte Gerät erneut einstecken!"
+    },
+    {
+        "id": "IDS_MSG_DEVICE_BUSY_SWITCH_FAILED",
+        "text": "Das Gerät ist belegt, Wechsel fehlgeschlagen!"
+    },
+    {
+        "id": "IDS_MSG_DEVICE_NO_DRIVER",
+        "text": "Der Gerätetreiber ist möglicherweise nicht installiert!"
+    },
+    {
+        "id": "IDS_MSG_NO_ENABLED_CHANNEL",
+        "text": "Keine Kanäle aktiviert!"
+    },
+    {
+        "id": "IDS_MSG_FILE_NOT_EXIST",
+        "text": "Datei existiert nicht!"
+    },
+    {
+        "id": "IDS_MSG_TO_CLEAR_LOG",
+        "text": "Protokolldatei wirklich löschen?"
+    },
+    {
+        "id": "IDS_MSG_DEVICE_SPEED_TOO_LOW",
+        "text": "Fehler: USB-Port-Geschwindigkeit ist zu niedrig (<480 Mbit/s)!"
+    },
+    {
+        "id": "IDS_MSG_FIRMWARE_NOT_EXIST",
+        "text": "Fehler: Firmware-Datei existiert nicht!"
+    },
+    {
+        "id": "IDS_MSG_DEVICE_USB_IO_ERROR",
+        "text": "Fehler: USB-IO-Fehler!"
+    },
+    {
+        "id": "IDS_MSG_DATA_RANGE_ERROR",
+        "text": "Datenbereich ist fehlerhaft!"
+    },
+    {
+        "id": "IDS_MSG_DATA_RANGE_HAVE_NO_DATA",
+        "text": "Keine Daten im Datenbereich!"
+    },
+    {
+        "id": "IDS_MSG_NO_DECODED_RESULT",
+        "text": "Keine Daten zum Exportieren!"
+    }
+]

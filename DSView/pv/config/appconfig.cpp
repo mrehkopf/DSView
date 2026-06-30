@@ -124,6 +124,7 @@ static void _loadApp(AppOptions &o, QSettings &st)
     getFiled("fontSize", st, o.fontSize, 9.0);
     getFiled("autoScrollLatestData", st, o.autoScrollLatestData, true);
     getFiled("verticalScrollIsZoom", st, o.verticalScrollIsZoom, true);
+    getFiled("traceHeightFactor", st, o.traceHeightFactor, 1.0);
     getFiled("version", st, o.version, 1);
     getFiled("rulerTimeUnits", st, o.rulerTimeUnits, "Time");
     getFiled("antialias", st, o.antialias, true);
@@ -147,7 +148,12 @@ static void _loadApp(AppOptions &o, QSettings &st)
     {
         o.fontSize = (maxSize + minSize) / 2;
     }
-   
+
+    if (o.traceHeightFactor < 0.1 || o.traceHeightFactor > 20.0)
+    {
+        o.traceHeightFactor = 1.0;
+    }
+
     st.endGroup();
 }
 
@@ -167,6 +173,7 @@ static void _saveApp(AppOptions &o, QSettings &st)
     setFiled("fontSize", st, o.fontSize);
     setFiled("autoScrollLatestData", st, o.autoScrollLatestData);
     setFiled("verticalScrollIsZoom", st, o.verticalScrollIsZoom);
+    setFiled("traceHeightFactor", st, o.traceHeightFactor);
     setFiled("version", st, APP_CONFIG_VERSION);
     setFiled("rulerTimeUnits", st, o.rulerTimeUnits);
     setFiled("antialias", st, o.antialias);
@@ -224,14 +231,16 @@ static void _loadFrame(FrameOptions &o, QSettings &st)
     o.windowState = st.value("windowState", QByteArray()).toByteArray();
     st.endGroup();
 
-    if (o.language == -1 || (o.language != LAN_CN && o.language != LAN_EN)){
+    if (o.language == -1 || (o.language != LAN_CN && o.language != LAN_EN && o.language != LAN_DE)){
         //get local language
         QLocale locale;
 
         if (QLocale::languageToString(locale.language()) == "Chinese")
-            o.language = LAN_CN;            
+            o.language = LAN_CN;
+        else if (QLocale::languageToString(locale.language()) == "German")
+            o.language = LAN_DE;
         else
-            o.language = LAN_EN; 
+            o.language = LAN_EN;
     }
 }
 
@@ -421,6 +430,20 @@ std::string AppConfig::GetProtocolFormat(const std::string &protocolName)
     return "";
 }
 
+float AppConfig::GetTraceFontSize()
+{
+    float minSize = 0;
+    float maxSize = 0;
+    GetFontSizeRange(&minSize, &maxSize);
+
+    float size = appOptions.fontSize;
+    if (size < minSize)
+        size = minSize;
+    if (size > maxSize)
+        size = maxSize;
+    return size;
+}
+
 void AppConfig::GetFontSizeRange(float *minSize, float *maxSize)
 {
     assert(minSize);
@@ -433,7 +456,7 @@ void AppConfig::GetFontSizeRange(float *minSize, float *maxSize)
 
 #ifdef Q_OS_LINUX
         *minSize = 8;
-        *maxSize = 14;
+        *maxSize = 16;
 #endif
 
 #ifdef Q_OS_DARWIN

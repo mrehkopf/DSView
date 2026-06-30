@@ -806,5 +806,37 @@
     {
         "id": "IDS_FFT_MODE_LINEARRSM",
         "text": "线性 RMS"
+    },
+    {
+        "id": "IDS_DLG_DECODER_DYNAMIC_FONT_WIDTH",
+        "text": "解码器自适应字体宽度"
+    },
+    {
+        "id": "IDS_DLG_DEFAULT_FONT",
+        "text": "默认"
+    },
+    {
+        "id": "IDS_DLG_MAX_FONT_WIDTH",
+        "text": "最大字体宽度: "
+    },
+    {
+        "id": "IDS_DLG_MIN_FONT_WIDTH",
+        "text": "最小字体宽度: "
+    },
+    {
+        "id": "IDS_DLG_RULER_UNITS",
+        "text": "标尺 / 光标单位"
+    },
+    {
+        "id": "IDS_DLG_VERTICAL_SCROLL_ACTION",
+        "text": "垂直滚动操作"
+    },
+    {
+        "id": "IDS_DLG_VERTICAL_SCROLL_ACTION_SMOOTH_ZOOM",
+        "text": "缩放"
+    },
+    {
+        "id": "IDS_DLG_VERTICAL_SCROLL_ACTION_VERTICAL_SCROLL",
+        "text": "滚动"
     }
 ]
