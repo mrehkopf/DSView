@@ -1799,7 +1799,25 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
                 Qt::AlignLeft | Qt::AlignTop, _mm_freq).width());
             typical_width = max(typical_width, p.boundingRect(0, 0, INT_MAX, INT_MAX,
                 Qt::AlignLeft | Qt::AlignTop, _mm_duty).width());
-            typical_width = typical_width + (int)(100 * sc);
+
+            // Measure the (localized) row labels too - a flat padding guess
+            // isn't enough once translations run longer than English (e.g.
+            // German "Tastverhältnis: " for "Duty Cycle: "), which is what
+            // caused the label and value text to overlap in the same row.
+            const QString label_width_str = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_WIDTH), "Width: ");
+            const QString label_period_str = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_PERIOD), "Period: ");
+            const QString label_freq_str = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_FREQUENCY), "Frequency: ");
+            const QString label_duty_str = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DUTY_CYCLE), "Duty Cycle: ");
+            int label_width = p.boundingRect(0, 0, INT_MAX, INT_MAX,
+                Qt::AlignLeft | Qt::AlignTop, label_width_str).width();
+            label_width = max(label_width, p.boundingRect(0, 0, INT_MAX, INT_MAX,
+                Qt::AlignLeft | Qt::AlignTop, label_period_str).width());
+            label_width = max(label_width, p.boundingRect(0, 0, INT_MAX, INT_MAX,
+                Qt::AlignLeft | Qt::AlignTop, label_freq_str).width());
+            label_width = max(label_width, p.boundingRect(0, 0, INT_MAX, INT_MAX,
+                Qt::AlignLeft | Qt::AlignTop, label_duty_str).width());
+
+            typical_width = typical_width + label_width + (int)(40 * sc);
 
             const QString mm_period_samples_long = _mm_period_samples + " " + L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SAMPLES), " samples");
             const QString mm_width_samples_long = _mm_width_samples + " " + L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SAMPLES), " samples");
@@ -1841,21 +1859,17 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
             p.drawRect(measure_rect);
 
             p.setPen(active_color);
-            p.drawText(measure1_rect, Qt::AlignLeft | Qt::AlignVCenter,
-                       L_S(STR_PAGE_DLG, S_ID(IDS_DLG_WIDTH), "Width: "));
+            p.drawText(measure1_rect, Qt::AlignLeft | Qt::AlignVCenter, label_width_str);
             p.drawText(measure1_rect, Qt::AlignRight | Qt::AlignVCenter,_mm_width_time);
             p.drawText(measure2_rect, Qt::AlignRight | Qt::AlignVCenter,mm_width_samples_long);
             p.setPen(active_color2);
-            p.drawText(measure3_rect, Qt::AlignLeft | Qt::AlignVCenter,
-                       L_S(STR_PAGE_DLG, S_ID(IDS_DLG_PERIOD), "Period: "));
+            p.drawText(measure3_rect, Qt::AlignLeft | Qt::AlignVCenter, label_period_str);
             p.drawText(measure3_rect, Qt::AlignRight | Qt::AlignVCenter, _mm_period_time);
             p.drawText(measure4_rect, Qt::AlignRight | Qt::AlignVCenter, mm_period_samples_long);
             p.setPen(active_color);
-            p.drawText(measure5_rect, Qt::AlignLeft | Qt::AlignVCenter,
-                       L_S(STR_PAGE_DLG, S_ID(IDS_DLG_FREQUENCY), "Frequency: "));
+            p.drawText(measure5_rect, Qt::AlignLeft | Qt::AlignVCenter, label_freq_str);
             p.drawText(measure5_rect, Qt::AlignRight | Qt::AlignVCenter, _mm_freq);
-            p.drawText(measure6_rect, Qt::AlignLeft | Qt::AlignVCenter,
-                      L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DUTY_CYCLE), "Duty Cycle: "));
+            p.drawText(measure6_rect, Qt::AlignLeft | Qt::AlignVCenter, label_duty_str);
             p.drawText(measure6_rect, Qt::AlignRight | Qt::AlignVCenter, _mm_duty);
         }
     } 
