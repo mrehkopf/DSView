@@ -33,6 +33,8 @@
 
 #define THEME_STYLE_DARK   "dark"
 #define THEME_STYLE_LIGHT  "light"
+#define THEME_STYLE_LATTE  "latte"
+#define THEME_STYLE_FRAPPE "frappe"
 
 #define APP_NAME  "DSView"
 

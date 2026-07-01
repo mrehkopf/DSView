@@ -467,7 +467,11 @@ void AppConfig::GetFontSizeRange(float *minSize, float *maxSize)
 
 bool AppConfig::IsDarkStyle()
 {
-    if (frameOptions.style == THEME_STYLE_DARK){
+    // Frappe is Catppuccin's dark flavor - treat it like Dark for anything
+    // that only distinguishes light/dark (icon set selection, background
+    // luminosity-dependent painting, etc), rather than the exact color
+    // scheme in use.
+    if (frameOptions.style == THEME_STYLE_DARK || frameOptions.style == THEME_STYLE_FRAPPE){
         return true;
     }
     return false;
@@ -475,7 +479,13 @@ bool AppConfig::IsDarkStyle()
 
 QColor AppConfig::GetStyleColor()
 {
-    if (IsDarkStyle()){
+    if (frameOptions.style == THEME_STYLE_FRAPPE){
+        return QColor(0x30, 0x34, 0x46); // Catppuccin Frappe "Base"
+    }
+    else if (frameOptions.style == THEME_STYLE_LATTE){
+        return QColor(0xef, 0xf1, 0xf5); // Catppuccin Latte "Base"
+    }
+    else if (IsDarkStyle()){
         return QColor(38, 38, 38);
     }
     else{
@@ -486,10 +496,18 @@ QColor AppConfig::GetStyleColor()
 
 //-------------api
 QString GetIconPath()
-{   
+{
     QString style = AppConfig::Instance().frameOptions.style;
     if (style == ""){
         style = THEME_STYLE_DARK;
+    }
+    // Latte/Frappe don't have their own icon sets - they reuse whichever of
+    // the light/dark icon sets already matches their background darkness.
+    if (AppConfig::Instance().IsDarkStyle()){
+        style = THEME_STYLE_DARK;
+    }
+    else{
+        style = THEME_STYLE_LIGHT;
     }
     return ":/icons/" + style;
 }
