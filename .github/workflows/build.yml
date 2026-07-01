@@ -154,6 +154,39 @@ jobs:
       - name: Install
         run: cmake --install build
 
+      - name: Bundle runtime DLLs
+        run: |
+          # Qt loads platform/image/style plugins dynamically (not visible to
+          # ldd); without qwindows.dll in particular, the app can't even open
+          # a window. Qt's default search looks for a "platforms" etc. folder
+          # next to the executable. Copy these first so the ldd pass below
+          # also picks up libraries only the plugins need (e.g. Qt5Svg.dll,
+          # needed by the qsvg imageformat/iconengine plugins but not linked
+          # directly by DSView.exe itself).
+          for group in platforms styles imageformats iconengines; do
+            mkdir -p "dsview-dist/${group}"
+            cp -v /mingw64/share/qt5/plugins/${group}/*.dll "dsview-dist/${group}/"
+          done
+
+          # The install rules only place DSView.exe + data files; the MSYS2
+          # toolchain/Qt5 runtime DLLs it's dynamically linked against still
+          # need to be copied in manually. Resolve the dependency closure with
+          # ldd and keep looping until a pass copies nothing new, since some
+          # transitive deps only show up once their dependents are present.
+          while :; do
+            new=0
+            for dll in $(find dsview-dist -name '*.exe' -o -name '*.dll' \
+                | xargs ldd 2>/dev/null \
+                | grep -i '/mingw64/bin/' | awk '{print $3}' | sort -u); do
+              base="$(basename "$dll")"
+              if [ ! -f "dsview-dist/$base" ]; then
+                cp -v "$dll" dsview-dist/
+                new=1
+              fi
+            done
+            [ "$new" -eq 0 ] && break
+          done
+
       - name: Package as zip
         run: |
           cd dsview-dist
@@ -164,3 +197,29 @@ jobs:
         with:
           name: DSView-windows
           path: DSView-windows-x86_64.zip
+
+  release:
+    name: Publish latest pre-release
+    needs: [linux, windows]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Publish "latest" pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag --repo "${GITHUB_REPOSITORY}" || true
+          gh release create latest artifacts/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Latest build" \
+            --notes "Automated build from commit ${GITHUB_SHA}" \
+            --prerelease \
+            --target "${GITHUB_SHA}"
