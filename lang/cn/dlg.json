@@ -700,6 +700,10 @@
         "text": "抗锯齿"
     },
     {
+        "id": "IDS_DLG_DONT_ASK_SAVE_ON_EXIT",
+        "text": "不再询问是否保存采集数据"
+    },
+    {
         "id": "IDS_DLG_SERIAL_HEX",
         "text": "十六进制 :"
     },

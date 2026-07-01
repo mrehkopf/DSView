@@ -700,6 +700,10 @@
         "text": "Kantenglättung"
     },
     {
+        "id": "IDS_DLG_DONT_ASK_SAVE_ON_EXIT",
+        "text": "Nicht nach Speichern der aufgezeichneten Daten fragen"
+    },
+    {
         "id": "IDS_DLG_SERIAL_HEX",
         "text": "Hex:"
     },
