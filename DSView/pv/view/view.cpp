@@ -164,13 +164,13 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
     layout->setContentsMargins(0,0,0,0);
     _viewcenter->setLayout(layout);
     layout->addWidget(_vsplitter, 0, 0);
-    QVBoxLayout* statusLayout = new QVBoxLayout(this);
-    statusLayout->setSpacing(0);
-    statusLayout->setContentsMargins(0,0,verticalScrollBar()->geometry().width()+2, horizontalScrollBar()->geometry().height()+1);
+    _statusLayout = new QVBoxLayout(this);
+    _statusLayout->setSpacing(0);
+    _statusLayout->setContentsMargins(0,0,verticalScrollBar()->geometry().width()+2, horizontalScrollBar()->geometry().height()+1);
     _viewbottom = new ViewStatus(_session, *this);
     _viewbottom->setFixedHeight(StatusHeight);
-    setLayout(statusLayout);
-    statusLayout->addWidget(_viewbottom, 0, Qt::AlignBottom);
+    setLayout(_statusLayout);
+    _statusLayout->addWidget(_viewbottom, 0, Qt::AlignBottom);
 
 #ifdef Q_OS_DARWIN
     QWidget *lineSpan = new QWidget(this);
@@ -1090,7 +1090,22 @@ void View::update_margins()
         _ruler->setGeometry(_viewcenter->x(), 0,  width, _viewcenter->y());
         _header->setGeometry(0, _viewcenter->y(), _viewcenter->x(), _viewcenter->height());
         _devmode->setGeometry(0, 0, _viewcenter->x(), _viewcenter->y());
-    } 
+    }
+}
+
+void View::update_status_margins()
+{
+    // The bottom/right margins were only ever computed once, at
+    // construction time, before the scrollbars had a real on-screen
+    // geometry - and never refreshed afterwards. That was mostly hidden in
+    // LOGIC mode (a fixed, short StatusHeight), but became visibly wrong in
+    // DSO mode once _viewbottom grows to DsoStatusHeight for its two-row
+    // measurement layout: the reserved strip stayed sized for the stale
+    // scrollbar height, so the lower measurement row overlapped the real
+    // horizontal scrollbar. Recompute with the scrollbars' current geometry.
+    _statusLayout->setContentsMargins(0, 0,
+        verticalScrollBar()->geometry().width() + 2,
+        horizontalScrollBar()->geometry().height() + 1);
 }
 
 void View::header_updated()
@@ -1488,6 +1503,7 @@ void View::reconstruct()
         _viewbottom->setFixedHeight(DsoStatusHeight);
     else
         _viewbottom->setFixedHeight(StatusHeight);
+    update_status_margins();
     _viewbottom->reload();
 }
 
