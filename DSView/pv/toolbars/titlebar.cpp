@@ -227,7 +227,11 @@ void TitleBar::mousePressEvent(QMouseEvent* event)
         if (!bTopWidow || bClick ){
             _is_draging = true;             
 
-            _clickPos = event->globalPosition().toPoint(); 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+            _clickPos = event->globalPosition().toPoint();
+#else
+            _clickPos = event->globalPos();
+#endif
 
             if (_titleParent != NULL){
                 _oldPos = _titleParent->GetParentPos();
@@ -252,8 +256,13 @@ void TitleBar::mouseMoveEvent(QMouseEvent *event)
         int datX = 0;
         int datY = 0;
 
-        datX = (event->globalPosition().toPoint().x() - _clickPos.x());
-        datY = (event->globalPosition().toPoint().y() - _clickPos.y());
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        QPoint globalPos = event->globalPosition().toPoint();
+#else
+        QPoint globalPos = event->globalPos();
+#endif
+        datX = (globalPos.x() - _clickPos.x());
+        datY = (globalPos.y() - _clickPos.y());
 
         int x = _oldPos.x() + datX;
         int y = _oldPos.y() + datY;

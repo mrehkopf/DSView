@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install build dependencies
         run: |
@@ -22,7 +22,7 @@ jobs:
             build-essential cmake git pkg-config \
             qt6-base-dev libqt6svg6-dev libgl1-mesa-dev libxkbcommon-dev libvulkan-dev \
             libglib2.0-dev zlib1g-dev libusb-1.0-0-dev libboost-dev libfftw3-dev \
-            python3-dev libudev-dev dpkg-dev
+            python3-dev libudev-dev dpkg-dev rsync
 
       - name: Configure
         run: |
@@ -41,7 +41,7 @@ jobs:
           cpack -G DEB
 
       - name: Upload .deb artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: DSView-linux-deb
           path: build/*.deb
@@ -60,13 +60,52 @@ jobs:
       - name: Build AppImage
         run: |
           export QMAKE="$(which qmake6)"
+          # Deploy Qt/shared-lib dependencies into AppDir, but don't build the
+          # final .AppImage yet - we still need to bundle the Python stdlib
+          # (DSView embeds Python for its protocol decoders, and linuxdeployqt
+          # only picks up libpython*.so via ldd, not the stdlib data files it
+          # loads at runtime, e.g. the `encodings` module).
           ./linuxdeployqt --appimage-extract-and-run \
             "${GITHUB_WORKSPACE}/AppDir/usr/share/applications/dsview.desktop" \
-            -qmake="${QMAKE}" \
-            -appimage
+            -qmake="${QMAKE}"
+
+          # linuxdeployqt doesn't reliably pick up libpython*.so (it isn't a
+          # direct Qt dependency), so make sure it's actually in AppDir/usr/lib
+          # by copying whatever the just-installed binary is linked against.
+          ldd "${GITHUB_WORKSPACE}/AppDir/usr/bin/DSView" \
+            | awk '/libpython/ {print $3}' \
+            | xargs -r -I{} cp -Lv {} "${GITHUB_WORKSPACE}/AppDir/usr/lib/"
+
+          PYVER="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+          PYLIBDIR="/usr/lib/python${PYVER}"
+          DEST="${GITHUB_WORKSPACE}/AppDir/usr/lib/python${PYVER}"
+          mkdir -p "${DEST}"
+          rsync -a \
+            --exclude 'test' --exclude 'idlelib' --exclude 'tkinter' --exclude '__pycache__' \
+            "${PYLIBDIR}/" "${DEST}/"
+
+          # linuxdeployqt's AppRun only sets up the Qt/library environment.
+          # Wrap it with our own AppRun that also points the bundled Python
+          # interpreter at the bundled stdlib, instead of falling back to
+          # whatever python3 (and version) happens to be on the host.
+          mv "${GITHUB_WORKSPACE}/AppDir/AppRun" "${GITHUB_WORKSPACE}/AppDir/AppRun.qt"
+          cat > "${GITHUB_WORKSPACE}/AppDir/AppRun" <<EOF
+          #!/bin/bash
+          HERE="\$(dirname "\$(readlink -f "\${0}")")"
+          export PYTHONHOME="\$HERE/usr"
+          export PYTHONPATH="\$HERE/usr/lib/python${PYVER}:\$HERE/usr/lib/python${PYVER}/lib-dynload"
+          exec "\$HERE/AppRun.qt" "\$@"
+          EOF
+          chmod +x "${GITHUB_WORKSPACE}/AppDir/AppRun"
+
+          wget -q -O appimagetool \
+            "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+          chmod +x appimagetool
+          ./appimagetool --appimage-extract-and-run \
+            "${GITHUB_WORKSPACE}/AppDir" DSView-x86_64.AppImage
 
       - name: Upload AppImage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: DSView-linux-appimage
           path: '*.AppImage'
@@ -79,7 +118,7 @@ jobs:
         shell: msys2 {0}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up MSYS2
         uses: msys2/setup-msys2@v2
@@ -88,6 +127,7 @@ jobs:
           update: true
           install: >-
             git
+            zip
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-ninja
@@ -106,7 +146,7 @@ jobs:
         run: |
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=install
+            -DCMAKE_INSTALL_PREFIX=dsview-dist
 
       - name: Build
         run: cmake --build build -j "$(nproc)"
@@ -116,11 +156,11 @@ jobs:
 
       - name: Package as zip
         run: |
-          cd build/install
-          7z a -r "${GITHUB_WORKSPACE}/DSView-windows-x86_64.zip" .
+          cd dsview-dist
+          zip -r "${GITHUB_WORKSPACE}/DSView-windows-x86_64.zip" .
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: DSView-windows
           path: DSView-windows-x86_64.zip
