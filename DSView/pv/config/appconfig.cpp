@@ -131,6 +131,7 @@ static void _loadApp(AppOptions &o, QSettings &st)
     getFiled("decoderDynamicFontWidth", st, o.decoderDynamicFontWidth, false);
     getFiled("maxDecoderFontWidthPercent", st, o.maxDecoderFontWidthPercent, 125);
     getFiled("minDecoderFontWidthPercent", st, o.minDecoderFontWidthPercent, 75);
+    getFiled("dontAskSaveOnExit", st, o.dontAskSaveOnExit, false);
 
     o.warnofMultiTrig = true;
 
@@ -180,6 +181,7 @@ static void _saveApp(AppOptions &o, QSettings &st)
     setFiled("decoderDynamicFontWidth", st, o.decoderDynamicFontWidth);
     setFiled("maxDecoderFontWidthPercent", st, o.maxDecoderFontWidthPercent);
     setFiled("minDecoderFontWidthPercent", st, o.minDecoderFontWidthPercent);
+    setFiled("dontAskSaveOnExit", st, o.dontAskSaveOnExit);
 
     QString fmt =  FormatArrayToString(o.m_protocolFormats);
     setFiled("protocalFormats", st, fmt);

@@ -1618,12 +1618,18 @@ namespace pv
     }
 
     bool MainWindow::confirm_to_store_data()
-    {   
+    {
         bool ret = false;
-        _is_save_confirm_msg = true;       
+        _is_save_confirm_msg = true;
+
+        if (AppConfig::Instance().appOptions.dontAskSaveOnExit)
+        {
+            _is_save_confirm_msg = false;
+            return false;
+        }
 
         if (_session->have_hardware_data() && _session->is_first_store_confirm())
-        {   
+        {
             // Only popup one time.
             ret =  MsgBox::Confirm(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_SAVE_CAPDATE), "Save captured data?"));
 

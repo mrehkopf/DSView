@@ -704,6 +704,10 @@
         "text": "Antialiasing"
     },
     {
+        "id": "IDS_DLG_DONT_ASK_SAVE_ON_EXIT",
+        "text": "Do not ask to save captured data"
+    },
+    {
         "id": "IDS_DLG_SERIAL_HEX",
         "text": "Hex :"
     },

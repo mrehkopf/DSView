@@ -151,6 +151,9 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     QCheckBox *ck_antialias = new QCheckBox();
     ck_antialias->setChecked(app.appOptions.antialias);
 
+    QCheckBox *ck_dontAskSaveOnExit = new QCheckBox();
+    ck_dontAskSaveOnExit->setChecked(app.appOptions.dontAskSaveOnExit);
+
     QComboBox *ftCbSize = new DsComboBox();
     ftCbSize->setFixedWidth(50);
     bind_font_size_list(ftCbSize, app.appOptions.fontSize);
@@ -328,6 +331,8 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     uiLay->addWidget(ftCbSize, 1, 1, Qt::AlignRight);
     uiLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DISPLAY_ANTIALIAS), "Antialiasing")), 2, 0, Qt::AlignLeft);
     uiLay->addWidget(ck_antialias, 2, 1, Qt::AlignRight);
+    uiLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DONT_ASK_SAVE_ON_EXIT), "Do not ask to save captured data")), 3, 0, Qt::AlignLeft);
+    uiLay->addWidget(ck_dontAskSaveOnExit, 3, 1, Qt::AlignRight);
     lay->addWidget(uiGroup);
 
     dlg.layout()->addLayout(lay);      
@@ -379,6 +384,10 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
         }
         if (app.appOptions.antialias != ck_antialias->isChecked()){
             app.appOptions.antialias = ck_antialias->isChecked();
+            bAppChanged = true;
+        }
+        if (app.appOptions.dontAskSaveOnExit != ck_dontAskSaveOnExit->isChecked()){
+            app.appOptions.dontAskSaveOnExit = ck_dontAskSaveOnExit->isChecked();
             bAppChanged = true;
         }
         if (app.appOptions.decoderDynamicFontWidth != ck_decoderDynamicFontWidth->isChecked()) {
