@@ -229,12 +229,7 @@ void LogoBar::on_actionIssue_triggered()
 
  void LogoBar::on_action_update()
  {
-     if (AppConfig::Instance().frameOptions.language == LAN_CN){
-         QDesktopServices::openUrl(QUrl(QLatin1String("https://dreamsourcelab.cn/download/")));
-     }
-     else{
-         QDesktopServices::openUrl(QUrl(QLatin1String("https://www.dreamsourcelab.com/download/")));
-     }
+     QDesktopServices::openUrl(QUrl(QLatin1String("https://github.com/Schildkroet/DSView/releases")));
  }
 
 void LogoBar::enable_toggle(bool enable)
