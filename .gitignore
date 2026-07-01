@@ -48,7 +48,8 @@ moc_*.cpp
 moc_*.cpp_parameters
 
 DSView-prj
-build*
+build/*
+build.dir*
 share
 .vscode
 qtpro
