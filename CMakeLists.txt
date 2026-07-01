@@ -693,7 +693,9 @@ if(WIN32)
 	install(DIRECTORY libsigrokdecode4DSL/decoders
 			DESTINATION .
 			PATTERN "__pycache__" EXCLUDE)
-	install(DIRECTORY cross-compile-windows/python-setup/python-dist/. DESTINATION .)
+	if(IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/cross-compile-windows/python-setup/python-dist)
+		install(DIRECTORY cross-compile-windows/python-setup/python-dist/. DESTINATION .)
+	endif()
 else()
 	# Install the executable.
 	install(TARGETS ${PROJECT_NAME} DESTINATION bin)
