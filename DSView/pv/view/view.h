@@ -32,6 +32,7 @@
 #include <QSizeF>
 #include <QDateTime>
 #include <QSplitter>
+#include <QVBoxLayout>
 
  
 #include "../toolbars/samplingbar.h"
@@ -380,7 +381,14 @@ private:
     static bool compare_trace_v_offsets( const Trace *a, const Trace *b);
     void get_scroll_layout(int64_t &length, int64_t &offset);	
 	void update_scroll();
-    void update_margins();   
+    void update_margins();
+    // Re-reserves bottom/right space in _statusLayout for the real
+    // scrollbars, using their current (not construction-time) geometry -
+    // the ViewStatus (_viewbottom) widget can grow taller (DSO's 2-row
+    // measurement layout) after construction, so the scrollbar-clearance
+    // margin has to be refreshed alongside it, or the lower measurement
+    // row overlaps the horizontal scrollbar.
+    void update_status_margins();
     void set_scale(double scale);
 
     void clear();
@@ -466,6 +474,7 @@ private:
 
     QWidget                 *_viewcenter;
     ViewStatus              *_viewbottom;
+    QVBoxLayout             *_statusLayout;
     QSplitter               *_vsplitter;
     Viewport                *_time_viewport;
     Viewport                *_fft_viewport;
