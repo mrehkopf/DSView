@@ -31,8 +31,7 @@
 #include <QRect>
 
 #ifdef _WIN32
-#include <QWinTaskbarButton>
-#include <QWinTaskbarProgress>
+struct ITaskbarList3;
 #endif
 
 #include "toolbars/titlebar.h"
@@ -40,8 +39,10 @@
 
 #if QT_VERSION >= QT_VERSION_CHECK(6,0,0)
 typedef qintptr *MESSAGE_RESULT_PTR;
+typedef qintptr MESSAGE_RESULT_TYPE;
 #else
 typedef long *MESSAGE_RESULT_PTR;
+typedef long MESSAGE_RESULT_TYPE;
 #endif
 
 namespace pv {
@@ -98,7 +99,8 @@ public:
 
 public:
     MainFrame();
- 
+    ~MainFrame();
+
     void ShowFormInit();
     void ShowHelpDocAsync();
   
@@ -172,10 +174,9 @@ private:
     int     _hit_border;
     QTimer  _timer;
     bool    _freezing; 
-    // Taskbar Progress Effert for Win7 and Above
+    // Taskbar Progress Effert for Win7 and Above, via native ITaskbarList3 COM interface
 #ifdef _WIN32
-    QWinTaskbarButton *_taskBtn;
-    QWinTaskbarProgress *_taskPrg;
+    ITaskbarList3 *_taskbarList3;
 #endif
 
     bool    _is_win32_parent_window;

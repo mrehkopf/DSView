@@ -181,16 +181,11 @@ include_directories(${ZLIB_INCLUDE_DIRS})
 #===============================================================================
 #= Qt6 or Qt5
 #
-# Windows build only works with Qt5 for now due to WinExtras dependency,
-# therefore do not yet attempt to build with Qt6.
-#
-# Otherwise prioritize Qt6 for better font rendering on OSX and better Wayland
-# compatibility on Linux.
+# Prioritize Qt6 for better font rendering on OSX, better Wayland compatibility
+# on Linux, and to stay on the actively maintained Qt release on Windows.
 #-------------------------------------------------------------------------------
 
-if(NOT WIN32)
-	find_package(Qt6Core QUIET)
-endif()
+find_package(Qt6Core QUIET)
 
 if(Qt6Core_FOUND)
 	message("----- Qt6:")
@@ -220,12 +215,6 @@ if(Qt5Core_FOUND)
 	set(QT_INCLUDE_DIRS ${Qt5Gui_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS})
 	set(QT_LIBRARIES Qt5::Gui Qt5::Widgets)
 	add_definitions(${Qt5Gui_DEFINITIONS} ${Qt5Widgets_DEFINITIONS})
-	if(WIN32)
-		find_package(Qt5WinExtras REQUIRED)
-		add_definitions(${Qt5WinExtras_DEFINITIONS})
-		list(APPEND QT_LIBRARIES Qt5::WinExtras)
-		list(APPEND QT_INCLUDE_DIRS ${Qt5WinExtras_INCLUDE_DIRS})
-	endif()
 endif()
 
 if(NOT Qt5Core_FOUND AND NOT Qt6Core_FOUND)

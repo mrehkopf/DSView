@@ -63,6 +63,7 @@
 
 #ifdef _WIN32
 #include "winnativewidget.h"
+#include <shobjidl.h>
 #endif
 
 namespace pv {
@@ -97,7 +98,7 @@ MainFrame::MainFrame()
 #ifdef _WIN32
     setWindowFlags(Qt::FramelessWindowHint);
     _is_win32_parent_window = true;
-    _taskBtn = NULL;
+    _taskbarList3 = NULL;
     isWin32 = true;
 #else
     setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowSystemMenuHint);
@@ -179,7 +180,6 @@ MainFrame::MainFrame()
     }
 
 #ifdef _WIN32
-    _taskBtn = new QWinTaskbarButton(this);
 	connect(_mainWindow, SIGNAL(prgRate(int)), this, SLOT(setTaskbarProgress(int)));
 #endif
 
@@ -193,9 +193,19 @@ MainFrame::MainFrame()
 
     connect(this, SIGNAL(sig_ParentNativeEvent(int)), this, SLOT(OnParentNaitveWindowEvent(int)));
 
-  
+
 }
-  
+
+MainFrame::~MainFrame()
+{
+#ifdef _WIN32
+    if (_taskbarList3 != NULL) {
+        _taskbarList3->Release();
+        _taskbarList3 = NULL;
+    }
+#endif
+}
+
 void MainFrame::MoveWindow(int x, int y)
 {
 #ifdef _WIN32
@@ -1025,10 +1035,15 @@ void MainFrame::ReadSettings()
 #ifdef _WIN32
 void MainFrame::showEvent(QShowEvent *event)
 {
-    // Taskbar Progress Effert for Win7 and Above
-    if (_taskBtn && _taskBtn->window() == NULL) {
-        _taskBtn->setWindow(windowHandle());
-        _taskPrg = _taskBtn->progress();
+    // Taskbar Progress Effert for Win7 and Above, via native ITaskbarList3 COM interface
+    if (_taskbarList3 == NULL) {
+        if (SUCCEEDED(CoCreateInstance(CLSID_TaskbarList, NULL, CLSCTX_INPROC_SERVER,
+                IID_ITaskbarList3, (void**)&_taskbarList3))) {
+            if (FAILED(_taskbarList3->HrInit())) {
+                _taskbarList3->Release();
+                _taskbarList3 = NULL;
+            }
+        }
     }
     event->accept();
 }
@@ -1037,11 +1052,16 @@ void MainFrame::showEvent(QShowEvent *event)
 void MainFrame::setTaskbarProgress(int progress)
 {
 #ifdef _WIN32
+    if (_taskbarList3 == NULL)
+        return;
+
+    HWND hwnd = (HWND)winId();
+
     if (progress > 0) {
-        _taskPrg->setVisible(true);
-        _taskPrg->setValue(progress);
+        _taskbarList3->SetProgressState(hwnd, TBPF_NORMAL);
+        _taskbarList3->SetProgressValue(hwnd, (ULONGLONG)progress, 100);
     } else {
-        _taskPrg->setVisible(false);
+        _taskbarList3->SetProgressState(hwnd, TBPF_NOPROGRESS);
     }
 #else
 	(void)progress;
@@ -1126,8 +1146,8 @@ bool MainFrame::nativeEvent(const QByteArray &eventType, void *message, MESSAGE_
             case WM_NCLBUTTONDBLCLK:
             case WM_NCHITTEST:
             {
-                *result = long(SendMessageW(hwnd, 
-                        msg->message, msg->wParam, msg->lParam));
+                *result = (MESSAGE_RESULT_TYPE)SendMessageW(hwnd,
+                        msg->message, msg->wParam, msg->lParam);
                 return true;
             }           
         }
