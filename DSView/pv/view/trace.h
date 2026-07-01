@@ -51,6 +51,10 @@ protected:
 	static const int LabelHitPadding;
 
 public:
+    // The font size (in points) the Margin/SquareWidth pixel constants
+    // were tuned against - used to scale the boxes with AppConfig's font
+    // size setting, not just the (independent) trace height factor.
+    static constexpr double BaseFontSize = 9.0;
     static const int SquareWidth = 20;
     static const int COLOR = 1;
     static const int NAME = 2;

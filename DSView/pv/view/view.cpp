@@ -369,7 +369,7 @@ void View::vzoom(double steps)
 
 double View::get_trace_font_scale()
 {
-    if (_device_agent->have_instance() && _device_agent->get_work_mode() == LOGIC)
+    if (_device_agent->have_instance())
         return _trace_height_factor;
     return 1.0;
 }
