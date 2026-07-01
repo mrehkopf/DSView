@@ -72,6 +72,8 @@ signals:
 private slots:
     void on_actionDark_triggered();
     void on_actionLight_triggered();
+    void on_actionLatte_triggered();
+    void on_actionFrappe_triggered();
     void on_actionLissajous_triggered();
     void on_actionFft_triggered();
     void on_actionMath_triggered();
@@ -108,6 +110,8 @@ private:
     QAction     *_action_dispalyOptions;
     QAction     *_dark_style;
     QAction     *_light_style;
+    QAction     *_latte_style;
+    QAction     *_frappe_style;
     QAction     *_action_lissajous;
 };
 

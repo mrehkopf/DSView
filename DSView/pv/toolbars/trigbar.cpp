@@ -72,14 +72,22 @@ TrigBar::TrigBar(SigSession *session, QWidget *parent) :
    
     _dark_style = new QAction(this);
     _dark_style->setObjectName(QString::fromUtf8("actionDark"));
-    
+
     _light_style = new QAction(this);
     _light_style->setObjectName(QString::fromUtf8("actionLight"));
-     
+
+    _latte_style = new QAction(this);
+    _latte_style->setObjectName(QString::fromUtf8("actionLatte"));
+
+    _frappe_style = new QAction(this);
+    _frappe_style->setObjectName(QString::fromUtf8("actionFrappe"));
+
     _themes = new QMenu(this);
     _themes->setObjectName(QString::fromUtf8("menuThemes"));
     _themes->addAction(_light_style);
     _themes->addAction(_dark_style);
+    _themes->addAction(_latte_style);
+    _themes->addAction(_frappe_style);
 
      _action_dispalyOptions = new QAction(this);
 
@@ -119,6 +127,8 @@ TrigBar::TrigBar(SigSession *session, QWidget *parent) :
     connect(_action_lissajous, SIGNAL(triggered()), this, SLOT(on_actionLissajous_triggered()));
     connect(_dark_style, SIGNAL(triggered()), this, SLOT(on_actionDark_triggered()));
     connect(_light_style, SIGNAL(triggered()), this, SLOT(on_actionLight_triggered()));
+    connect(_latte_style, SIGNAL(triggered()), this, SLOT(on_actionLatte_triggered()));
+    connect(_frappe_style, SIGNAL(triggered()), this, SLOT(on_actionFrappe_triggered()));
     connect(_action_dispalyOptions, SIGNAL(triggered()), this, SLOT(on_display_setting()));
 
     ADD_UI(this);
@@ -144,6 +154,8 @@ void TrigBar::retranslateUi()
    
     _dark_style->setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_DISPLAY_THEMES_DARK), "Dark"));
     _light_style->setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_DISPLAY_THEMES_LIGHT), "Light"));
+    _latte_style->setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_DISPLAY_THEMES_LATTE), "Latte"));
+    _frappe_style->setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_DISPLAY_THEMES_FRAPPE), "Frappé"));
 
     _action_fft->setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_FUNCTION_FFT), "FFT"));
     _action_math->setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_FUNCTION_MATH), "Math"));
@@ -167,11 +179,18 @@ void TrigBar::reStyle()
     _action_lissajous->setIcon(QIcon(iconPath+"/lissajous.svg"));
     _dark_style->setIcon(QIcon(iconPath+"/dark.svg"));
     _light_style->setIcon(QIcon(iconPath+"/light.svg"));
+    // Latte/Frappe have no dedicated glyph asset - reuse whichever of the
+    // light/dark menu icons matches their background darkness.
+    _latte_style->setIcon(QIcon(iconPath+"/light.svg"));
+    _frappe_style->setIcon(QIcon(iconPath+"/dark.svg"));
 
     _action_dispalyOptions->setIcon(QIcon(iconPath+"/gear.svg"));
 
      AppConfig &app = AppConfig::Instance();
-     QString icon_fname = iconPath +"/"+ app.frameOptions.style +".svg";  
+     // The Themes menu's own icon: fall back to the dark/light glyph for
+     // color schemes (Latte/Frappe) that don't have a same-named icon file.
+     QString icon_style = app.IsDarkStyle() ? THEME_STYLE_DARK : THEME_STYLE_LIGHT;
+     QString icon_fname = iconPath +"/"+ icon_style +".svg";
     _themes->setIcon(QIcon(icon_fname));
 }
 
@@ -302,6 +321,24 @@ void TrigBar::on_actionLight_triggered()
 {
     sig_setTheme(THEME_STYLE_LIGHT);
     QString icon = GetIconPath() + "/" + THEME_STYLE_LIGHT +".svg";
+    _themes->setIcon(QIcon(icon));
+}
+
+void TrigBar::on_actionLatte_triggered()
+{
+    sig_setTheme(THEME_STYLE_LATTE);
+    // Latte has no dedicated glyph asset - it reuses the "light" icon set,
+    // so use that icon set's "light.svg" glyph for the menu icon too.
+    QString icon = GetIconPath() + "/" + THEME_STYLE_LIGHT + ".svg";
+    _themes->setIcon(QIcon(icon));
+}
+
+void TrigBar::on_actionFrappe_triggered()
+{
+    sig_setTheme(THEME_STYLE_FRAPPE);
+    // Frappe has no dedicated glyph asset - it reuses the "dark" icon set,
+    // so use that icon set's "dark.svg" glyph for the menu icon too.
+    QString icon = GetIconPath() + "/" + THEME_STYLE_DARK + ".svg";
     _themes->setIcon(QIcon(icon));
 }
 

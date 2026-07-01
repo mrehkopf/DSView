@@ -62,6 +62,8 @@
         <file>dark/undock-hover.svg</file>
         <file>light.qss</file>
         <file>dark.qss</file>
+        <file>latte.qss</file>
+        <file>frappe.qss</file>
         <file>light/checkbox_checked.svg</file>
         <file>light/checkbox_checked_disabled.svg</file>
         <file>light/checkbox_checked-hover.svg</file>

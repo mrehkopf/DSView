@@ -106,7 +106,15 @@
     {
         "id": "IDS_TOOLBAR_DISPLAY_THEMES_LIGHT",
         "text": "清新(&L)"
-    },   
+    },
+    {
+        "id": "IDS_TOOLBAR_DISPLAY_THEMES_LATTE",
+        "text": "拿铁(&T)"
+    },
+    {
+        "id": "IDS_TOOLBAR_DISPLAY_THEMES_FRAPPE",
+        "text": "冰沙(&P)"
+    },
     {
         "id": "IDS_TOOLBAR_DISPLAY_OPTIONS",
         "text": "选项(&O)"

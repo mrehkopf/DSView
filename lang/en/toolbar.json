@@ -106,7 +106,15 @@
     {
         "id": "IDS_TOOLBAR_DISPLAY_THEMES_LIGHT",
         "text": "&Light"
-    },  
+    },
+    {
+        "id": "IDS_TOOLBAR_DISPLAY_THEMES_LATTE",
+        "text": "La&tte"
+    },
+    {
+        "id": "IDS_TOOLBAR_DISPLAY_THEMES_FRAPPE",
+        "text": "Fra&ppé"
+    },
     {
         "id": "IDS_TOOLBAR_DISPLAY_OPTIONS",
         "text": "&Options"
