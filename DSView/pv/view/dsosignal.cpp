@@ -1220,6 +1220,9 @@ QRectF DsoSignal::get_rect(DsoSetRegions type, int y, int right)
 {
     (void)right;
 
+    const int SquareWidth = get_squareWidth();
+    const int Margin = get_squareMargin();
+
     if (type == DSO_VDIAL)
         return QRectF(
             get_leftWidth() + SquareWidth*0.5 + Margin,

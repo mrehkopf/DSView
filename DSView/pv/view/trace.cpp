@@ -113,14 +113,26 @@ double Trace::get_label_scale()
     return (_view != NULL) ? _view->get_trace_font_scale() : 1.0;
 }
 
+// Ratio between the currently configured trace font size and the font size
+// the Margin/SquareWidth pixel constants were tuned against. Without this,
+// the per-channel config boxes (AC/DC, AUTO, x1/x10/x100, etc.) stayed a
+// fixed pixel size regardless of the font size setting, while the text
+// drawn inside them (sized off the same GetTraceFontSize() value, see
+// Viewport::paintEvent) grew - so bigger font settings just clipped the
+// box text instead of growing the box with it.
+static double square_font_ratio()
+{
+    return AppConfig::Instance().GetTraceFontSize() / Trace::BaseFontSize;
+}
+
 int Trace::get_squareWidth()
 {
-    return (int)(SquareWidth * get_label_scale());
+    return (int)(SquareWidth * square_font_ratio() * get_label_scale());
 }
 
 int Trace::get_squareMargin()
 {
-    return (int)(Margin * get_label_scale());
+    return (int)(Margin * square_font_ratio() * get_label_scale());
 }
 
 int Trace::get_leftWidth()
