@@ -914,19 +914,36 @@ void StoreSession::export_exec(data::Snapshot *snapshot)
         output.start_sample_index = _start_index;
     }
 
+    auto release_export_params = [&](){
+        g_hash_table_destroy(params);
+        if (filenameGVariant != NULL)
+            g_variant_unref(filenameGVariant);
+        if (typeGVariant != NULL)
+            g_variant_unref(typeGVariant);
+    };
+
     if(_outModule->init){
        if(_outModule->init(&output, params) != SR_OK){
         dsv_err("Failed to init export module.");
+        release_export_params();
         return;
        }
     }
-  
+
     QString dateTimeString = Formatting::DateTimeToString(_session->get_session_time(), TimeStrigFormatType::TIME_STR_FORMAT_ALL);
     strcpy(output.time_string, dateTimeString.toStdString().c_str());
-    
+
     QFile file(_file_name);
-    file.open(QIODevice::WriteOnly | QIODevice::Text);
-    QTextStream out(&file); 
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)){
+        dsv_err("StoreSession::export_proc, failed to open file for writing.");
+        _has_error = true;
+        _error = QString("Failed to open file for writing: %1").arg(_file_name);
+        _outModule->cleanup(&output);
+        release_export_params();
+        progress_updated();
+        return;
+    }
+    QTextStream out(&file);
     encoding::set_utf8(out);
     //out.setGenerateByteOrderMark(true);  // UTF-8 without BOM
 
@@ -1004,6 +1021,9 @@ void StoreSession::export_exec(data::Snapshot *snapshot)
         if (start_index > logic_snapshot->get_ring_sample_count()){
             dsv_err("ERROR:the start curosr is invalid!");
             _units_stored = -1;
+            file.close();
+            _outModule->cleanup(&output);
+            release_export_params();
             progress_updated();
             return;
         }
@@ -1077,6 +1097,10 @@ void StoreSession::export_exec(data::Snapshot *snapshot)
             if (xbuf == NULL) {
                 _has_error = true;
                 _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_EXPORTPROC_ERROR2), "xbuffer malloc failed.");
+                file.close();
+                _outModule->cleanup(&output);
+                release_export_params();
+                progress_updated();
                 return;
             }
 
@@ -1245,9 +1269,7 @@ void StoreSession::export_exec(data::Snapshot *snapshot)
     // optional, as QFile destructor will already do it:
     file.close();
     _outModule->cleanup(&output);
-    g_hash_table_destroy(params);
-    if (filenameGVariant != NULL)
-        g_variant_unref(filenameGVariant);
+    release_export_params();
 
     progress_updated();
 }

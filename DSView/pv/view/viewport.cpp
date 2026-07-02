@@ -2025,6 +2025,7 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
             measure_line_count += 3;
         }
         p.drawLines(measure_lines, measure_line_count);
+        delete[] measure_lines;
         if (dso_xm_stage < DsoMeasureStages) {
             p.drawLine(x[dso_xm_stage-1], _dso_xm_y,
                        _mouse_point.x(), _dso_xm_y);

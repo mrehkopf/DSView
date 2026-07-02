@@ -23,11 +23,13 @@
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <math.h>
 #include <algorithm>
- 
+
 #include "analogsnapshot.h"
 #include "../dsvdef.h"
+#include "../log.h"
 
 using namespace std;
 
@@ -125,7 +127,16 @@ void AnalogSnapshot::first_payload(const sr_datafeed_analog &analog, uint64_t to
     }
 
     bool isOk = true;
-    uint64_t size = _total_sample_count * _channel_num * _unit_bytes + sizeof(uint64_t);
+    const uint64_t unit_stride = (uint64_t)_channel_num * (uint64_t)_unit_bytes;
+
+    if (unit_stride != 0 && _total_sample_count > (UINT64_MAX - sizeof(uint64_t)) / unit_stride) {
+        dsv_err("AnalogSnapshot::first_payload, sample buffer size overflow.");
+        free_data();
+        _memory_failed = true;
+        return;
+    }
+
+    uint64_t size = _total_sample_count * unit_stride + sizeof(uint64_t);
 
     if (size != _capacity) {
         free_data();

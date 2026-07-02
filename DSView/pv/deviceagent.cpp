@@ -364,7 +364,8 @@ GVariant* DeviceAgent::get_config_list(const sr_channel_group *group, int key)
             dsv_detail("%s%d", "WARNING: Failed to get config list, key:", key); 
         
         if (data != NULL){
-            dsv_warn("%s%d", "WARNING: Failed to get config list, but data is not null. key:", key); 
+            dsv_warn("%s%d", "WARNING: Failed to get config list, but data is not null. key:", key);
+            g_variant_unref(data);
         }
         data = NULL;
     }

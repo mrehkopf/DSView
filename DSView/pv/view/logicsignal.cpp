@@ -118,6 +118,9 @@ void LogicSignal::paint_mid_align(QPainter &p, int left, int right, QColor fore,
     const int y = get_y() + _totalHeight * 0.5;
     const double scale = _view->scale();
     assert(scale > 0);
+    if (scale <= 0)
+        return;
+
     const int64_t offset = _view->x_offset();
 
     const int high_offset = y - _totalHeight + 0.5f;

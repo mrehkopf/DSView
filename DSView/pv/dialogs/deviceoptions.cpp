@@ -172,7 +172,11 @@ DeviceOptions::DeviceOptions(QWidget *parent) :
 }
 
 DeviceOptions::~DeviceOptions()
-{   
+{
+    for(auto p : _probe_options_binding_list) {
+        delete p;
+    }
+    _probe_options_binding_list.clear();
 }
 
 void DeviceOptions::ChannelChecked(int index, QObject *object)
@@ -682,6 +686,9 @@ void DeviceOptions::analog_probes(QGridLayout &layout)
     using namespace Qt;
  
     _probes_checkBox_list.clear();
+    for(auto p : _probe_options_binding_list) {
+        delete p;
+    }
     _probe_options_binding_list.clear();
     _dso_channel_list.clear();
 

@@ -335,8 +335,9 @@ void LogicSnapshot::append_cross_payload(const sr_datafeed_logic &logic)
 
     if (index0 >= _ch_data[0].size()){
         assert(false);
+        return;
     }
-    
+
     lbp = _ch_data[fill_chan_index][index0].lbp[index1];
     if (lbp == NULL){
         lbp = malloc(LeafBlockSpace);
@@ -1293,6 +1294,10 @@ bool LogicSnapshot::pattern_search_self(int64_t start, int64_t end, int64_t &ind
          int channel = it->first;
 
          if (flag != 'X' && has_data(channel)){
+             if (count >= CHANNEL_MAX_COUNT){
+                 assert(false);
+                 break;
+             }
              flagList[count]  = flag;
              chanIndexs[count] = channel;
              count++;
@@ -1489,6 +1494,13 @@ uint8_t *LogicSnapshot::get_block_buf_unlock(int block_index, int sig_index, boo
 
     uint64_t index = block_index / RootScale;
     uint8_t pos = block_index % RootScale;
+
+    if (index >= _ch_data[order].size()){
+        assert(false);
+        sample = 0;
+        return NULL;
+    }
+
     uint8_t *lbp = (uint8_t*)_ch_data[order][index].lbp[pos];
 
     if (lbp == NULL){
