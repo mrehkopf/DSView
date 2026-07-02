@@ -301,10 +301,12 @@ void Viewport::paintSignals(QPainter &p, QColor fore, QColor back)
         if (_view.scale() != _curScale ||
             _view.x_offset() != _curOffset ||
             _view.get_signalHeight() != _curSignalHeight ||
+            _view.y_offset() != _curYOffset ||
             _need_update) {
             _curScale = _view.scale();
             _curOffset = _view.x_offset();
             _curSignalHeight = _view.get_signalHeight();
+            _curYOffset = _view.y_offset();
 
             _pixmap = QPixmap(size());
             _pixmap.fill(Qt::transparent);

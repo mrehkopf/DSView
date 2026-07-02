@@ -86,6 +86,8 @@ struct AppOptions
     int maxDecoderFontWidthPercent;
     bool decoderDynamicFontWidth;
     bool dontAskSaveOnExit;
+    float logicSignalLineWidth;
+    bool dsoSplitChannels;
     std::vector<StringPair> m_protocolFormats;
 };
  

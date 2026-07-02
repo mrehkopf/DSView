@@ -110,13 +110,18 @@ namespace pv
 
     namespace{
         QString tmp_file;
+
+        // Bump this when the built-in dock layout changes so a windowState
+        // saved under an older layout is not restored over the new one.
+        const int DOCK_LAYOUT_VERSION = 1;
     }
 
     MainWindow::MainWindow(toolbars::TitleBar *title_bar, QWidget *parent)
         : QMainWindow(parent)
     {
         _msg = NULL;
-        _frame = parent; 
+        _frame = parent;
+        _restoring_dock_layout = false;
 
         assert(title_bar);
         assert(_frame);
@@ -225,10 +230,13 @@ namespace pv
         _search_widget = new dock::SearchDock(_search_dock, *_view, _session);
         _search_dock->setWidget(_search_widget);
 
+        // Put all the right-side docks into the same tab group instead of stacking
+        // them on top of each other (which forced scrolling to reach the lower ones).
+        setTabPosition(Qt::RightDockWidgetArea, QTabWidget::North);
         addDockWidget(Qt::RightDockWidgetArea, _protocol_dock);
-        addDockWidget(Qt::RightDockWidgetArea, _trigger_dock);
-        addDockWidget(Qt::RightDockWidgetArea, _dso_trigger_dock);
-        addDockWidget(Qt::RightDockWidgetArea, _measure_dock);
+        tabifyDockWidget(_protocol_dock, _trigger_dock);
+        tabifyDockWidget(_trigger_dock, _dso_trigger_dock);
+        tabifyDockWidget(_dso_trigger_dock, _measure_dock);
         addDockWidget(Qt::BottomDockWidgetArea, _search_dock);
 
         // event filter
@@ -276,6 +284,7 @@ namespace pv
         connect(_trig_bar, SIGNAL(sig_search(bool)), this, SLOT(on_search(bool)));
         connect(_trig_bar, SIGNAL(sig_setTheme(QString)), this, SLOT(switchTheme(QString)));
         connect(_trig_bar, SIGNAL(sig_show_lissajous(bool)), _view, SLOT(show_lissajous(bool)));
+        connect(_trig_bar, &toolbars::TrigBar::sig_dso_split, _view, &view::View::set_dso_split_channels);
 
         // file toolbar
         connect(_file_bar, SIGNAL(sig_load_file(QString)), this, SLOT(on_load_file(QString)));
@@ -438,7 +447,7 @@ namespace pv
             save_config_to_file(sessionFile);
         }
 
-        app.frameOptions.windowState = saveState();
+        app.frameOptions.windowState = saveState(DOCK_LAYOUT_VERSION);
         app.SaveFrame();
     }
 
@@ -483,6 +492,9 @@ namespace pv
     {
         _protocol_dock->setVisible(visible);
 
+        if (visible && !_restoring_dock_layout)
+            _protocol_dock->raise();
+
         if (!visible)
             _view->setFocus();
     }
@@ -494,12 +506,18 @@ namespace pv
             _trigger_widget->update_view();
             _trigger_dock->setVisible(visible);
             _dso_trigger_dock->setVisible(false);
+
+            if (visible && !_restoring_dock_layout)
+                _trigger_dock->raise();
         }
         else
         {
             _dso_trigger_widget->update_view();
             _trigger_dock->setVisible(false);
             _dso_trigger_dock->setVisible(visible);
+
+            if (visible && !_restoring_dock_layout)
+                _dso_trigger_dock->raise();
         }
 
         if (!visible)
@@ -509,6 +527,9 @@ namespace pv
     void MainWindow::on_measure(bool visible)
     {
         _measure_dock->setVisible(visible);
+
+        if (visible && !_restoring_dock_layout)
+            _measure_dock->raise();
 
         if (!visible)
             _view->setFocus();
@@ -1206,7 +1227,9 @@ namespace pv
         {
             try
             {
-                restoreState(st);
+                // Versioned so a windowState saved before the right-side docks
+                // were tabified doesn't restore the old split (scrolling) layout.
+                restoreState(st, DOCK_LAYOUT_VERSION);
             }
             catch (...)
             {
@@ -1215,8 +1238,11 @@ namespace pv
         }
 
         // Resotre the dock pannel.
-        if (_device_agent->have_instance())
+        if (_device_agent->have_instance()){
+            _restoring_dock_layout = true;
             _trig_bar->reload();
+            _restoring_dock_layout = false;
+        }
     }
 
     bool MainWindow::eventFilter(QObject *object, QEvent *event)
@@ -2141,6 +2167,7 @@ namespace pv
             case DSV_MSG_APP_OPTIONS_CHANGED:
             {
                 update_title_bar_text();
+                _view->viewport_update();
                 break;
             }
             case DSV_MSG_FONT_OPTIONS_CHANGED:

@@ -217,6 +217,12 @@ public:
         return _trace_height_factor;
     }
 
+    inline bool get_dso_split_channels(){
+        return _dso_split_channels;
+    }
+
+    void set_dso_split_channels(bool split);
+
     /**
      * Scale applied to trace-area text so it grows together with the trace
      * height. Returns the vertical scaling factor in logic mode and 1.0 in
@@ -500,6 +506,7 @@ private:
     int         _spanY;
     int         _signalHeight;
     double      _trace_height_factor;
+    bool        _dso_split_channels;
     bool        _updating_scroll;
 
     // trigger position fix

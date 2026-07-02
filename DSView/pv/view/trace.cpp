@@ -201,6 +201,15 @@ void Trace::paint_prepare()
     _view->set_trig_hoff(0);
 }
 
+QColor Trace::get_default_colour()
+{
+    if (_type == SR_CHANNEL_DSO || _type == SR_CHANNEL_FFT ||
+        _type == SR_CHANNEL_ANALOG || _type == SR_CHANNEL_MATH || _index_list.empty())
+        return QColor();
+
+    return PROBE_COLORS[*_index_list.begin() % countof(PROBE_COLORS)];
+}
+
 void Trace::paint_back(QPainter &p, int left, int right, QColor fore, QColor back)
 {
     (void)back;
@@ -246,8 +255,9 @@ void Trace::paint_label(QPainter &p, int right, const QPoint pt, QColor fore)
     // Paint the ColorButton
     QColor foreBack = fore;
     foreBack.setAlpha(View::BackAlpha);
+    QColor defaultColour = get_default_colour();
     p.setPen(Qt::transparent);
-    p.setBrush(enabled() ? (_colour.isValid() ? _colour : fore) : foreBack);
+    p.setBrush(enabled() ? (_colour.isValid() ? _colour : (defaultColour.isValid() ? defaultColour : fore)) : foreBack);
     p.drawRect(color_rect);
     
     if (_type == SR_CHANNEL_DSO ||

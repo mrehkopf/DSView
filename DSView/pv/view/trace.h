@@ -101,6 +101,12 @@ public:
     }
 
 	/**
+	 * The colour to fall back to when the signal has no explicit user-set
+	 * colour, so a channel's waveform matches the colour of its label flag.
+	 */
+	QColor get_default_colour();
+
+	/**
 	 * Gets the vertical layout offset of this signal.
 	 */
 	inline int get_v_offset(){

@@ -85,6 +85,10 @@ public:
 
     bool commit_trig();
 
+    // Draws the dotted zero line plus a row separator so adjacent channels
+    // are visually distinguishable.
+    void paint_back(QPainter &p, int left, int right, QColor fore, QColor back);
+
 	/**
 	 * Paints the signal with a QPainter
 	 * @param p the QPainter to paint into.
