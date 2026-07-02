@@ -1534,6 +1534,10 @@ double View::index2pixel(uint64_t index, bool has_hoff)
 
     const double samples_per_pixel = rateValue * scaleValue;
 
+    if (samples_per_pixel == 0){
+        return 0;
+    }
+
     if (has_hoff){
         pixels = index / samples_per_pixel - offsetValue + hoffValue / samples_per_pixel;
     }

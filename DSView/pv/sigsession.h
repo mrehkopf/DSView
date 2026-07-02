@@ -26,9 +26,10 @@
 #include <set>
 #include <string>
 #include <vector>
-#include <stdint.h> 
+#include <stdint.h>
 #include <QString>
 #include <thread>
+#include <atomic>
 #include <QDateTime>
 #include <list>
 
@@ -583,13 +584,13 @@ private:
    
     int         _noData_cnt;
     bool        _data_lock;
-    bool        _data_updated;
+    std::atomic<bool>  _data_updated;
     int         _data_auto_lock;
 
     QDateTime   _session_time;
     QDateTime   _trig_time;
-    bool        _is_triged;
-    bool        _trigger_flag;
+    std::atomic<bool>  _is_triged;
+    std::atomic<bool>  _trigger_flag;
     uint8_t     _trigger_ch;
     bool        _hw_replied;
 
@@ -599,24 +600,24 @@ private:
     bool        _bClose;  
  
     uint64_t    _save_start;
-    uint64_t    _save_end; 
-    volatile bool  _is_working;
+    uint64_t    _save_end;
+    std::atomic<bool>  _is_working;
     double      _repeat_intvl; // The progress wait timer interval.
     int         _repeat_hold_prg; // The time sleep progress
     int         _repeat_wait_prog_step;
     bool        _is_saving;
     bool        _is_instant;
-    volatile int  _device_status;
+    std::atomic<int>  _device_status;
     int         _work_time_id;
-    int         _capture_times; 
+    int         _capture_times;
     int         _confirm_store_time_id;
     uint64_t    _rt_refresh_time_id;
     uint64_t    _rt_ck_refresh_time_id;
     DEVICE_COLLECT_MODE    _clt_mode;
     bool        _is_stream_mode;
-    
+
     bool        _is_action;
-    uint64_t    _dso_packet_count;
+    std::atomic<uint64_t>  _dso_packet_count;
     bool        _is_task_end;
  
 

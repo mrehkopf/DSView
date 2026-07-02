@@ -295,6 +295,9 @@ void LogoBar::on_action_setting_log()
 
     dlg.exec();
 
+    _log_open_bt = NULL;
+    _log_clear_bt = NULL;
+
     if (dlg.IsClickYes()){
         bool ableSave = ckSave->isChecked();
         int level = cbBox->currentIndex();

@@ -358,11 +358,8 @@ AppConfig::~AppConfig()
 
  AppConfig& AppConfig::Instance()
  {
-     static AppConfig *ins = NULL;
-     if (ins == NULL){
-         ins = new AppConfig();
-     }
-     return *ins;
+     static AppConfig ins;
+     return ins;
  }
 
 void AppConfig::LoadAll()

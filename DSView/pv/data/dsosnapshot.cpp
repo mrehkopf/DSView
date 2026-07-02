@@ -526,6 +526,7 @@ bool DsoSnapshot::get_max_min_value(uint8_t &maxv, uint8_t &minv, int chan_index
 
     if (chan_index < 0 || chan_index >= (int)_ch_data.size()){
         assert(false);
+        return false;
     }
 
     uint8_t *p = _ch_data[chan_index];
