@@ -22,7 +22,7 @@ jobs:
             build-essential cmake git pkg-config \
             qt6-base-dev libqt6svg6-dev libgl1-mesa-dev libxkbcommon-dev libvulkan-dev \
             libglib2.0-dev zlib1g-dev libusb-1.0-0-dev libboost-dev libfftw3-dev \
-            python3-dev libudev-dev dpkg-dev rsync
+            python3-dev libudev-dev dpkg-dev rsync patchelf
 
       - name: Configure
         run: |
@@ -39,6 +39,59 @@ jobs:
         run: |
           cd build
           cpack -G DEB
+
+      - name: Bundle Python (lib + stdlib) so the .deb doesn't depend on the host's Python
+        run: |
+          cd build
+          DEB="$(ls *.deb)"
+          rm -rf deb-extract
+          dpkg-deb -R "$DEB" deb-extract
+
+          # DSView embeds Python (for its protocol decoders) and links
+          # libpython directly, so the binary has a hard DT_NEEDED on the
+          # exact libpythonX.Y.so the runner (Ubuntu 22.04, Python 3.10)
+          # built against, and the interpreter needs that same version's
+          # stdlib (encodings, etc.) to even bootstrap. Neither exists on
+          # newer distros (24.04 only ships Python 3.12), so the app would
+          # fail to start even though apt happily installed it. Fix: carry
+          # our own copy of both inside the package and point the binary at
+          # them via RPATH + a PYTHONHOME/PYTHONPATH wrapper, so it never
+          # relies on whatever Python happens to be on the host.
+          PYVER="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+          BIN="deb-extract/usr/bin/DSView"
+          PYSO="$(ldd "$BIN" | awk '/libpython/ {print $3}')"
+          BUNDLE="deb-extract/usr/lib/dsview"
+          mkdir -p "$BUNDLE"
+          cp -Lv "$PYSO" "$BUNDLE/"
+          patchelf --set-rpath '$ORIGIN/../lib/dsview' "$BIN"
+
+          rsync -a \
+            --exclude 'test' --exclude 'idlelib' --exclude 'tkinter' --exclude '__pycache__' \
+            "/usr/lib/python${PYVER}/" "$BUNDLE/python${PYVER}/"
+
+          mv "$BIN" "${BIN}.bin"
+          cat > "$BIN" <<WRAPPER
+          #!/bin/bash
+          export PYTHONHOME="/usr/lib/dsview"
+          export PYTHONPATH="/usr/lib/dsview/python${PYVER}:/usr/lib/dsview/python${PYVER}/lib-dynload"
+          exec "/usr/bin/DSView.bin" "\$@"
+          WRAPPER
+          chmod +x "$BIN"
+
+          # Drop the auto-detected libpythonX.Y dependency from the control
+          # file - we no longer rely on the system providing it. Handles the
+          # dependency appearing first, last, or in the middle of the list.
+          sed -E -i \
+            -e "s/, libpython${PYVER//./\\.}[^,]*//g" \
+            -e "s/libpython${PYVER//./\\.}[^,]*, //g" \
+            -e "s/libpython${PYVER//./\\.}[^,]*\$//g" \
+            deb-extract/DEBIAN/control
+          echo "--- patched control ---"
+          cat deb-extract/DEBIAN/control
+          echo "--- ldd after patch ---"
+          ldd "${BIN}.bin" 2>/dev/null || true
+
+          dpkg-deb --root-owner-group -b deb-extract "$DEB"
 
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v6
