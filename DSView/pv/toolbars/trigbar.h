@@ -68,6 +68,7 @@ signals:
     void sig_measure(bool visible);//post decode button click event,to show or hide measure property panel
     void sig_search(bool visible);
     void sig_show_lissajous(bool visible);
+    void sig_dso_split(bool split); //split each DSO channel into its own row
 
 private slots:
     void on_actionDark_triggered();
@@ -84,6 +85,7 @@ public slots:
     void trigger_clicked();
     void measure_clicked();
     void search_clicked();
+    void dso_split_clicked();
 
 private:
     SigSession  *_session;
@@ -94,12 +96,14 @@ private:
     XToolButton _search_button;
     XToolButton _function_button;
     XToolButton _setting_button;
+    XToolButton _dso_split_button;
     QAction     *_trig_action;
     QAction     *_protocol_action;
     QAction     *_measure_action;
     QAction     *_search_action;
-    QAction     *_function_action; 
+    QAction     *_function_action;
     QAction     *_display_action;
+    QAction     *_dso_split_action;
 
     QMenu       *_function_menu;
     QAction     *_action_fft;

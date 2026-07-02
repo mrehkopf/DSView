@@ -640,6 +640,15 @@ QString DsoSignal::get_measure(enum DSO_MEASURE_TYPE type)
 QRect DsoSignal::get_view_rect()
 {
     assert(_viewport);
+
+    if (_view && _view->get_dso_split_channels()){
+        const int top = get_v_offset() - get_totalHeight() / 2;
+        const int height = max(get_totalHeight() - UpMargin - DownMargin, 1);
+        return QRect(0, top + UpMargin,
+                      _viewport->width() - RightMargin,
+                      height);
+    }
+
     return QRect(0, UpMargin,
                   _viewport->width() - RightMargin,
                   _viewport->height() - UpMargin - DownMargin);
@@ -697,7 +706,12 @@ void DsoSignal::paint_back(QPainter &p, int left, int right, QColor fore, QColor
 
     int i, j;
     const int height = get_view_rect().height();
-    const int width = right - left; 
+    const int width = right - left;
+    // Origin of this channel's own band. In the default (overlaid) mode this
+    // is just UpMargin, same as before; in split mode each channel has its
+    // own row, so the grid must be anchored to that row instead of the
+    // viewport's absolute top.
+    const int top = get_view_rect().top();
 
     fore.setAlpha(View::BackAlpha);
 
@@ -705,7 +719,7 @@ void DsoSignal::paint_back(QPainter &p, int left, int right, QColor fore, QColor
     solidPen.setStyle(Qt::SolidLine);
     p.setPen(solidPen);
     p.setBrush(back.black() > 0x80 ? back.darker() : back.lighter());
-    p.drawRect(left, UpMargin, width, height);
+    p.drawRect(left, top, width, height);
 
     // draw zoom region
     fore.setAlpha(View::ForeAlpha);
@@ -718,20 +732,21 @@ void DsoSignal::paint_back(QPainter &p, int left, int right, QColor fore, QColor
     const double start = _view->x_offset() * samples_per_pixel;
     const double shown_offset = min(start / sample_len, 1.0) * width;
     const double shown_len = max(shown_rate * width, 6.0);
-    const QPointF left_edge[] =  {QPoint(shown_offset + 3, UpMargin/2 - 6),
-                                  QPoint(shown_offset, UpMargin/2 - 6),
-                                  QPoint(shown_offset, UpMargin/2 + 6),
-                                  QPoint(shown_offset + 3, UpMargin/2 + 6)};
-    const QPointF right_edge[] = {QPoint(shown_offset + shown_len - 3, UpMargin/2 - 6),
-                                  QPoint(shown_offset + shown_len , UpMargin/2 - 6),
-                                  QPoint(shown_offset + shown_len , UpMargin/2 + 6),
-                                  QPoint(shown_offset + shown_len - 3, UpMargin/2 + 6)};
-    p.drawLine(left, UpMargin/2, shown_offset, UpMargin/2);
-    p.drawLine(shown_offset + shown_len, UpMargin/2, left + width, UpMargin/2);
+    const double markerY = top - UpMargin / 2;
+    const QPointF left_edge[] =  {QPoint(shown_offset + 3, markerY - 6),
+                                  QPoint(shown_offset, markerY - 6),
+                                  QPoint(shown_offset, markerY + 6),
+                                  QPoint(shown_offset + 3, markerY + 6)};
+    const QPointF right_edge[] = {QPoint(shown_offset + shown_len - 3, markerY - 6),
+                                  QPoint(shown_offset + shown_len , markerY - 6),
+                                  QPoint(shown_offset + shown_len , markerY + 6),
+                                  QPoint(shown_offset + shown_len - 3, markerY + 6)};
+    p.drawLine(left, markerY, shown_offset, markerY);
+    p.drawLine(shown_offset + shown_len, markerY, left + width, markerY);
     p.drawPolyline(left_edge, countof(left_edge));
     p.drawPolyline(right_edge, countof(right_edge));
     p.setBrush(fore);
-    p.drawRect(shown_offset, UpMargin/2 - 3, shown_len, 6);
+    p.drawRect(shown_offset, markerY - 3, shown_len, 6);
 
     // draw divider
     fore.setAlpha(View::BackAlpha);
@@ -740,7 +755,7 @@ void DsoSignal::paint_back(QPainter &p, int left, int right, QColor fore, QColor
     p.setPen(dashPen);
     const double spanY =height * 1.0 / DS_CONF_DSO_VDIVS;
     for (i = 1; i <= DS_CONF_DSO_VDIVS; i++) {
-        const double posY = spanY * i + UpMargin;
+        const double posY = spanY * i + top;
         if (i != DS_CONF_DSO_VDIVS)
             p.drawLine(left, posY, right, posY);
         const double miniSpanY = spanY / 5;
@@ -753,14 +768,20 @@ void DsoSignal::paint_back(QPainter &p, int left, int right, QColor fore, QColor
     for (i = 1; i <= DS_CONF_DSO_HDIVS; i++) {
         const double posX = spanX * i;
         if (i != DS_CONF_DSO_HDIVS)
-            p.drawLine(posX, UpMargin,posX, height + UpMargin);
+            p.drawLine(posX, top, posX, height + top);
         const double miniSpanX = spanX / 5;
         for (j = 1; j < 5; j++) {
-            p.drawLine(posX - miniSpanX * j, height / 2.0f + UpMargin - 5,
-                       posX - miniSpanX * j, height / 2.0f + UpMargin + 5);
+            p.drawLine(posX - miniSpanX * j, height / 2.0f + top - 5,
+                       posX - miniSpanX * j, height / 2.0f + top + 5);
         }
     }
-    _view->set_back(true);
+
+    // In overlaid mode every DSO channel shares the same background, so
+    // painting it once is enough (see Viewport::doPaint()'s back_ready()
+    // short-circuit). In split mode each channel has its own band and must
+    // paint its own background.
+    if (!_view->get_dso_split_channels())
+        _view->set_back(true);
 }
 
 void DsoSignal::paint_mid(QPainter &p, int left, int right, QColor fore, QColor back)

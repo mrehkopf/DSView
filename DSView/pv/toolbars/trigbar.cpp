@@ -47,7 +47,8 @@ TrigBar::TrigBar(SigSession *session, QWidget *parent) :
     _measure_button(this),
     _search_button(this),
     _function_button(this),
-    _setting_button(this)
+    _setting_button(this),
+    _dso_split_button(this)
 {
     _enable = true;
 
@@ -107,6 +108,8 @@ TrigBar::TrigBar(SigSession *session, QWidget *parent) :
     _search_button.setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
     _function_button.setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
     _setting_button.setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+    _dso_split_button.setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+    _dso_split_button.setCheckable(true);
 
     _protocol_button.setContentsMargins(0,0,0,0);
 
@@ -114,13 +117,15 @@ TrigBar::TrigBar(SigSession *session, QWidget *parent) :
     _protocol_action = addWidget(&_protocol_button);
     _measure_action = addWidget(&_measure_button);
     _search_action = addWidget(&_search_button);
-    _function_action = addWidget(&_function_button); 
+    _function_action = addWidget(&_function_button);
     _display_action = addWidget(&_setting_button); //must be created
+    _dso_split_action = addWidget(&_dso_split_button);
 
     connect(&_trig_button, SIGNAL(clicked()),this, SLOT(trigger_clicked()));
     connect(&_protocol_button, SIGNAL(clicked()),this, SLOT(protocol_clicked()));
     connect(&_measure_button, SIGNAL(clicked()),this, SLOT(measure_clicked()));
     connect(&_search_button, SIGNAL(clicked()), this, SLOT(search_clicked()));
+    connect(&_dso_split_button, SIGNAL(clicked()), this, SLOT(dso_split_clicked()));
 
     connect(_action_fft, SIGNAL(triggered()), this, SLOT(on_actionFft_triggered()));
     connect(_action_math, SIGNAL(triggered()), this, SLOT(on_actionMath_triggered()));
@@ -146,8 +151,9 @@ void TrigBar::retranslateUi()
     _measure_button.setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_MEASURE), "Measure"));
     _search_button.setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_SEARCH), "Search"));
     _function_button.setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_FUNCTION), "Function"));
+    _dso_split_button.setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_DSO_SPLIT), "Split"));
 
-    _setting_button.setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_DISPLAY), "Display"));    
+    _setting_button.setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_DISPLAY), "Display"));
     _themes->setTitle(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_DISPLAY_THEMES), "Themes"));
     _action_lissajous->setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_DISPLAY_LISSAJOUS), "Lissajous"));
 
@@ -173,6 +179,7 @@ void TrigBar::reStyle()
     _search_button.setIcon(QIcon(iconPath+"/search-bar.svg"));
     _function_button.setIcon(QIcon(iconPath+"/function.svg"));
     _setting_button.setIcon(QIcon(iconPath+"/display.svg"));
+    _dso_split_button.setIcon(QIcon(iconPath+"/dso-split.svg"));
 
     _action_fft->setIcon(QIcon(iconPath+"/fft.svg"));
     _action_math->setIcon(QIcon(iconPath+"/math.svg"));
@@ -246,6 +253,14 @@ void TrigBar::search_clicked()
     }  
 }
 
+void TrigBar::dso_split_clicked()
+{
+    if (_dso_split_button.isVisible() && _dso_split_button.isEnabled())
+    {
+        sig_dso_split(_dso_split_button.isChecked());
+    }
+}
+
 void TrigBar::reload()
 { 
     int mode = _session->get_device()->get_work_mode();
@@ -258,6 +273,7 @@ void TrigBar::reload()
         _function_action->setVisible(false);
         _action_lissajous->setVisible(false);
         _action_dispalyOptions->setVisible(true);
+        _dso_split_action->setVisible(false);
 
     } else if (mode == ANALOG) {
         _trig_action->setVisible(false);
@@ -267,6 +283,7 @@ void TrigBar::reload()
         _function_action->setVisible(false);
         _action_lissajous->setVisible(false);
         _action_dispalyOptions->setVisible(true);
+        _dso_split_action->setVisible(false);
 
     } else if (mode == DSO) {
         _trig_action->setVisible(true);
@@ -276,6 +293,8 @@ void TrigBar::reload()
         _function_action->setVisible(true);
         _action_lissajous->setVisible(true);
         _action_dispalyOptions->setVisible(true);
+        _dso_split_action->setVisible(true);
+        _dso_split_button.setChecked(AppConfig::Instance().appOptions.dsoSplitChannels);
     }
 
     DockOptions *opt = getDockOptions();

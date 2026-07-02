@@ -38,6 +38,7 @@
 #include <QResizeEvent>
 #include <QDesktopServices>
 #include <QPushButton>
+#include <QTimer>
 #include <QMessageBox> 
 #include <QScreen>
 #include <QApplication>
@@ -701,6 +702,16 @@ void MainFrame::ShowFormInit()
         resize(w, h);
     }
 
+    // Restore the dockwidget layout only after the window has actually reached its
+    // final size. move()/resize()/showMaximized() above can be asynchronous (the
+    // window manager negotiates the real geometry later), and
+    // QMainWindow::restoreState() sizes the docks relative to the window's size at
+    // the moment it is called, so calling it too early collapses the dock widths.
+    MainWindow *mainWindow = _mainWindow;
+    QTimer::singleShot(0, this, [mainWindow](){
+        mainWindow->restore_dock();
+    });
+
     if (!_is_win32_parent_window){
         QFrame::show();
         return;
@@ -1023,11 +1034,9 @@ void MainFrame::ReadSettings()
             full_rect.width(), full_rect.height());
     }
 
-    dsv_info("Normal region, x:%d, y:%d, w:%d, h:%d",  
+    dsv_info("Normal region, x:%d, y:%d, w:%d, h:%d",
        _normalRegion.x, _normalRegion.y, _normalRegion.w, _normalRegion.h);
 
-    // restore dockwidgets
-    _mainWindow->restore_dock();
     _titleBar->setRestoreButton(app.frameOptions.isMax);
     _initWndInfo.k = k;
 }

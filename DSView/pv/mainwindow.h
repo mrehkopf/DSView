@@ -229,6 +229,12 @@ private:
     QDockWidget             *_search_dock;
     dock::SearchDock        *_search_widget;
 
+    // While true, on_protocol/on_trigger/on_measure won't raise() their dock when
+    // shown, so the tab that QMainWindow::restoreState() already made active (from
+    // a prior session) isn't stolen by the fixed-order visibility sync in
+    // TrigBar::reload() during startup.
+    bool                    _restoring_dock_layout;
+
     QTranslator     _qtTrans;
     QTranslator     _myTrans;
     EventObject     _event; 

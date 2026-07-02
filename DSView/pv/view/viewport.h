@@ -186,6 +186,7 @@ private:
     double      _curScale;
     int64_t     _curOffset;
     int         _curSignalHeight;
+    int64_t     _curYOffset;
 
     bool        _measure_en;
     ActionType  _action_type;

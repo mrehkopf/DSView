@@ -64,7 +64,7 @@ const int View::RulerHeight = 50;
 const int View::MaxScrollValue = INT_MAX / 2;
 const int View::HeightUnit = 20; // also serves as minimum signal height
 
-const int View::SignalMargin = 3;
+const int View::SignalMargin = 12;
 const int View::SignalSnapGridSize = 10;
 
 const QColor View::CursorAreaColour(220, 231, 243);
@@ -100,7 +100,7 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
     _dso_auto(true),
     _show_lissajous(false),
     _back_ready(false)
-{  
+{
    _trig_cursor = NULL;
    _search_cursor = NULL;
    _cali = NULL;
@@ -112,11 +112,13 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
    if (_trace_height_factor < MinTraceHeightFactor || _trace_height_factor > MaxTraceHeightFactor)
        _trace_height_factor = 1.0;
 
+   _dso_split_channels = AppConfig::Instance().appOptions.dsoSplitChannels;
+
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
 //    setWidgetResizable(true);
 //    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-  
+
     // trace viewport map
     _trace_view_map[SR_CHANNEL_LOGIC] = TIME_VIEW;
     _trace_view_map[SR_CHANNEL_GROUP] = TIME_VIEW;
@@ -131,19 +133,19 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
     _ruler = new Ruler(*this);
     _header = new Header(*this);
     _devmode = new DevMode(this, session);
-    
+
     setViewportMargins(headerWidth(), RulerHeight, 0, 0);
 
     // windows splitter
     _time_viewport = new Viewport(*this, TIME_VIEW);
     _time_viewport->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
     _time_viewport->setMinimumHeight(100);
-  
+
     _fft_viewport = new Viewport(*this, FFT_VIEW);
     _fft_viewport->setVisible(false);
     _fft_viewport->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
     _fft_viewport->setMinimumHeight(100);
- 
+
     _vsplitter = new QSplitter(this);
     _vsplitter->setOrientation(Qt::Vertical);
     _vsplitter->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
@@ -210,7 +212,7 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
     connect(_fft_viewport, SIGNAL(measure_updated()), this, SLOT(on_measure_updated()));
 
     connect(_vsplitter, SIGNAL(splitterMoved(int,int)), this, SLOT(splitterMoved(int, int)));
-      
+
     connect(_header, SIGNAL(traces_moved()),this, SLOT(on_traces_moved()));
     connect(_header, SIGNAL(header_updated()),this, SLOT(header_updated()));
 
@@ -247,13 +249,13 @@ void View::capture_init()
         show_trig_cursor(true);
     else if (!_session->is_repeating())
         show_trig_cursor(false);
- 
+
     _maxscale = _session->cur_sampletime() / (width * MaxViewRate);
 
     if (mode == ANALOG){
         set_scale_offset(_maxscale, 0);
     }
-    
+
     status_clear();
 
     _trig_hoff = 0;
@@ -305,7 +307,7 @@ bool View::zoom(double steps, int offset)
     if (_device_agent->get_work_mode() != DSO) {
         _scale *= std::pow(3.0/2.0, -steps);
         _scale = max(min(_scale, _maxscale), _minscale);
-    } 
+    }
     else {
         if (_session->is_running_status() && _session->is_instant()){
             return ret;
@@ -320,7 +322,7 @@ bool View::zoom(double steps, int offset)
         if (hori_res > 0) {
             const double scale = _session->cur_view_time() / width;
             _scale = max(min(scale, _maxscale), _minscale);
-        } 
+        }
         else {
             ret = false;
         }
@@ -412,7 +414,7 @@ void View::set_scale_offset(double scale, int64_t offset)
 }
 
 void View::set_preScale_preOffset()
-{ 
+{
     set_scale_offset(_preScale, _preOffset);
 }
 
@@ -421,16 +423,16 @@ void View::get_traces(int type, std::vector<Trace*> &traces)
     assert(_session);
 
     auto &sigs = _session->get_signals();
- 
+
     const auto &decode_sigs = _session->get_decode_signals();
- 
+
     const auto &spectrums = _session->get_spectrum_traces();
- 
+
     for(auto t : sigs) {
         if (type == ALL_VIEW || _trace_view_map[t->get_type()] == type)
             traces.push_back(t);
     }
- 
+
     for(auto t : decode_sigs) {
         if (type == ALL_VIEW || _trace_view_map[t->get_type()] == type)
             traces.push_back(t);
@@ -469,11 +471,11 @@ bool View::compare_trace_v_offsets(const Trace *a, const Trace *b)
     if (a1->get_type() != b1->get_type()){
         v1 = a1->get_type();
         v2 = b1->get_type();
-    } 
+    }
     else if (a1->get_type() == SR_CHANNEL_DSO || a1->get_type() == SR_CHANNEL_ANALOG){
         v1 = a1->get_index();
         v2 = b1->get_index();
-    } 
+    }
     else{
         v1 = a1->get_v_offset();
         v2 = b1->get_v_offset();
@@ -549,7 +551,7 @@ void View::receive_end()
         bool ret;
 
         ret = _device_agent->get_config_bool(SR_CONF_RLE, rle);
-      
+
         if (ret && rle) {
             ret = _device_agent->get_config_uint64(SR_CONF_ACTUAL_SAMPLES, actual_samples);
             if (ret) {
@@ -557,7 +559,7 @@ void View::receive_end()
                     _viewbottom->set_rle_depth(actual_samples);
                 }
             }
-        }       
+        }
     }
     _time_viewport->unshow_wait_trigger();
 }
@@ -571,7 +573,7 @@ void View::receive_trigger(quint64 trig_pos1)
 }
 
 void View::set_trig_cursor_posistion(uint64_t trig_pos)
-{   
+{
     const double time = trig_pos * 1.0 / _session->cur_snap_samplerate();
     _trig_cursor->set_index(trig_pos);
 
@@ -604,7 +606,7 @@ void View::set_trig_pos(int percent)
 }
 
 void View::set_search_pos(uint64_t search_pos, bool hit)
-{ 
+{
     QColor fore(QWidget::palette().color(QWidget::foregroundRole()));
     fore.setAlpha(View::BackAlpha);
 
@@ -625,7 +627,7 @@ void View::set_search_pos(uint64_t search_pos, bool hit)
 }
 
 void View::normalize_layout()
-{   
+{
     int v_min = INT_MAX;
     std::vector<Trace*> traces;
     get_traces(ALL_VIEW, traces);
@@ -708,18 +710,18 @@ void View::update_scroll()
 }
 
 void View::update_scale_offset()
-{   
+{
     int width = get_view_width();
     if (width == 0){
         return;
     }
 
     if (_device_agent->get_work_mode() != DSO) {
-        _maxscale = _session->cur_sampletime() / (width * MaxViewRate);     
+        _maxscale = _session->cur_sampletime() / (width * MaxViewRate);
         _minscale = (1.0 / _session->cur_snap_samplerate()) / MaxPixelsPerSample;
     }
     else {
-        _scale = _session->cur_view_time() / width;     
+        _scale = _session->cur_view_time() / width;
         _maxscale = 1e9;
         _minscale = 1e-15;
     }
@@ -806,11 +808,21 @@ void View::signals_changed(const Trace* eventTrace)
 
     if (!time_traces.empty() && _time_viewport) {
         for(auto t : time_traces) {
-            if (dynamic_cast<DsoSignal*>(t) || t->enabled())
+            // A disabled DSO channel still needs a slot when every channel
+            // shares one overlaid area (so it keeps a valid, if unused,
+            // band), but in split mode it shouldn't reserve a whole row of
+            // waveport space that nothing is drawn into.
+            bool isDso = (t->signal_type() == SR_CHANNEL_DSO);
+            bool occupiesRow = t->enabled() || (isDso && !_dso_split_channels);
+            if (occupiesRow)
                 total_rows += t->rows_size();
             if (t->rows_size() != 0)
                 label_size++;
         }
+
+        // Every DSO channel can end up disabled at once in split mode; avoid
+        // a division by zero below.
+        total_rows = max(total_rows, 1);
 
         const double height = (_time_viewport->height()
                                - 2 * actualMargin * label_size) * 1.0 / total_rows;
@@ -818,7 +830,7 @@ void View::signals_changed(const Trace* eventTrace)
         if (_device_agent->have_instance() == false){
             assert(false);
         }
-        
+
         int mode = _device_agent->get_work_mode();
 
         if (mode == LOGIC) {
@@ -860,10 +872,10 @@ void View::signals_changed(const Trace* eventTrace)
 
         _spanY = _signalHeight + 2 * actualMargin;
         int next_v_offset = actualMargin;
-        
+
         //Make list by view-index;
         if (mode == LOGIC)
-        {   
+        {
             time_traces.clear();
 
             std::vector<Trace*> all_traces;
@@ -879,7 +891,7 @@ void View::signals_changed(const Trace* eventTrace)
                     time_traces.push_back(t);
             }
 
-            sort(all_traces.begin(), all_traces.end(), compare_trace_view_index);    
+            sort(all_traces.begin(), all_traces.end(), compare_trace_view_index);
 
             for(auto t : all_traces){
                 time_traces.push_back(t);
@@ -893,6 +905,16 @@ void View::signals_changed(const Trace* eventTrace)
             if (t->rows_size() == 0)
                 continue;
 
+            // Mirror the total_rows accounting above: a disabled DSO channel
+            // in split mode gets no row of its own, so it doesn't leave a
+            // block of empty space where nothing is drawn.
+            bool isDso = (t->signal_type() == SR_CHANNEL_DSO);
+            if (!t->enabled() && isDso && _dso_split_channels){
+                t->set_totalHeight(0);
+                t->set_v_offset(next_v_offset);
+                continue;
+            }
+
             const double traceHeight = _signalHeight*t->rows_size();
             t->set_totalHeight((int)traceHeight);
             t->set_v_offset(next_v_offset + 0.5 * traceHeight + actualMargin);
@@ -901,7 +923,7 @@ void View::signals_changed(const Trace* eventTrace)
             if (t->signal_type() == SR_CHANNEL_DSO)
             {
                 auto sig = dynamic_cast<view::DsoSignal*>(t);
-                sig->set_scale(sig->get_view_rect().height());              
+                sig->set_scale(sig->get_view_rect().height());
             }
             else if (t->signal_type() == SR_CHANNEL_ANALOG)
             {
@@ -972,7 +994,7 @@ int View::headerWidth()
     std::vector<Trace*> traces;
     get_traces(ALL_VIEW, traces);
 
-    if (!traces.empty()) 
+    if (!traces.empty())
     {
         for(auto t : traces){
             int w = t->get_name_width() + t->get_leftWidth() + t->get_rightWidth();
@@ -1027,7 +1049,7 @@ void View::h_scroll_value_changed(int value)
 	const int range = horizontalScrollBar()->maximum();
 	if (range < MaxScrollValue)
         _x_offset = value;
-	else 
+	else
     {
         int64_t length = 0;
         int64_t offset = 0;
@@ -1136,7 +1158,7 @@ void View::on_traces_moved()
 void View::make_cursors_order()
 {
     int dex = 1;
- 
+
     for (auto cursor :  get_cursorList())
     {
         cursor->set_order(dex++);
@@ -1303,7 +1325,12 @@ void View::on_state_changed(bool stop)
 
 QRect View::get_view_rect()
 {
-    if (_device_agent->get_work_mode() == DSO) {
+    // In split mode each channel only owns its own row, so returning the
+    // first channel's rect here (as the overlaid case does, since every
+    // channel's rect is the whole viewport there) would confine cursors,
+    // hit-testing, and status text to that single row instead of the whole
+    // viewport.
+    if (_device_agent->get_work_mode() == DSO && !_dso_split_channels) {
         const auto &sigs = _session->get_signals();
         if(sigs.size() > 0) {
             return sigs[0]->get_view_rect();
@@ -1335,7 +1362,14 @@ int View::get_view_width()
 int View::get_view_height()
 {
     int view_height = 0;
-    if (_device_agent->get_work_mode() == DSO) {
+
+    // In split mode each DSO channel's get_view_rect() only spans its own
+    // row, so taking the max over channels would drastically undercount the
+    // actual visible area (used below to size the vertical scrollbar),
+    // making it look like there's a lot more content to scroll to than
+    // there really is. Overlaid channels all still share the full viewport
+    // height, so this only needs a special case for split mode.
+    if (_device_agent->get_work_mode() == DSO && !_dso_split_channels) {
         for(auto s : _session->get_signals()) {
             view_height = max(view_height, s->get_view_rect().height());
         }
@@ -1434,6 +1468,20 @@ void View::show_lissajous(bool show)
     signals_changed(NULL);
 }
 
+void View::set_dso_split_channels(bool split)
+{
+    _dso_split_channels = split;
+
+    AppConfig &app = AppConfig::Instance();
+    if (app.appOptions.dsoSplitChannels != split){
+        app.appOptions.dsoSplitChannels = split;
+        app.SaveApp();
+    }
+
+    signals_changed(NULL);
+    viewport_update();
+}
+
 void View::show_region(uint64_t start, uint64_t end, bool keep)
 {
     assert(start <= end);
@@ -1527,7 +1575,7 @@ double View::index2pixel(uint64_t index, bool has_hoff)
 {
     const uint64_t rateValue = session().cur_snap_samplerate();
     const double scaleValue = scale();
-    const int64_t offsetValue = x_offset();    
+    const int64_t offsetValue = x_offset();
     const double hoffValue = trig_hoff();
 
     double pixels = 0;
@@ -1558,12 +1606,12 @@ double View::index2pixel(uint64_t index, bool has_hoff)
 }
 
 uint64_t View::pixel2index(double pixel)
-{   
+{
     const uint64_t rateValue = session().cur_snap_samplerate();
     const double scaleValue = scale();
-    const int64_t offsetValue = x_offset();    
+    const int64_t offsetValue = x_offset();
     const double hoffValue = trig_hoff();
- 
+
     const double samples_per_pixel = rateValue * scaleValue;
     const double index = (pixel + offsetValue) * samples_per_pixel - hoffValue;
 
@@ -1579,7 +1627,7 @@ void View::set_receive_len(uint64_t len)
 {
     if (_time_viewport)
         _time_viewport->set_receive_len(len);
-        
+
     if (_fft_viewport && _session->get_device()->get_work_mode() == DSO)
         _fft_viewport->set_receive_len(len);
 }
@@ -1603,10 +1651,10 @@ void View::check_calibration()
      if (_device_agent->get_work_mode() == DSO){
         bool cali = false;
         _device_agent->get_config_bool(SR_CONF_CALI, cali);
-            
+
         if (cali) {
             show_calibration();
-        }           
+        }
     }
 }
 
@@ -1636,7 +1684,7 @@ void View::auto_set_max_scale()
     {
         _maxscale =  limitTime / (width * MaxViewRate);
         set_scale(_maxscale);
-    }  
+    }
 }
 
 int  View::get_body_width()
@@ -1671,7 +1719,7 @@ void View::check_measure()
 }
 
 std::list<Cursor*>& View::get_cursorList()
-{   
+{
     if (_session->get_device()->get_work_mode() == LOGIC){
         return _logic_cursors;
     }
@@ -1701,16 +1749,16 @@ Cursor* View::get_cursor_by_index(int index)
 
 void View::UpdateLanguage()
 {
-     
+
 }
 
 void View::UpdateTheme()
 {
-    
+
 }
 
 void View::UpdateFont()
-{  
+{
     update_font();
 }
 

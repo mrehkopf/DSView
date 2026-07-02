@@ -23,11 +23,12 @@
 #include <libsigrokdecode.h>
 #include <math.h>
 #include "logicsignal.h"
-#include "view.h" 
+#include "view.h"
 #include "../data/logicsnapshot.h"
 #include "view.h"
 #include "../dsvdef.h"
 #include "../log.h"
+#include "../config/appconfig.h"
 
 using namespace std;
 
@@ -44,7 +45,7 @@ LogicSignal::LogicSignal(data::LogicSnapshot *data,
     Signal(probe),
     _data(data)
 {
-    _trig = NONTRIG; 
+    _trig = NONTRIG;
     _paint_align_sample_count = 0;
 }
 
@@ -54,7 +55,7 @@ LogicSignal::LogicSignal(view::LogicSignal *s,
     Signal(*s, probe),
     _data(data),
     _trig(s->get_trig())
-{ 
+{
     _paint_align_sample_count = 0;
 }
 
@@ -62,6 +63,23 @@ LogicSignal::~LogicSignal()
 {
     _cur_edges.clear();
     _cur_pulses.clear();
+}
+
+void LogicSignal::paint_back(QPainter &p, int left, int right, QColor fore, QColor back)
+{
+    Trace::paint_back(p, left, right, fore, back);
+
+    // Logic channels have no fill of their own, so without an explicit
+    // boundary adjacent rows are hard to tell apart; draw a divider under
+    // each channel's row, in the middle of the gap to the next one.
+    QColor sep(fore);
+    sep.setAlpha(180);
+    QPen pen(sep);
+    pen.setWidth(2);
+    p.setPen(pen);
+
+    const int bottom = get_y() + get_totalHeight() / 2 + View::SignalMargin;
+    p.drawLine(left, bottom, right, bottom);
 }
 
 void LogicSignal::set_trig(int trig)
@@ -77,7 +95,7 @@ bool LogicSignal::commit_trig()
     if (_trig == NONTRIG) {
         ds_trigger_probe_set(_index_list.front(), 'X', 'X');
         return false;
-    } 
+    }
     else {
         ds_trigger_set_en(true);
         if (_trig == POSTRIG)
@@ -129,7 +147,7 @@ void LogicSignal::paint_mid_align(QPainter &p, int left, int right, QColor fore,
     double samplerate = _data->samplerate();
     if (_data->empty() || samplerate == 0)
 		return;
-  
+
     if (!_data->has_data(_probe->index))
         return;
 
@@ -144,7 +162,7 @@ void LogicSignal::paint_mid_align(QPainter &p, int left, int right, QColor fore,
     const double end = (offset + width + 1) * samples_per_pixel;
     const uint64_t end_index = min(max((int64_t)floor(end), (int64_t)0), last_sample);
     const uint64_t start_index = max((uint64_t)floor(start), (uint64_t)0);
-    
+
     if (start_index > end_index)
         return;
 
@@ -161,7 +179,7 @@ void LogicSignal::paint_mid_align(QPainter &p, int left, int right, QColor fore,
     int preY = first_sample ? high_offset : low_offset;
     int x = preX;
     std::vector<QLine> wave_lines;
-    
+
     if (_cur_edges.size() < max_togs) {
         std::vector<std::pair<uint16_t, bool>>::const_iterator i;
         for (i = _cur_edges.begin() + 1; i != _cur_edges.end() - 1; i++) {
@@ -189,7 +207,9 @@ void LogicSignal::paint_mid_align(QPainter &p, int left, int right, QColor fore,
         wave_lines.push_back(QLine(preX, preY, x, preY));
     }
 
-    p.setPen(_colour.isValid() ? _colour : fore);
+    QColor defaultColour = get_default_colour();
+    QColor lineColour = _colour.isValid() ? _colour : (defaultColour.isValid() ? defaultColour : fore);
+    p.setPen(QPen(lineColour, AppConfig::Instance().appOptions.logicSignalLineWidth));
     p.drawLines(wave_lines.data(), wave_lines.size());
 }
 
@@ -228,7 +248,7 @@ void LogicSignal::paint_type_options(QPainter &p, int right, const QPoint pt, QC
     p.setPen(Qt::NoPen);
 
     if (true)
-    {   
+    {
         QColor color = View::Blue;
 
         if (session->is_loop_mode()){
@@ -250,7 +270,7 @@ void LogicSignal::paint_type_options(QPainter &p, int right, const QPoint pt, QC
         p.setBrush(edgeTrig_rect.contains(pt) ? color.lighter() :
                 (_trig == EDGTRIG) ? color : Qt::transparent);
         p.drawRect(edgeTrig_rect);
-    }   
+    }
 
     p.setPen(QPen(fore, 1, Qt::DashLine));
     p.setBrush(Qt::transparent);
@@ -313,7 +333,7 @@ bool LogicSignal::measure(const QPointF &p, uint64_t &index0, uint64_t &index1, 
 
         const uint64_t end = _data->get_ring_sample_count() - 1;
         uint64_t index = _data->samplerate() * _view->scale() * (_view->x_offset() + p.x());
-        
+
         if (index > end){
             return false;
         }
@@ -468,7 +488,7 @@ bool LogicSignal::edges(const QPointF &p, uint64_t start, uint64_t &rising, uint
 }
 
 bool LogicSignal::edges(uint64_t end, uint64_t start, uint64_t &rising, uint64_t &falling)
-{  
+{
     if (_data->empty() || !_data->has_data(_probe->index))
         return false;
 
