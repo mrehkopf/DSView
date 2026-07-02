@@ -31,6 +31,7 @@
 #include <assert.h>
 #include <QTimer>
 #include <QGuiApplication>
+#include <QWindow>
 
 #include "../config/appconfig.h"
 #include "../appcontrol.h"
@@ -225,7 +226,21 @@ void TitleBar::mousePressEvent(QMouseEvent* event)
         bool bClick = (x >= 6 && y >= 5 && x <= width() - 6);  //top window need resize hit check
  
         if (!bTopWidow || bClick ){
-            _is_draging = true;             
+
+            // Wayland forbids clients from positioning themselves; manual
+            // move-by-delta below is a no-op there. Ask the compositor to
+            // perform the move instead, via the same protocol native
+            // titlebar dragging uses.
+            if (QGuiApplication::platformName().startsWith("wayland", Qt::CaseInsensitive)){
+                QWindow *win = window()->windowHandle();
+                if (win != NULL){
+                    win->startSystemMove();
+                    event->accept();
+                    return;
+                }
+            }
+
+            _is_draging = true;
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
             _clickPos = event->globalPosition().toPoint();
