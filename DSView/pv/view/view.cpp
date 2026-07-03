@@ -371,7 +371,8 @@ void View::vzoom(double steps)
 
 double View::get_trace_font_scale()
 {
-    if (_device_agent->have_instance())
+    // Vertical scaling only applies to the logic trace window (see vzoom()).
+    if (_device_agent->have_instance() && _device_agent->get_work_mode() == LOGIC)
         return _trace_height_factor;
     return 1.0;
 }

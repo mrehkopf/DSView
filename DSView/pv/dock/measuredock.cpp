@@ -54,8 +54,9 @@ MeasureDock::MeasureDock(QWidget *parent, View &view, SigSession *session) :
     QScrollArea(parent),
     _session(session),
     _view(view)
-{     
-    _widget = new QWidget(this);  
+{
+    this->setWidgetResizable(true);
+    _widget = new QWidget(this);
 
     _dist_pannel = NULL;
     _edge_pannel = NULL;
@@ -156,7 +157,6 @@ MeasureDock::MeasureDock(QWidget *parent, View &view, SigSession *session) :
     _widget->setLayout(layout);
 
     this->setWidget(_widget);
-    _widget->setGeometry(0, 0, sizeHint().width(), 2000);
     _widget->setObjectName("measureWidget");
 
     add_dist_measure();
@@ -958,9 +958,6 @@ void MeasureDock::UpdateFont()
     font.setPointSizeF(font.pointSizeF() + 1);
     this->parentWidget()->setFont(font);
 
-    font.setStretch(QFont::Condensed);
-    _condensed_font = font;
-
     adjusLabelSize();
 }
 
@@ -984,16 +981,15 @@ void MeasureDock::adjust_form_size(QWidget *wid)
         o->setFixedSize(size);
     }
 
-    QFontMetrics fm_condensed(_condensed_font);
-    _width_time_label->setFont(_condensed_font);
-    _width_samples_label->setFont(_condensed_font);
-    _period_time_label->setFont(_condensed_font);
-    _period_samples_label->setFont(_condensed_font);
-    _freq_label->setFont(_condensed_font);
-    _duty_label->setFont(_condensed_font);
-    int samples_label_width = fm_condensed.horizontalAdvance("############");
-    int time_label_width = fm_condensed.horizontalAdvance("+12.345678999ms");
-    int duty_label_width = fm_condensed.horizontalAdvance("+100.00% / +100.00%");
+    _width_time_label->setFont(font);
+    _width_samples_label->setFont(font);
+    _period_time_label->setFont(font);
+    _period_samples_label->setFont(font);
+    _freq_label->setFont(font);
+    _duty_label->setFont(font);
+    int samples_label_width = fm.horizontalAdvance("############");
+    int time_label_width = fm.horizontalAdvance("+12.345678999ms");
+    int duty_label_width = fm.horizontalAdvance("+100.00% / +100.00%");
     _width_time_label->setMinimumWidth(time_label_width);
     _width_time_label->setAlignment(Qt::AlignRight);
     _width_samples_label->setMinimumWidth(samples_label_width);
@@ -1009,13 +1005,13 @@ void MeasureDock::adjust_form_size(QWidget *wid)
 
     auto groups = wid->findChildren<QGroupBox*>();
     for(auto o : groups)
-    { 
-        o->setFixedWidth(max_label_width + 10);
+    {
+        o->setMinimumWidth(max_label_width + 10);
     }
 
     QWidget *pannel = dynamic_cast<QWidget*>(mainGroup->parent());
-    if (pannel != NULL){ 
-        pannel->setFixedWidth(max_label_width + 20);
+    if (pannel != NULL){
+        pannel->setMinimumWidth(max_label_width + 20);
     }
 }
 

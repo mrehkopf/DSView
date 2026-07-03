@@ -178,8 +178,6 @@ private:
     QLabel *_f_label;
     QLabel *_d_label;
     bool    _bSetting;
-
-    QFont  _condensed_font;
 };
 
 } // namespace dock
