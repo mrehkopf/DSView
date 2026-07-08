@@ -70,15 +70,23 @@ QWidget* Enum::get_widget(QWidget *parent, bool auto_commit)
 
 	_selector = new DsComboBox(parent);
 
+	int max_text_width = 0;
+
 	for (unsigned int i = 0; i < _values.size(); i++) {
 		const pair<GVariant*, QString> &v = _values[i];
         _selector->addItem(v.second, QVariant::fromValue((void*)v.first));
-		
+        max_text_width = qMax(max_text_width,
+            _selector->fontMetrics().boundingRect(v.second).width());
+
 		if (value && g_variant_compare(v.first, value) == 0)
 			_selector->setCurrentIndex(i);
 	}
 
 	g_variant_unref(value);
+
+    _selector->setMinimumWidth(max_text_width + 40);
+    _selector->view()->setMinimumWidth(max_text_width + 40);
+    _selector->view()->setTextElideMode(Qt::ElideNone);
 
     if (auto_commit) {
         connect(_selector, SIGNAL(currentIndexChanged(int)),
