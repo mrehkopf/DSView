@@ -79,6 +79,9 @@ private:
 	static const QColor Colours[16];
 	static const QColor OutlineColours[16];
 
+	static const QColor CatppuccinFrappeColours[14];
+	static const QColor CatppuccinLatteColours[14];
+
     static const int ControlRectWidth = 5;
     static const int MaxAnnType = 100;
 
@@ -171,6 +174,8 @@ private:
  
     void generate_annotation_colours(QColor baseColour, int local_row,
         const pv::data::decode::Annotation& a, QColor *fill, QColor *outline);
+
+    static QColor get_row_base_colour(int local_row);
 
 signals:
     void decoded_progress(int progress);
