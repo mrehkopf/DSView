@@ -2167,6 +2167,9 @@ namespace pv
             case DSV_MSG_APP_OPTIONS_CHANGED:
             {
                 update_title_bar_text();
+                // Recompute trace layout: the inter-channel spacing depends on
+                // the channel-divider option (see View::get_signal_margin()).
+                _view->signals_changed(NULL);
                 _view->viewport_update();
                 break;
             }

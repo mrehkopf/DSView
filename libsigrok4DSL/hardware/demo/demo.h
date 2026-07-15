@@ -414,25 +414,6 @@ static const gboolean default_ms_en[] = {
 
 static const struct DEMO_profile supported_Demo[] = {
     /*
-     * Demo
-     */
-    {"DreamSourceLab", "Demo Device", NULL,
-     {CAPS_MODE_LOGIC | CAPS_MODE_ANALOG | CAPS_MODE_DSO,
-      CAPS_FEATURE_NONE,
-      (1 << DEMO_LOGIC100x16) |
-      (1 << DEMO_ANALOG10x2) |
-      (1 << DEMO_DSO200x2),
-      SR_Mn(100),
-      SR_Kn(20),
-      0,
-      vdivs10to2000,
-      0,
-      DEMO_LOGIC100x16,
-      PATTERN_RANDOM,
-      SR_NS(500)}
-    },
-
-    /*
      * Demo Oscilloscope
      */
     {"DreamSourceLab", "Demo Oscilloscope", NULL,
@@ -445,6 +426,26 @@ static const struct DEMO_profile supported_Demo[] = {
       vdivs10to2000,
       0,
       DEMO_DSO200x2,
+      PATTERN_RANDOM,
+      SR_NS(500)}
+    },
+
+    /*
+     * Demo Logic (listed last so it is the default device selected at launch;
+     * see SigSession::set_default_device(), which picks the last device).
+     */
+    {"DreamSourceLab", "Demo Logic", NULL,
+     {CAPS_MODE_LOGIC | CAPS_MODE_ANALOG | CAPS_MODE_DSO,
+      CAPS_FEATURE_NONE,
+      (1 << DEMO_LOGIC100x16) |
+      (1 << DEMO_ANALOG10x2) |
+      (1 << DEMO_DSO200x2),
+      SR_Mn(100),
+      SR_Kn(20),
+      0,
+      vdivs10to2000,
+      0,
+      DEMO_LOGIC100x16,
       PATTERN_RANDOM,
       SR_NS(500)}
     },

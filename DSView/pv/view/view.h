@@ -84,8 +84,13 @@ private:
 
 public:
     //static const int SignalHeight;
-	static const int SignalMargin;
+	static const int SignalMargin;         // inter-channel spacing with divider
+	static const int SignalMarginCompact;  // original spacing without divider
 	static const int SignalSnapGridSize;
+
+	// Effective inter-channel margin: the compact spacing is restored when the
+	// logic channel divider line is disabled (see AppConfig::logicChannelDivider).
+	static int get_signal_margin();
 
 	static const QColor CursorAreaColour;
 	static const QSizeF LabelPadding;
@@ -179,6 +184,13 @@ public:
      * traces, negative steps shrink them. The factor is persisted.
      */
     void vzoom(double steps);
+
+    /**
+     * Sets the vertical trace-height scaling factor directly (logic mode).
+     * The value is clamped to [MinTraceHeightFactor, MaxTraceHeightFactor]
+     * and persisted. Passing 1.0 resets the y-axis zoom to its default.
+     */
+    void set_trace_height_factor(double factor);
 
 	/**
 	 * Sets the scale and offset.

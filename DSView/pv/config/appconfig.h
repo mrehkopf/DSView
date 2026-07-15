@@ -87,6 +87,7 @@ struct AppOptions
     bool decoderDynamicFontWidth;
     bool dontAskSaveOnExit;
     float logicSignalLineWidth;
+    bool logicChannelDivider;
     bool dsoSplitChannels;
     std::vector<StringPair> m_protocolFormats;
 };

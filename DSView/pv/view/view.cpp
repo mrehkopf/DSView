@@ -65,7 +65,14 @@ const int View::MaxScrollValue = INT_MAX / 2;
 const int View::HeightUnit = 20; // also serves as minimum signal height
 
 const int View::SignalMargin = 12;
+const int View::SignalMarginCompact = 3;
 const int View::SignalSnapGridSize = 10;
+
+int View::get_signal_margin()
+{
+    return AppConfig::Instance().appOptions.logicChannelDivider
+        ? SignalMargin : SignalMarginCompact;
+}
 
 const QColor View::CursorAreaColour(220, 231, 243);
 const QSizeF View::LabelPadding(4, 4);
@@ -352,6 +359,11 @@ void View::vzoom(double steps)
 
     // Halve the step size (relative to horizontal zoom) for finer adjustment.
     double factor = _trace_height_factor * std::pow(3.0/2.0, steps * 0.5);
+    set_trace_height_factor(factor);
+}
+
+void View::set_trace_height_factor(double factor)
+{
     factor = max(min(factor, MaxTraceHeightFactor), MinTraceHeightFactor);
 
     if (factor == _trace_height_factor)
@@ -644,7 +656,7 @@ void View::normalize_layout()
         }
     }
 
-	const int delta = -min(v_min - (top->get_totalHeight() / 2 + 2 * SignalMargin), 0);
+	const int delta = -min(v_min - (top->get_totalHeight() / 2 + 2 * get_signal_margin()), 0);
 
     verticalScrollBar()->setSliderPosition(delta);
 	v_scroll_value_changed(verticalScrollBar()->sliderPosition());
@@ -694,7 +706,7 @@ void View::update_scroll()
     int total_height = 0;
     for (auto t : traces) {
         if (t->enabled())
-            total_height += t->get_totalHeight() + 2 * SignalMargin;
+            total_height += t->get_totalHeight() + 2 * get_signal_margin();
     }
 
     // Make sure we can scroll the last signal past the status bar
@@ -746,7 +758,7 @@ void View::mode_changed()
 
 void View::signals_changed(const Trace* eventTrace)
 {
-    double actualMargin = SignalMargin;
+    double actualMargin = get_signal_margin();
     int total_rows = 0;
     int label_size = 0;
     uint8_t max_height = HeightUnit;
