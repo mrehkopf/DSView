@@ -36,8 +36,8 @@ set(DS_VERSION_MICRO 0)
 set(DS_VERSION_STRING  ${DS_VERSION_MAJOR}.${DS_VERSION_MINOR}.${DS_VERSION_MICRO})
 
 configure_file (
-	${PROJECT_SOURCE_DIR}/DSView/config.h.in
-	${PROJECT_BINARY_DIR}/DSView/config.h
+    ${PROJECT_SOURCE_DIR}/DSView/config.h.in
+    ${PROJECT_BINARY_DIR}/DSView/config.h
 )
 
 #===============================================================================
@@ -52,7 +52,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake")
 find_package(PkgConfig)
 
 if(NOT PKG_CONFIG_FOUND)
-	message(FATAL_ERROR  "Please install pkg-config!")
+    message(FATAL_ERROR  "Please install pkg-config!")
 endif()
 
 #===============================================================================
@@ -65,8 +65,8 @@ set(ENABLE_COTIRE FALSE) #Enable cotire
 set(ENABLE_TESTS  FALSE) #Enable unit tests
 
 if(WIN32)
-	# Windows does not support UNIX signals.
-	set(ENABLE_SIGNALS FALSE)
+    # Windows does not support UNIX signals.
+    set(ENABLE_SIGNALS FALSE)
 endif()
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -91,7 +91,7 @@ include_directories(
 pkg_search_module(GLIB glib-2.0)
 
 if(NOT GLIB_FOUND)
-	message(FATAL_ERROR  "Please install glib!")
+    message(FATAL_ERROR  "Please install glib!")
 endif()
 
 message("----- glib-2.0:")
@@ -103,7 +103,6 @@ link_directories(${GLIB_LIBDIR})
 #===============================================================================
 #= python3
 #-------------------------------------------------------------------------------
-
 find_package(Python3 COMPONENTS Development QUIET)
 
 if (Python3_FOUND)
@@ -142,7 +141,7 @@ endif()
 find_package(FFTW)
 
 if(NOT FFTW_FOUND)
-	message(FATAL_ERROR  "Please install lib fftw!")
+    message(FATAL_ERROR  "Please install lib fftw!")
 endif()
 
 message("----- FFTW:")
@@ -156,7 +155,7 @@ include_directories(${FFTW_INCLUDE_DIRS})
 find_package(libusb-1.0)
 
 if(NOT LIBUSB_1_FOUND)
-	message(FATAL_ERROR  "Please install libusb!")
+    message(FATAL_ERROR  "Please install libusb!")
 endif()
 
 message("----- libusb-1.0:")
@@ -170,7 +169,7 @@ include_directories(${LIBUSB_1_INCLUDE_DIRS})
 find_package(ZLIB QUIET)
 
 if(NOT ZLIB_FOUND)
-	message(FATAL_ERROR  "Please install zlib!")
+    message(FATAL_ERROR  "Please install zlib!")
 endif()
 
 message("----- zlib:")
@@ -184,43 +183,42 @@ include_directories(${ZLIB_INCLUDE_DIRS})
 # Prioritize Qt6 for better font rendering on OSX, better Wayland compatibility
 # on Linux, and to stay on the actively maintained Qt release on Windows.
 #-------------------------------------------------------------------------------
-
 find_package(Qt6Core QUIET)
 
 if(Qt6Core_FOUND)
-	message("----- Qt6:")
-	message(STATUS "	 includes:" ${Qt6Core_INCLUDE_DIRS})
-	find_package(Qt6Widgets REQUIRED)
-	find_package(Qt6Gui REQUIRED)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Qt6Widgets_EXECUTABLE_COMPILE_FLAGS}")
-	set(QT_INCLUDE_DIRS ${Qt6Gui_INCLUDE_DIRS} ${Qt6Widgets_INCLUDE_DIRS})
-	set(QT_LIBRARIES Qt6::Gui Qt6::Widgets)
-	if(WIN32)
-		find_package(Qt6Core5Compat REQUIRED)
-		add_definitions(${Qt6Core5Compat_DEFINITIONS})
-		list(APPEND QT_LIBRARIES Qt6::Core5Compat)
-		list(APPEND QT_INCLUDE_DIRS ${Qt6Core5Compat_INCLUDE_DIRS})
-	endif()
-	add_definitions(${Qt6Gui_DEFINITIONS} ${Qt6Widgets_DEFINITIONS})
+    message("----- Qt6:")
+    message(STATUS "	 includes:" ${Qt6Core_INCLUDE_DIRS})
+    find_package(Qt6Widgets REQUIRED)
+    find_package(Qt6Gui REQUIRED)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Qt6Widgets_EXECUTABLE_COMPILE_FLAGS}")
+    set(QT_INCLUDE_DIRS ${Qt6Gui_INCLUDE_DIRS} ${Qt6Widgets_INCLUDE_DIRS})
+    set(QT_LIBRARIES Qt6::Gui Qt6::Widgets)
+    if(WIN32)
+        find_package(Qt6Core5Compat REQUIRED)
+        add_definitions(${Qt6Core5Compat_DEFINITIONS})
+        list(APPEND QT_LIBRARIES Qt6::Core5Compat)
+        list(APPEND QT_INCLUDE_DIRS ${Qt6Core5Compat_INCLUDE_DIRS})
+    endif()
+    add_definitions(${Qt6Gui_DEFINITIONS} ${Qt6Widgets_DEFINITIONS})
 else()
-	find_package(Qt5Core QUIET)
+    find_package(Qt5Core QUIET)
 endif()
 
 if(Qt5Core_FOUND)
-	message("----- Qt5:")
-	message(STATUS "	 includes:" ${Qt5Core_INCLUDE_DIRS})
-	find_package(Qt5Widgets REQUIRED)
-	find_package(Qt5Gui REQUIRED)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Qt5Widgets_EXECUTABLE_COMPILE_FLAGS}")
-	set(QT_INCLUDE_DIRS ${Qt5Gui_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS})
-	set(QT_LIBRARIES Qt5::Gui Qt5::Widgets)
-	add_definitions(${Qt5Gui_DEFINITIONS} ${Qt5Widgets_DEFINITIONS})
+    message("----- Qt5:")
+    message(STATUS "	 includes:" ${Qt5Core_INCLUDE_DIRS})
+    find_package(Qt5Widgets REQUIRED)
+    find_package(Qt5Gui REQUIRED)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Qt5Widgets_EXECUTABLE_COMPILE_FLAGS}")
+    set(QT_INCLUDE_DIRS ${Qt5Gui_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS})
+    set(QT_LIBRARIES Qt5::Gui Qt5::Widgets)
+    add_definitions(${Qt5Gui_DEFINITIONS} ${Qt5Widgets_DEFINITIONS})
 endif()
 
 if(NOT Qt5Core_FOUND AND NOT Qt6Core_FOUND)
-	message("Error!The qt5 or qt6 can't find, if them has been installed, please append the install path to CMAKE_PREFIX_PATH, the command as:")
-	message("list(APPEND CMAKE_PREFIX_PATH \"xxx install path\")" )
-	message(FATAL_ERROR  "Can't find Qt5 or Qt6!")
+    message("Error!The qt5 or qt6 can't find, if them has been installed, please append the install path to CMAKE_PREFIX_PATH, the command as:")
+    message("list(APPEND CMAKE_PREFIX_PATH \"xxx install path\")" )
+    message(FATAL_ERROR  "Can't find Qt5 or Qt6!")
 endif()
 
 #===============================================================================
@@ -229,7 +227,7 @@ endif()
 find_package(Boost 1.42 QUIET)
 
 if(NOT Boost_FOUND)
-	message(FATAL_ERROR  "Please install boost!")
+    message(FATAL_ERROR  "Please install boost!")
 endif()
 
 message("----- boost:")
@@ -239,7 +237,6 @@ include_directories(${Boost_INCLUDE_DIRS})
 #===============================================================================
 #= Dependencies
 #-------------------------------------------------------------------------------
-
 find_package(Threads)
 
 #===============================================================================
@@ -561,10 +558,10 @@ set(DSView_RESOURCES
 
 
 if(WIN32)
-	# Use the DSView icon for the DSView.exe executable.
-	set(CMAKE_RC_COMPILE_OBJECT "${CMAKE_RC_COMPILER} -O coff -I${CMAKE_CURRENT_SOURCE_DIR} <SOURCE> <OBJECT>")
-	enable_language(RC)
-	# app icon
+    # Use the DSView icon for the DSView.exe executable.
+    set(CMAKE_RC_COMPILE_OBJECT "${CMAKE_RC_COMPILER} -O coff -I${CMAKE_CURRENT_SOURCE_DIR} <SOURCE> <OBJECT>")
+    enable_language(RC)
+    # app icon
         list(APPEND DSView_SOURCES applogo.rc)
         list(APPEND DSView_SOURCES
             DSView/pv/winnativewidget.cpp
@@ -577,15 +574,15 @@ if(WIN32)
 endif()
 
 if(Qt5Core_FOUND)
-	qt5_wrap_cpp(DSView_HEADERS_MOC ${DSView_HEADERS})
-	qt5_wrap_ui(DSView_FORMS_HEADERS ${DSView_FORMS})
-	qt5_add_resources(DSView_RESOURCES_RCC ${DSView_RESOURCES})
+    qt5_wrap_cpp(DSView_HEADERS_MOC ${DSView_HEADERS})
+    qt5_wrap_ui(DSView_FORMS_HEADERS ${DSView_FORMS})
+    qt5_add_resources(DSView_RESOURCES_RCC ${DSView_RESOURCES})
 endif()
 
 if(Qt6Core_FOUND)
-	qt6_wrap_cpp(DSView_HEADERS_MOC ${DSView_HEADERS})
-	qt6_wrap_ui(DSView_FORMS_HEADERS ${DSView_FORMS})
-	qt6_add_resources(DSView_RESOURCES_RCC ${DSView_RESOURCES})
+    qt6_wrap_cpp(DSView_HEADERS_MOC ${DSView_HEADERS})
+    qt6_wrap_ui(DSView_FORMS_HEADERS ${DSView_FORMS})
+    qt6_add_resources(DSView_RESOURCES_RCC ${DSView_RESOURCES})
 endif()
 
 
@@ -601,10 +598,10 @@ set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
 
 
 include_directories(
-	${CMAKE_CURRENT_BINARY_DIR}
-	${CMAKE_CURRENT_SOURCE_DIR}
-	${Boost_INCLUDE_DIRS}
-	${QT_INCLUDE_DIRS}
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${Boost_INCLUDE_DIRS}
+    ${QT_INCLUDE_DIRS}
 )
 
 #===============================================================================
@@ -620,30 +617,29 @@ add_compile_options(-O3)
 #= Linker Configuration
 #-------------------------------------------------------------------------------
 
-
 set(DSVIEW_LINK_LIBS
-	-lz
-	-lglib-2.0
-	${CMAKE_THREAD_LIBS_INIT}
-	${QT_LIBRARIES}
-	${LIBUSB_1_LIBRARIES}
-	${FFTW_LIBRARIES}
-	${PY_LIB}
+    -lz
+    -lglib-2.0
+    ${CMAKE_THREAD_LIBS_INIT}
+    ${QT_LIBRARIES}
+    ${LIBUSB_1_LIBRARIES}
+    ${FFTW_LIBRARIES}
+    ${PY_LIB}
 )
 
 if(WIN32)
-	# Workaround for a MinGW linking issue.
-	list(APPEND PULSEVIEW_LINK_LIBS "-llzma -llcms2")
+    # Workaround for a MinGW linking issue.
+    list(APPEND PULSEVIEW_LINK_LIBS "-llzma -llcms2")
 endif()
 
 add_executable(${PROJECT_NAME}
-	${common_SOURCES}
-	${DSView_SOURCES}
-	${DSView_HEADERS_MOC}
-	${DSView_FORMS_HEADERS}
-	${DSView_RESOURCES_RCC}
-	${libsigrok4DSL_SOURCES}
-	${libsigrokdecode4DSL_SOURCES}
+    ${common_SOURCES}
+    ${DSView_SOURCES}
+    ${DSView_HEADERS_MOC}
+    ${DSView_FORMS_HEADERS}
+    ${DSView_RESOURCES_RCC}
+    ${libsigrok4DSL_SOURCES}
+    ${libsigrokdecode4DSL_SOURCES}
 )
 
 target_link_libraries(${PROJECT_NAME} ${DSVIEW_LINK_LIBS})
@@ -654,8 +650,8 @@ set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-mwindows")
 endif()
 
 if(ENABLE_COTIRE)
-	include(cotire)
-	cotire(${PROJECT_NAME})
+    include(cotire)
+    cotire(${PROJECT_NAME})
 endif()
 
 message(STATUS "Output dir: ${CMAKE_CURRENT_SOURCE_DIR}/build.dir")
@@ -666,56 +662,56 @@ set(EXECUTABLE_OUTPUT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/build.dir")
 #-------------------------------------------------------------------------------
 
 if(WIN32)
-	# Settings for NSIS to create a Windows installer
-	set(CPACK_GENERATOR "NSIS")
-	set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
-	set(CPACK_PACKAGE_EXECUTABLES DSView DSView)
-	set(CPACK_CREATE_DESKTOP_LINKS DSView)
-	set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/logo-win.ico")
-	set(CPACK_NSIS_MUI_UNIICON "${CMAKE_CURRENT_SOURCE_DIR}/logo-win.ico")
-	set(CPACK_PACKAGE_VENDOR "DreamSourceLab")
-	set(CPACK_NSIS_INSTALLED_ICON_NAME "DSView.exe")
-	install(TARGETS ${PROJECT_NAME} DESTINATION .)
-	install(DIRECTORY DSView/res DESTINATION .)
-	install(DIRECTORY DSView/demo DESTINATION .)
-	install(DIRECTORY lang DESTINATION .)
-	install(DIRECTORY libsigrokdecode4DSL/decoders
-			DESTINATION .
-			PATTERN "__pycache__" EXCLUDE)
-	if(IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/cross-compile-windows/python-setup/python-dist)
-		install(DIRECTORY cross-compile-windows/python-setup/python-dist/. DESTINATION .)
-	endif()
+    # Settings for NSIS to create a Windows installer
+    set(CPACK_GENERATOR "NSIS")
+    set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
+    set(CPACK_PACKAGE_EXECUTABLES DSView DSView)
+    set(CPACK_CREATE_DESKTOP_LINKS DSView)
+    set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/logo-win.ico")
+    set(CPACK_NSIS_MUI_UNIICON "${CMAKE_CURRENT_SOURCE_DIR}/logo-win.ico")
+    set(CPACK_PACKAGE_VENDOR "DreamSourceLab")
+    set(CPACK_NSIS_INSTALLED_ICON_NAME "DSView.exe")
+    install(TARGETS ${PROJECT_NAME} DESTINATION .)
+    install(DIRECTORY DSView/res DESTINATION .)
+    install(DIRECTORY DSView/demo DESTINATION .)
+    install(DIRECTORY lang DESTINATION .)
+    install(DIRECTORY libsigrokdecode4DSL/decoders
+            DESTINATION .
+            PATTERN "__pycache__" EXCLUDE)
+    if(IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/cross-compile-windows/python-setup/python-dist)
+        install(DIRECTORY cross-compile-windows/python-setup/python-dist/. DESTINATION .)
+    endif()
 else()
-	# Install the executable.
-	install(TARGETS ${PROJECT_NAME} DESTINATION bin)
-	install(DIRECTORY DSView/res DESTINATION share/DSView)
-	install(DIRECTORY DSView/demo DESTINATION share/DSView)
-	install(FILES DSView/icons/logo.svg DESTINATION share/DSView RENAME logo.svg)
-	install(FILES DSView/icons/logo.svg DESTINATION share/icons/hicolor/scalable/apps RENAME dsview.svg)
-	install(FILES DSView/icons/logo.svg DESTINATION share/pixmaps RENAME dsview.svg)
+    # Install the executable.
+    install(TARGETS ${PROJECT_NAME} DESTINATION bin)
+    install(DIRECTORY DSView/res DESTINATION share/DSView)
+    install(DIRECTORY DSView/demo DESTINATION share/DSView)
+    install(FILES DSView/icons/logo.svg DESTINATION share/DSView RENAME logo.svg)
+    install(FILES DSView/icons/logo.svg DESTINATION share/icons/hicolor/scalable/apps RENAME dsview.svg)
+    install(FILES DSView/icons/logo.svg DESTINATION share/pixmaps RENAME dsview.svg)
 
-	if(CMAKE_SYSTEM_NAME MATCHES "Linux")
-		install(FILES DSView/DSView.desktop DESTINATION /usr/share/applications RENAME dsview.desktop)
+    if(CMAKE_SYSTEM_NAME MATCHES "Linux")
+        install(FILES DSView/DSView.desktop DESTINATION /usr/share/applications RENAME dsview.desktop)
 
-		add_compile_definitions(_DEFAULT_SOURCE)
+        add_compile_definitions(_DEFAULT_SOURCE)
 
-		if(IS_DIRECTORY /usr/lib/udev/rules.d)
-			install(FILES DSView/DreamSourceLab.rules DESTINATION /usr/lib/udev/rules.d RENAME 60-dreamsourcelab.rules)
-		elseif(IS_DIRECTORY /lib/udev/rules.d)
-			install(FILES DSView/DreamSourceLab.rules DESTINATION /lib/udev/rules.d RENAME 60-dreamsourcelab.rules)
-		elseif(IS_DIRECTORY /etc/udev/rules.d)
-			install(FILES DSView/DreamSourceLab.rules DESTINATION /etc/udev/rules.d RENAME 60-dreamsourcelab.rules)
-		endif()
+        if(IS_DIRECTORY /usr/lib/udev/rules.d)
+            install(FILES DSView/DreamSourceLab.rules DESTINATION /usr/lib/udev/rules.d RENAME 60-dreamsourcelab.rules)
+        elseif(IS_DIRECTORY /lib/udev/rules.d)
+            install(FILES DSView/DreamSourceLab.rules DESTINATION /lib/udev/rules.d RENAME 60-dreamsourcelab.rules)
+        elseif(IS_DIRECTORY /etc/udev/rules.d)
+            install(FILES DSView/DreamSourceLab.rules DESTINATION /etc/udev/rules.d RENAME 60-dreamsourcelab.rules)
+        endif()
 
-	endif()
+    endif()
 
-	install(FILES NEWS25 DESTINATION share/DSView RENAME NEWS25)
-	install(FILES NEWS31 DESTINATION share/DSView RENAME NEWS31)
-	install(FILES ug25.pdf DESTINATION share/DSView RENAME ug25.pdf)
-	install(FILES ug31.pdf DESTINATION share/DSView RENAME ug31.pdf)
+    install(FILES NEWS25 DESTINATION share/DSView RENAME NEWS25)
+    install(FILES NEWS31 DESTINATION share/DSView RENAME NEWS31)
+    install(FILES ug25.pdf DESTINATION share/DSView RENAME ug25.pdf)
+    install(FILES ug31.pdf DESTINATION share/DSView RENAME ug31.pdf)
 
-	install(DIRECTORY libsigrokdecode4DSL/decoders DESTINATION share/libsigrokdecode4DSL)
-	install(DIRECTORY lang DESTINATION share/DSView)
+    install(DIRECTORY libsigrokdecode4DSL/decoders DESTINATION share/libsigrokdecode4DSL)
+    install(DIRECTORY lang DESTINATION share/DSView)
 endif()
 
 #===============================================================================
@@ -729,7 +725,7 @@ set(CPACK_PACKAGE_DESCRIPTION_FILE ${CMAKE_CURRENT_SOURCE_DIR}/DSView/README)
 set(CPACK_RESOURCE_FILE_LICENSE ${CMAKE_CURRENT_SOURCE_DIR}/DSView/COPYING)
 set(CPACK_SOURCE_IGNORE_FILES ${CMAKE_CURRENT_BINARY_DIR} ".gitignore" ".git")
 set(CPACK_SOURCE_PACKAGE_FILE_NAME
-	"${CMAKE_PROJECT_NAME}-${DS_VERSION_MAJOR}.${DS_VERSION_MINOR}.${DS_VERSION_MICRO}")
+    "${CMAKE_PROJECT_NAME}-${DS_VERSION_MAJOR}.${DS_VERSION_MINOR}.${DS_VERSION_MICRO}")
 set(CPACK_SOURCE_GENERATOR "TGZ")
 
 include(CPack)
@@ -739,9 +735,9 @@ include(CPack)
 #-------------------------------------------------------------------------------
 
 if(ENABLE_TESTS)
-	add_subdirectory(test)
-	enable_testing()
-	add_test(test ${CMAKE_CURRENT_BINARY_DIR}/DSView/test/DSView-test)
+    add_subdirectory(test)
+    enable_testing()
+    add_test(test ${CMAKE_CURRENT_BINARY_DIR}/DSView/test/DSView-test)
 endif(ENABLE_TESTS)
 
 

@@ -76,7 +76,9 @@ Viewport::Viewport(View &parent, View_type type) :
     _waiting_trig(0),
     _dso_trig_moved(false),
     _curs_moved(false),
-    _xcurs_moved(false)
+    _xcurs_moved(false),
+    _yscale_hint_active(false),
+    _yscale_badge_pressed(false)
 {
 	setMouseTracking(true);
 	setAutoFillBackground(true);
@@ -109,11 +111,15 @@ Viewport::Viewport(View &parent, View_type type) :
     QAction *xAction = _cmenu->addAction(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_ADD_X_CURSOR), "Add X-cursor"));
     _yAction = yAction;
     _xAction = xAction;
- 
+
     setContextMenuPolicy(Qt::CustomContextMenu);
 
+    // Repeating tick that animates the transient y-scale badge fade-out.
+    _yscale_hint_timer.setSingleShot(false);
+
     connect(&_trigger_timer, SIGNAL(timeout()),this, SLOT(on_trigger_timer()));
-    connect(&_drag_timer, SIGNAL(timeout()),this, SLOT(on_drag_timer())); 
+    connect(&_drag_timer, SIGNAL(timeout()),this, SLOT(on_drag_timer()));
+    connect(&_yscale_hint_timer, SIGNAL(timeout()),this, SLOT(on_yscale_hint_timeout()));
     connect(yAction, SIGNAL(triggered(bool)), this, SLOT(add_cursor_y()));
     connect(xAction, SIGNAL(triggered(bool)), this, SLOT(add_cursor_x()));
     connect(this, SIGNAL(customContextMenuRequested(const QPoint&)),this, SLOT(show_contextmenu(const QPoint&)));
@@ -135,7 +141,7 @@ int Viewport::get_total_height()
     for(auto t : traces) {
         h += (int)(t->get_totalHeight());
     }
-    h += 2 * View::SignalMargin;
+    h += 2 * View::get_signal_margin();
 
 	return h;
 }
@@ -247,6 +253,8 @@ void Viewport::doPaint()
     if (_view.get_signalHeight() != _curSignalHeight)
             _curSignalHeight = _view.get_signalHeight();
 
+    paintYScaleBadge(p, fore, back);
+
 	p.end();
 }
 
@@ -268,8 +276,76 @@ void Viewport::paintCursors(QPainter &p)
     }
 }
 
+void Viewport::paintYScaleBadge(QPainter &p, QColor fore, QColor back)
+{
+    // Only meaningful for the logic trace window, where vzoom() applies.
+    if (_type != TIME_VIEW ||
+        _view.session().get_device()->get_work_mode() != LOGIC) {
+        _yscale_badge_rect = QRect();
+        return;
+    }
+
+    // Shown transiently after a vertical zoom / reset, then fades out.
+    if (!_yscale_hint_active) {
+        _yscale_badge_rect = QRect();
+        return;
+    }
+
+    // Full opacity, then a linear fade over the last YScaleBadgeFadeMs.
+    const qint64 elapsed = _yscale_hint_clock.elapsed();
+    const qint64 fade_start = YScaleBadgeDurationMs - YScaleBadgeFadeMs;
+    double opacity = 1.0;
+    if (elapsed > fade_start)
+        opacity = max(0.0, 1.0 - double(elapsed - fade_start) / YScaleBadgeFadeMs);
+
+    const double factor = _view.get_trace_height_factor();
+    const QString text = QString("Y-scale %1x").arg(factor, 0, 'f', 2);
+    const QString glyph = QString::fromUtf8(" \xE2\x9F\xB2"); // U+27F2 reset arrow
+
+    QFont font = p.font();
+    font.setPointSizeF(AppConfig::Instance().GetTraceFontSize());
+    const QFontMetrics fm(font);
+
+    const int padX = 8;
+    const int padY = 4;
+    const int textW = fm.horizontalAdvance(text + glyph);
+    const int textH = fm.height();
+
+    const QRect view_rect = _view.get_view_rect();
+    const int margin = 6;
+    QRect badge(view_rect.right() - textW - 2 * padX - margin,
+                view_rect.top() + margin,
+                textW + 2 * padX,
+                textH + 2 * padY);
+
+    p.save();
+    p.setRenderHint(QPainter::Antialiasing, true);
+    p.setOpacity(opacity);
+    p.setFont(font);
+
+    QColor bg = back;
+    bg.setAlpha(220);
+    p.setPen(QPen(View::Blue, 1));
+    p.setBrush(bg);
+    p.drawRoundedRect(badge, 4, 4);
+
+    fore.setAlpha(255);
+    p.setPen(fore);
+    p.drawText(QRect(badge.left() + padX, badge.top(), fm.horizontalAdvance(text) + 1, badge.height()),
+               Qt::AlignVCenter | Qt::AlignLeft, text);
+    p.setPen(View::Blue);
+    p.drawText(QRect(badge.left() + padX + fm.horizontalAdvance(text), badge.top(),
+                     fm.horizontalAdvance(glyph) + padX, badge.height()),
+               Qt::AlignVCenter | Qt::AlignLeft, glyph);
+
+    p.restore();
+
+    // Store hit-area so a click resets the y-scale (#5).
+    _yscale_badge_rect = badge;
+}
+
 void Viewport::paintSignals(QPainter &p, QColor fore, QColor back)
-{ 
+{
     std::vector<Trace*> traces;
     _view.get_traces(_type, traces);
 
@@ -659,6 +735,17 @@ void Viewport::mousePressEvent(QMouseEvent *event)
     _elapsed_time.restart();
     _drag_delta_t = 0;
     _drag_delta_x = 0;
+
+    // Click on the y-scale badge resets the vertical zoom (logic mode).
+    // The matching release is swallowed so it doesn't hit the trace below.
+    if (_action_type == NO_ACTION
+        && event->button() == Qt::LeftButton
+        && !_yscale_badge_rect.isEmpty()
+        && _yscale_badge_rect.contains(event->pos())) {
+        _yscale_badge_pressed = true;
+        reset_yscale();
+        return;
+    }
 
     // cancel potential ongoing MOVE action so click/drag is evaluated anew
     if (_action_type == LOGIC_MOVE) {
@@ -1191,6 +1278,13 @@ void Viewport::mouseReleaseEvent(QMouseEvent *event)
 {
     assert(event);
 
+    // The press was consumed by the y-scale badge; ignore this release so it
+    // is not also interpreted as a click on the trace below the badge.
+    if (_yscale_badge_pressed) {
+        _yscale_badge_pressed = false;
+        return;
+    }
+
     if (_type != TIME_VIEW){
         update(UpdateEventType::UPDATE_EV_MS_UP);
         return;
@@ -1397,6 +1491,7 @@ void Viewport::wheelEvent(QWheelEvent *event)
                 // Ctrl+Shift+wheel: scale the trace height in the y axis so
                 // signals can use the full window height.
                 _view.vzoom(zoom_scale);
+                flash_yscale_badge();
             }
             // Vertical scrolling is interpreted as zooming in/out
             else if(doVScroll) {
@@ -2256,6 +2351,8 @@ bool Viewport::get_dso_trig_moved()
 
 void Viewport::show_contextmenu(const QPoint& pos)
 {
+    // The X/Y cursor menu is a DSO-only concept; logic mode has no context
+    // menu (the y-scale is reset by clicking the badge, see paintYScaleBadge).
     if(_cmenu &&
        _view.session().get_device()->get_work_mode() == DSO)
     {
@@ -2263,6 +2360,38 @@ void Viewport::show_contextmenu(const QPoint& pos)
         _cur_preY = pos.y();
         _cmenu->exec(QCursor::pos());
     }
+}
+
+void Viewport::reset_yscale()
+{
+    _view.set_trace_height_factor(1.0);
+    flash_yscale_badge();
+}
+
+void Viewport::on_yscale_hint_timeout()
+{
+    // Keep the badge fully visible while the pointer hovers over it; the
+    // fade only (re)starts once the mouse leaves the badge.
+    const bool hovered = !_yscale_badge_rect.isEmpty() && underMouse()
+        && _yscale_badge_rect.contains(mapFromGlobal(QCursor::pos()));
+
+    if (hovered) {
+        _yscale_hint_clock.restart();
+    }
+    else if (_yscale_hint_clock.elapsed() >= YScaleBadgeDurationMs) {
+        _yscale_hint_active = false;
+        _yscale_hint_timer.stop();
+        _yscale_badge_rect = QRect();
+    }
+    QWidget::update();
+}
+
+void Viewport::flash_yscale_badge()
+{
+    _yscale_hint_active = true;
+    _yscale_hint_clock.restart();
+    _yscale_hint_timer.start(YScaleBadgeTickMs);
+    QWidget::update();
 }
 
 void Viewport::add_cursor_y()

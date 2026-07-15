@@ -69,9 +69,13 @@ void LogicSignal::paint_back(QPainter &p, int left, int right, QColor fore, QCol
 {
     Trace::paint_back(p, left, right, fore, back);
 
-    // Logic channels have no fill of their own, so without an explicit
-    // boundary adjacent rows are hard to tell apart; draw a divider under
-    // each channel's row, in the middle of the gap to the next one.
+    // Optional per-channel divider. Logic channels have no fill of their own,
+    // so without an explicit boundary adjacent rows are hard to tell apart;
+    // draw a divider under each channel's row, in the middle of the gap to the
+    // next one. Can be disabled to restore the classic borderless look.
+    if (!AppConfig::Instance().appOptions.logicChannelDivider)
+        return;
+
     QColor sep(fore);
     sep.setAlpha(180);
     QPen pen(sep);

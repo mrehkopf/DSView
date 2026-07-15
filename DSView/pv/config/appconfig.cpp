@@ -133,6 +133,7 @@ static void _loadApp(AppOptions &o, QSettings &st)
     getFiled("minDecoderFontWidthPercent", st, o.minDecoderFontWidthPercent, 75);
     getFiled("dontAskSaveOnExit", st, o.dontAskSaveOnExit, false);
     getFiled("logicSignalLineWidth", st, o.logicSignalLineWidth, 1.0f);
+    getFiled("logicChannelDivider", st, o.logicChannelDivider, true);
     getFiled("dsoSplitChannels", st, o.dsoSplitChannels, false);
 
     o.warnofMultiTrig = true;
@@ -190,6 +191,7 @@ static void _saveApp(AppOptions &o, QSettings &st)
     setFiled("minDecoderFontWidthPercent", st, o.minDecoderFontWidthPercent);
     setFiled("dontAskSaveOnExit", st, o.dontAskSaveOnExit);
     setFiled("logicSignalLineWidth", st, o.logicSignalLineWidth);
+    setFiled("logicChannelDivider", st, o.logicChannelDivider);
     setFiled("dsoSplitChannels", st, o.dsoSplitChannels);
 
     QString fmt =  FormatArrayToString(o.m_protocolFormats);

@@ -80,6 +80,9 @@ public:
     static const int WaitLoopTime = 400;
     static const int MousePointerClearance = 25;
     static const int MouseEdgeClearance = 3;
+    static const int YScaleBadgeDurationMs = 4000; // total on-screen time
+    static const int YScaleBadgeFadeMs = 800;      // fade-out tail duration
+    static const int YScaleBadgeTickMs = 40;       // repaint interval while fading
     enum ActionType {
         NO_ACTION,
 
@@ -149,6 +152,10 @@ private:
     void paintProgress(QPainter& p, QColor fore, QColor back);
     void paintMeasure(QPainter &p, QColor fore, QColor back);
     void paintCursors(QPainter &p);
+    void paintYScaleBadge(QPainter &p, QColor fore, QColor back);
+
+    // Briefly show the y-scale badge (logic mode) after a vertical zoom.
+    void flash_yscale_badge();
 
     void start_trigger_timer(int msec);
     void get_captured_progress(double &progress, int &progress100);
@@ -167,6 +174,8 @@ private slots:
     void show_contextmenu(const QPoint& pos);
     void add_cursor_x();
     void add_cursor_y();
+    void reset_yscale();
+    void on_yscale_hint_timeout();
 
 signals:
     void measure_updated();
@@ -256,6 +265,12 @@ private:
     int             _tigger_wait_times;
     QAction         *_yAction;
     QAction         *_xAction;
+
+    QTimer          _yscale_hint_timer;   // repaint tick while the badge fades
+    QElapsedTimer   _yscale_hint_clock;   // time since the badge was last shown
+    bool            _yscale_hint_active;
+    QRect           _yscale_badge_rect;   // clickable reset hit-area (empty = hidden)
+    bool            _yscale_badge_pressed; // press consumed by the badge; swallow release
 };
 
 } // namespace view
