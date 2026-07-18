@@ -31,6 +31,7 @@
 #include "../sigsession.h"
 #include "../view/dsosignal.h"
 #include "../data/dsosnapshot.h"
+#include "../data/dsoedgedetect.h"
 #include "../ui/langresource.h"
 
 using namespace std;
@@ -81,32 +82,17 @@ EdgeInfo extract_edges(view::DsoSignal *sig, double dt_ns)
         return (hw_offset - (double)buf[i]) * vscale;
     };
 
-    double vmin = 1e300, vmax = -1e300;
-    for (uint64_t i = 0; i < n; i++) {
-        const double v = volt(i);
-        vmin = min(vmin, v);
-        vmax = max(vmax, v);
-    }
-    const double span = (vmax > vmin) ? (vmax - vmin) : 1.0;
-    const double mid = (vmax + vmin) / 2.0;
-    const double hyst = span * 0.05;
-    const double hi = mid + hyst;
-    const double lo = mid - hyst;
+    // Fully qualified: the local variable "data" above shadows the "data"
+    // namespace within this function.
+    const pv::data::DsoEdgeSet edge_set = pv::data::dso_detect_edges(n, volt);
 
-    // Schmitt-trigger edge detection: flip the high/low state on the upper /
-    // lower thresholds. This tolerates finite rise time and noise, which a
-    // single-step "crossed mid this sample" test does not.
-    bool is_high = (volt(0) >= mid);
-    for (uint64_t i = 1; i < n; i++) {
-        const double v = volt(i);
-        if (!is_high && v >= hi) {
-            is_high = true;
-            info.rising.push_back(i * dt_ns);
-        } else if (is_high && v <= lo) {
-            is_high = false;
-            info.falling.push_back(i * dt_ns);
-        }
-    }
+    // Convert sample indices to times (ns) for this dialog's phase/delay math.
+    info.rising.reserve(edge_set.rising.size());
+    for (uint64_t idx : edge_set.rising)
+        info.rising.push_back(idx * dt_ns);
+    info.falling.reserve(edge_set.falling.size());
+    for (uint64_t idx : edge_set.falling)
+        info.falling.push_back(idx * dt_ns);
 
     if (info.rising.size() >= 2) {
         double sum = 0;

@@ -31,6 +31,7 @@
 #include "../sigsession.h"
 #include "../view/dsosignal.h"
 #include "../data/dsosnapshot.h"
+#include "../data/dsoedgedetect.h"
 #include "../ui/langresource.h"
 
 using namespace std;
@@ -43,7 +44,9 @@ namespace dialogs {
 HistogramPlot::HistogramPlot(QWidget *parent) :
     QWidget(parent),
     _x_min(0),
-    _x_max(0)
+    _x_max(0),
+    _has_mean(false),
+    _mean_value(0.0)
 {
     setMinimumHeight(150);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -51,13 +54,16 @@ HistogramPlot::HistogramPlot(QWidget *parent) :
 
 void HistogramPlot::set_data(const QVector<double> &bins, double x_min,
                              double x_max, const QString &x_unit,
-                             const QString &title)
+                             const QString &title, bool has_mean,
+                             double mean_value)
 {
     _bins = bins;
     _x_min = x_min;
     _x_max = x_max;
     _x_unit = x_unit;
     _title = title;
+    _has_mean = has_mean;
+    _mean_value = mean_value;
     update();
 }
 
@@ -65,6 +71,11 @@ void HistogramPlot::clear_data()
 {
     _bins.clear();
     update();
+}
+
+QString HistogramPlot::fmt_value(double v) const
+{
+    return QString::number(v, 'f', 2) + " " + _x_unit;
 }
 
 void HistogramPlot::paintEvent(QPaintEvent *event)
@@ -115,6 +126,20 @@ void HistogramPlot::paintEvent(QPaintEvent *event)
     const int plot_h = bottom - top;
     const int n = _bins.size();
 
+    // Gridlines (drawn under the bars): 3 horizontal divisions (25/50/75% of
+    // the peak count) and vertical divisions at the same 25/50/75% x
+    // fractions, so a bar's height and position can be read off against a
+    // scale instead of guessed against bare min/max endpoints.
+    QColor grid = fore;
+    grid.setAlpha(45);
+    p.setPen(QPen(grid, 1, Qt::DotLine));
+    for (int k = 1; k <= 3; k++) {
+        const int gy = bottom - (int)(plot_h * (k / 4.0));
+        p.drawLine(left + 1, gy, right - 1, gy);
+        const int gx = left + (int)(plot_w * (k / 4.0));
+        p.drawLine(gx, top + 1, gx, bottom - 1);
+    }
+
     p.setPen(Qt::NoPen);
     p.setBrush(bar);
     for (int i = 0; i < n; i++) {
@@ -125,14 +150,47 @@ void HistogramPlot::paintEvent(QPaintEvent *event)
             p.fillRect(QRect(x0, bottom - h, max(1, x1 - x0 - 1), h), bar);
     }
 
-    // Axis min/max annotations, in the band below the frame.
+    // Mean marker: a dashed vertical line plus a small label, so it is easy
+    // to see at a glance how the distribution sits relative to its average.
+    if (_has_mean && _x_max > _x_min) {
+        const double rate = (_mean_value - _x_min) / (_x_max - _x_min);
+        if (rate >= 0.0 && rate <= 1.0) {
+            QColor accent = palette().color(QPalette::Highlight);
+            const int mx = left + (int)(rate * plot_w);
+            p.setPen(QPen(accent, 1, Qt::DashLine));
+            p.drawLine(mx, top + 1, mx, bottom - 1);
+
+            p.setPen(accent);
+            const QString mean_str = "Mean " + fmt_value(_mean_value);
+            const int label_w = p.fontMetrics().horizontalAdvance(mean_str);
+            // Keep the label inside the frame regardless of which side the
+            // marker falls on.
+            int label_x = mx + 3;
+            if (label_x + label_w > right)
+                label_x = mx - 3 - label_w;
+            p.drawText(QRect(label_x, top + 2, label_w, text_h), mean_str);
+        }
+    }
+
+    // Axis annotations, in the band below the frame: min/mid/max values
+    // matching the vertical gridlines above, plus the peak bin count inside
+    // the frame's top-right corner so bar heights read against a real scale
+    // rather than only relative to each other.
     p.setPen(fore);
     p.drawText(QRect(left, bottom, plot_w, height() - bottom),
-               Qt::AlignLeft | Qt::AlignVCenter,
-               QString::number(_x_min, 'f', 2) + " " + _x_unit);
+               Qt::AlignLeft | Qt::AlignVCenter, fmt_value(_x_min));
     p.drawText(QRect(left, bottom, plot_w, height() - bottom),
+               Qt::AlignHCenter | Qt::AlignVCenter,
+               fmt_value((_x_min + _x_max) / 2.0));
+    p.drawText(QRect(left, bottom, plot_w, height() - bottom),
+               Qt::AlignRight | Qt::AlignVCenter, fmt_value(_x_max));
+
+    QColor peak_fore = fore;
+    peak_fore.setAlpha(180);
+    p.setPen(peak_fore);
+    p.drawText(QRect(left, top + 2, plot_w - 4, text_h),
                Qt::AlignRight | Qt::AlignVCenter,
-               QString::number(_x_max, 'f', 2) + " " + _x_unit);
+               "n=" + QString::number((qulonglong)peak));
 }
 
 //------------------------------------------------------------------- DsoHistogram
@@ -322,7 +380,8 @@ void DsoHistogram::compute()
         vbins[b] += 1.0;
     }
     _value_plot->set_data(vbins, vmin * vfac, vmax * vfac, vunit,
-        L_S(STR_PAGE_DLG, S_ID(IDS_DLG_HIST_VALUE), "Value distribution"));
+        L_S(STR_PAGE_DLG, S_ID(IDS_DLG_HIST_VALUE), "Value distribution"),
+        true, vmean * vfac);
 
     // --- timing (jitter) histogram + stats ---
     // Use the analysed snapshot's own sample rate (this is what the waveform
@@ -336,34 +395,11 @@ void DsoHistogram::compute()
     // Detect edges directly on the raw ADC samples (0..255). This keeps the
     // jitter measurement independent of the voltage scaling, which can read
     // back as zero in some states and would otherwise flatten the signal.
-    int raw_min = 255, raw_max = 0;
-    for (uint64_t i = 0; i < n; i++) {
-        const int r = buf[i];
-        raw_min = min(raw_min, r);
-        raw_max = max(raw_max, r);
-    }
-    const double raw_mid = (raw_min + raw_max) / 2.0;
-    const double raw_hyst = (raw_max - raw_min) * 0.05;
-
-    // Schmitt-trigger edge detection: track the high/low state and flip it on
-    // the upper/lower hysteresis thresholds. A rising edge is recorded each
-    // time the state goes low->high. This handles finite rise time and noise
-    // (unlike a single-step "crossed mid this sample" test).
-    std::vector<uint64_t> edges;   // rising-edge sample indices
-    if (raw_max > raw_min) {
-        const double hi = raw_mid + raw_hyst;
-        const double lo = raw_mid - raw_hyst;
-        bool is_high = (buf[0] >= raw_mid);
-        for (uint64_t i = 1; i < n; i++) {
-            const int r = buf[i];
-            if (!is_high && r >= hi) {
-                is_high = true;
-                edges.push_back(i);
-            } else if (is_high && r <= lo) {
-                is_high = false;
-            }
-        }
-    }
+    // (Fully qualified: the local variable "data" above shadows the "data"
+    // namespace within this function.)
+    const pv::data::DsoEdgeSet edge_set = pv::data::dso_detect_edges(
+        n, [&](uint64_t i) -> double { return (double)buf[i]; });
+    const std::vector<uint64_t> &edges = edge_set.rising;
 
     // Build the statistics as a two-column table (metric | value) so the
     // amplitude and timing figures line up and read cleanly.
@@ -418,7 +454,8 @@ void DsoHistogram::compute()
         }
         _time_plot->set_data(tbins, pmin, pmax, "ns",
             L_S(STR_PAGE_DLG, S_ID(IDS_DLG_HIST_PERIOD),
-                "Period distribution (jitter)"));
+                "Period distribution (jitter)"),
+            true, pmean);
 
         stats += sep();
         stats += row("Edges", QString::number((qulonglong)edges.size()));

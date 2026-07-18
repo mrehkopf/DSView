@@ -20,7 +20,7 @@
  */
 
 #include "probeoptions.h"
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 #include <QObject>
 #include <stdint.h>
 #include "../bool.h"
@@ -34,6 +34,7 @@
 #include "../../ui/langresource.h"
 
 using namespace std;
+using namespace boost::placeholders;
 
 namespace pv {
 namespace prop {

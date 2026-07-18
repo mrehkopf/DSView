@@ -22,7 +22,7 @@
 #include <libsigrokdecode.h>
 
 #include "decoderoptions.h"
-#include <boost/bind.hpp> 
+#include <boost/bind/bind.hpp>
 #include <boost/none_t.hpp>
 
 #include "../../data/decoderstack.h"
@@ -35,8 +35,9 @@
 #include "../../config/appconfig.h"
 
 using namespace boost;
+using namespace boost::placeholders;
 using namespace std;
- 
+
 namespace pv {
 namespace prop {
 namespace binding {
