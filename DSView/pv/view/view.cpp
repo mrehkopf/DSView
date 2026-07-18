@@ -698,11 +698,15 @@ void View::update_scroll()
             _x_offset * 1.0  / length * MaxScrollValue);
 	}
 
-    // Set up vertical scrollbar
+    // Set up vertical scrollbar. Only the time-view traces occupy the
+    // scrollable top pane; the FFT traces live in the fixed, splitter-sized
+    // _fft_viewport. Counting the FFT pane here would invent a scroll range
+    // that has no matching time content, so scrolling it would slide the
+    // whole left panel out of alignment with the FFT view.
     std::vector<Trace*> traces;
-    get_traces(ALL_VIEW, traces);
+    get_traces(TIME_VIEW, traces);
 
-    // Calculate total required height for all traces
+    // Calculate total required height for the time-pane traces
     int total_height = 0;
     for (auto t : traces) {
         if (t->enabled())
@@ -712,10 +716,15 @@ void View::update_scroll()
     // Make sure we can scroll the last signal past the status bar
     total_height += StatusHeight;
 
+    // Scroll the time pane against its own visible height (which excludes the
+    // FFT pane when the splitter is showing one).
+    const int avail_height = _fft_viewport->isVisible()
+        ? _time_viewport->height() : areaSize.height();
+
     // Enable vertical scrolling if total height exceeds viewport
-    if (total_height > areaSize.height()) {
-        verticalScrollBar()->setRange(0, total_height - areaSize.height());
-        verticalScrollBar()->setPageStep(areaSize.height());
+    if (total_height > avail_height) {
+        verticalScrollBar()->setRange(0, total_height - avail_height);
+        verticalScrollBar()->setPageStep(avail_height);
     } else {
         verticalScrollBar()->setRange(0, 0);
     }
@@ -799,7 +808,11 @@ void View::signals_changed(const Trace* eventTrace)
             t->set_view(this);
             t->set_viewport(_fft_viewport);
             t->set_totalHeight(_fft_viewport->height());
-            t->set_v_offset(_fft_viewport->geometry().bottom());
+            // The header spans the whole view (both splitter panes); the FFT
+            // viewport's geometry is expressed in that same coordinate space,
+            // so anchoring the label to the pane's vertical centre keeps the
+            // left-panel label lined up with the FFT view it belongs to.
+            t->set_v_offset(_fft_viewport->geometry().center().y());
         }
     }
     else {
@@ -875,7 +888,13 @@ void View::signals_changed(const Trace* eventTrace)
             _signalHeight = max((double)min_row_height, _signalHeight * _trace_height_factor);
         }
         else if (_device_agent->get_work_mode() == DSO) {
-            _signalHeight = max((double)HeightUnit, (_header->height()
+            // Size the channels to the pane they actually live in. Using the
+            // full-height header would keep them sized for the whole view even
+            // after the FFT splitter pane has shrunk the time viewport, so the
+            // channels would overflow the time pane and invent vertical scroll
+            // range with nothing to scroll to. When no FFT pane is shown the
+            // time viewport fills the view, so this matches the old behaviour.
+            _signalHeight = max((double)HeightUnit, (_time_viewport->height()
                              - horizontalScrollBar()->height()
                              - 2 * actualMargin * label_size) * 1.0 / total_rows);
         }
@@ -1083,9 +1102,12 @@ void View::v_scroll_value_changed(int value)
     // Track vertical offset
     _y_offset = value;
 
-    // Update vertical positions of all traces based on scroll value
+    // Only the time-view traces live in the scrollable top pane. The FFT
+    // traces sit in the separate, splitter-controlled _fft_viewport whose
+    // content is painted at a fixed viewport-relative position, so scrolling
+    // them here would drift their header label away from the FFT view.
     std::vector<Trace*> traces;
-    get_traces(ALL_VIEW, traces);
+    get_traces(TIME_VIEW, traces);
 
     for (auto t : traces) {
         if (t->enabled()) {
