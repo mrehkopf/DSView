@@ -2,7 +2,7 @@
  * This file is part of the DSView project.
  * DSView is based on PulseView.
  *
- * Copyright (C) 2026 DreamSourceLab <support@dreamsourcelab.com>
+ * Copyright (C) 2026 Schildkroet
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
