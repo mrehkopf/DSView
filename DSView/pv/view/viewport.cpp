@@ -632,7 +632,12 @@ void Viewport::paint_ref_waves(QPainter &p)
             continue;
 
         const int64_t count = end_sample - start_sample + 1;
-        QPointF *points = new QPointF[count];
+        // Reuse the scratch buffer across calls/waves instead of a fresh
+        // heap array every repaint - resize() only reallocates when growing
+        // past the buffer's current capacity.
+        if (_ref_wave_points.size() < count)
+            _ref_wave_points.resize(count);
+        QPointF *points = _ref_wave_points.data();
         QPointF *point = points;
         float x = (start_sample / samples_per_pixel - x_offset) + left
                   + trig_hoff * pixels_per_sample;
@@ -653,8 +658,6 @@ void Viewport::paint_ref_waves(QPainter &p)
 
         // Label the reference near its left end.
         p.drawText(QPointF(left + 4, top + 12), rw.name);
-
-        delete[] points;
     }
 }
 

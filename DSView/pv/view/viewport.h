@@ -32,6 +32,8 @@
 #include <QWidget>
 #include <QNativeGestureEvent>
 #include <QElapsedTimer>
+#include <QVector>
+#include <QPointF>
 #include <chrono>
 
 #include "../view/view.h"
@@ -189,6 +191,12 @@ private:
     bool        _need_update;
     QPixmap     _pixmap;
     QMenu       *_cmenu;
+
+    // Reusable scratch buffer for paint_ref_waves(), so it does not have to
+    // heap-allocate/free a QPointF array on every repaint (including ones
+    // triggered by mere mouse movement) - QVector::resize() only reallocates
+    // when growing past the buffer's current capacity.
+    QVector<QPointF> _ref_wave_points;
 
     uint64_t    _sample_received;
     QPoint      _mouse_point;

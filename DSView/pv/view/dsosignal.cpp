@@ -29,7 +29,8 @@
 #include "view.h"
 #include "../dsvdef.h"
 #include "../data/dsosnapshot.h"
-#include "../sigsession.h" 
+#include "../data/dsoedgedetect.h"
+#include "../sigsession.h"
 #include "../log.h"
 #include "../appcontrol.h"
 #include "../ui/langresource.h"
@@ -77,6 +78,9 @@ DsoSignal::DsoSignal(data::DsoSnapshot *data,
     _mValid = false;
     _level_valid = false;
     _soft_measure_logged = false;
+    _soft_measure_cache_valid = false;
+    _soft_measure_cache_data = NULL;
+    _soft_measure_cache_sample_count = 0;
     _autoV = false;
     _autoH = false;
     _autoV_over = false;
@@ -1084,6 +1088,22 @@ void DsoSignal::compute_soft_measure(int hw_offset)
     if (total < 2)
         return;
 
+    // paint_mid() calls this on every repaint for as long as the hardware
+    // measurement stays invalid, which - while an acquisition is actively
+    // running - can be many times per second. Skip the O(n) rescan below
+    // unless the underlying dataset actually changed. get_trig_time() is
+    // used rather than just the sample count because the configured capture
+    // depth (and so get_sample_count()) is normally the same on every run,
+    // which would otherwise make this cache never invalidate across repeat
+    // captures.
+    const QDateTime trig_time = session->get_trig_time();
+    if (_soft_measure_cache_valid &&
+        _soft_measure_cache_data == _data &&
+        _soft_measure_cache_sample_count == total &&
+        _soft_measure_cache_trig_time == trig_time) {
+        return;   // _period/_high_time/etc already hold the current result
+    }
+
     const uint8_t *buf = _data->get_samples(0, 0, get_index());
     if (buf == NULL)
         return;
@@ -1108,43 +1128,30 @@ void DsoSignal::compute_soft_measure(int hw_offset)
     const uint64_t MaxScan = 1000000;
     const uint64_t n = min<uint64_t>(total, MaxScan);
 
+    // Once we reach here, we are about to (re)compute the result for this
+    // dataset - remember its identity so the next call can skip straight to
+    // the early-return above until the data changes again.
+    _soft_measure_cache_valid = true;
+    _soft_measure_cache_data = _data;
+    _soft_measure_cache_sample_count = total;
+    _soft_measure_cache_trig_time = trig_time;
+
     // Work in voltage-proportional space (higher value = higher voltage) so
     // "high time" matches the hardware's positive-duty convention.
     auto val = [&](uint64_t i) -> double { return (double)hw_offset - buf[i]; };
 
-    double vmin = 1e300, vmax = -1e300;
     int rmin = 255, rmax = 0;
     for (uint64_t i = 0; i < n; i++) {
-        const double v = val(i);
-        vmin = min(vmin, v);
-        vmax = max(vmax, v);
         rmin = min(rmin, (int)buf[i]);
         rmax = max(rmax, (int)buf[i]);
     }
-    if (vmax <= vmin)
-        return;   // flat: nothing to measure
 
-    const double mid = (vmin + vmax) / 2.0;
-    const double hyst = (vmax - vmin) * 0.05;
-    const double hi = mid + hyst;
-    const double lo = mid - hyst;
-
-    // Schmitt-trigger edge detection (rising = low->high voltage).
-    std::vector<uint64_t> rising, falling;
-    bool is_high = (val(0) >= mid);
-    for (uint64_t i = 1; i < n; i++) {
-        const double v = val(i);
-        if (!is_high && v >= hi) {
-            is_high = true;
-            rising.push_back(i);
-        } else if (is_high && v <= lo) {
-            is_high = false;
-            falling.push_back(i);
-        }
-    }
+    const data::DsoEdgeSet edge_set = data::dso_detect_edges(n, val);
+    const std::vector<uint64_t> &rising = edge_set.rising;
+    const std::vector<uint64_t> &falling = edge_set.falling;
 
     if (rising.size() < 2)
-        return;   // not enough cycles
+        return;   // flat, or not enough cycles
 
     // Mean period (samples) from consecutive rising edges.
     double psum = 0;

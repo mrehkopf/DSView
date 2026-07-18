@@ -46,12 +46,19 @@ class HistogramPlot : public QWidget
 public:
     HistogramPlot(QWidget *parent = NULL);
 
+    // has_mean/mean_value optionally draw a dashed marker line at that x
+    // position (e.g. the dataset's mean), which helps gauge how a distorted
+    // distribution sits relative to its average at a glance.
     void set_data(const QVector<double> &bins, double x_min, double x_max,
-                  const QString &x_unit, const QString &title);
+                  const QString &x_unit, const QString &title,
+                  bool has_mean = false, double mean_value = 0.0);
     void clear_data();
 
 protected:
     void paintEvent(QPaintEvent *event) override;
+
+private:
+    QString fmt_value(double v) const;
 
 private:
     QVector<double> _bins;
@@ -59,6 +66,8 @@ private:
     double  _x_max;
     QString _x_unit;
     QString _title;
+    bool    _has_mean;
+    double  _mean_value;
 };
 
 // Value + timing (jitter) histogram of a single DSO channel, with basic
