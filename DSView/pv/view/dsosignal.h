@@ -293,6 +293,10 @@ private:
     uint8_t _min;
     double _period;
     bool _level_valid;
+    // Set once compute_soft_measure() has logged that it is substituting for
+    // missing hardware cycle data, so repeated repaints don't spam the log.
+    // Cleared again once the hardware reports valid cycle data.
+    bool _soft_measure_logged;
     uint8_t _high;
     uint8_t _low;
     double _rms;
