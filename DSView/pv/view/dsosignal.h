@@ -260,6 +260,11 @@ private:
         uint64_t num_channels);
 
     void paint_hover_measure(QPainter &p, QColor fore, QColor back);
+
+    // Compute the cycle measurements (period/frequency/duty/count/width/level)
+    // from the sample buffer. Used as a fallback for channels the hardware
+    // leaves unmeasured - e.g. the 2nd channel often returns no cycle data.
+    void compute_soft_measure(int hw_offset);
     void auto_set();
 
     void call_auto_end();

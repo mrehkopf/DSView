@@ -307,6 +307,9 @@ set(DSView_SOURCES
     DSView/pv/dialogs/protocollist.cpp
     DSView/pv/dialogs/protocolexp.cpp
     DSView/pv/dialogs/fftoptions.cpp
+    DSView/pv/dialogs/dsohistogram.cpp
+    DSView/pv/dialogs/chanmeasure.cpp
+    DSView/pv/dialogs/refoptions.cpp
     DSView/pv/data/mathstack.cpp
     DSView/pv/view/mathtrace.cpp
     DSView/pv/toolbars/titlebar.cpp
@@ -424,6 +427,9 @@ set(DSView_HEADERS
     DSView/pv/view/spectrumtrace.h
     DSView/pv/data/spectrumstack.h
     DSView/pv/dialogs/mathoptions.h
+    DSView/pv/dialogs/dsohistogram.h
+    DSView/pv/dialogs/chanmeasure.h
+    DSView/pv/dialogs/refoptions.h
     DSView/pv/dialogs/regionoptions.h
     DSView/pv/view/xcursor.h
     DSView/pv/view/signal.h

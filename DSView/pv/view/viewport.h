@@ -152,6 +152,7 @@ private:
     void paintProgress(QPainter& p, QColor fore, QColor back);
     void paintMeasure(QPainter &p, QColor fore, QColor back);
     void paintCursors(QPainter &p);
+    void paint_ref_waves(QPainter &p);
     void paintYScaleBadge(QPainter &p, QColor fore, QColor back);
 
     // Briefly show the y-scale badge (logic mode) after a vertical zoom.

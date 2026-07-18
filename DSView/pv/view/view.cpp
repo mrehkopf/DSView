@@ -141,7 +141,7 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
     _header = new Header(*this);
     _devmode = new DevMode(this, session);
 
-    setViewportMargins(headerWidth(), RulerHeight, 0, 0);
+    setViewportMargins(headerWidth(), RulerHeight, 0, get_bottom_margin());
 
     // windows splitter
     _time_viewport = new Viewport(*this, TIME_VIEW);
@@ -1019,6 +1019,17 @@ bool View::viewportEvent(QEvent *e)
 	}
 }
 
+int View::get_bottom_margin()
+{
+    // The status/measurement bar floats over the bottom of the viewport. The
+    // scrollable time pane can scroll its content clear of it, but the fixed
+    // FFT splitter pane cannot, so reserve room for the bar only while the FFT
+    // pane is visible - otherwise it would be cropped underneath the bar.
+    if (_viewbottom && _fft_viewport && _fft_viewport->isVisible())
+        return _viewbottom->height();
+    return 0;
+}
+
 int View::headerWidth()
 {
     int headerWidth = _header->get_nameEditWidth();
@@ -1034,7 +1045,7 @@ int View::headerWidth()
         }
     }
 
-    setViewportMargins(headerWidth, RulerHeight, 0, 0);
+    setViewportMargins(headerWidth, RulerHeight, 0, get_bottom_margin());
 
     return headerWidth;
 }
@@ -1048,7 +1059,7 @@ void View::resizeEvent(QResizeEvent*)
     }
 
     reconstruct();
-    setViewportMargins(headerWidth(), RulerHeight, 0, 0);
+    setViewportMargins(headerWidth(), RulerHeight, 0, get_bottom_margin());
     update_margins();
     update_scroll();
     signals_changed(NULL);
@@ -1121,7 +1132,7 @@ void View::v_scroll_value_changed(int value)
 
 void View::data_updated()
 {
-    setViewportMargins(headerWidth(), RulerHeight, 0, 0);
+    setViewportMargins(headerWidth(), RulerHeight, 0, get_bottom_margin());
     update_margins();
 
 	// Update the scroll bars

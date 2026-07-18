@@ -78,6 +78,9 @@ private slots:
     void on_actionLissajous_triggered();
     void on_actionFft_triggered();
     void on_actionMath_triggered();
+    void on_actionHistogram_triggered();
+    void on_actionChanMeasure_triggered();
+    void on_actionReference_triggered();
     void on_display_setting();
 
 public slots:
@@ -108,6 +111,9 @@ private:
     QMenu       *_function_menu;
     QAction     *_action_fft;
     QAction     *_action_math;
+    QAction     *_action_histogram;
+    QAction     *_action_chanmeasure;
+    QAction     *_action_reference;
 
     QMenu       *_display_menu;
     QMenu       *_themes;

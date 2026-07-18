@@ -28,6 +28,7 @@
 #include <vector>
 #include <stdint.h>
 #include <QString>
+#include <QColor>
 #include <thread>
 #include <atomic>
 #include <QDateTime>
@@ -239,7 +240,26 @@ public:
     inline view::MathTrace* get_math_trace(){
         return _math_trace;
     }
- 
+
+    // ---- Reference waveforms ------------------------------------------------
+    // A frozen copy of a DSO channel's samples, overlaid on the live view. It
+    // is rendered with the source channel's current vertical scaling (looked
+    // up by index at paint time) so it stays aligned to the grid.
+    struct RefWave {
+        int         index;          // source DSO channel index
+        std::vector<uint8_t> samples;
+        double      samplerate;
+        QColor      colour;
+        QString     name;
+    };
+
+    // Snapshot the given DSO channel into a new reference waveform.
+    void add_ref_wave(view::DsoSignal *sig);
+    void clear_ref_waves();
+    inline std::vector<RefWave>& get_ref_waves(){
+        return _ref_waves;
+    }
+
     uint16_t get_ch_num(int type); 
  
     inline bool is_data_lock(){
@@ -255,7 +275,8 @@ public:
 
     void math_rebuild(bool enable,pv::view::DsoSignal *dsoSig1,
                       pv::view::DsoSignal *dsoSig2,
-                      data::MathStack::MathType type);
+                      data::MathStack::MathType type,
+                      int filter_width = 10);
 
     inline bool trigd(){
         return _trigger_flag;
@@ -574,6 +595,7 @@ private:
     std::vector<view::SpectrumTrace*> _spectrum_traces;
     view::LissajousTrace            *_lissajous_trace;
     view::MathTrace                 *_math_trace;
+    std::vector<RefWave>            _ref_waves;
   
     DsTimer     _feed_timer;
     DsTimer     _out_timer;

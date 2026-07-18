@@ -244,6 +244,11 @@ public:
 
     int headerWidth();
 
+    // Bottom viewport margin reserved for the status/measurement bar. Non-zero
+    // only when the FFT splitter pane is shown, so that fixed pane isn't
+    // cropped underneath the bar.
+    int get_bottom_margin();
+
     inline Ruler* get_ruler(){
         return _ruler;
     }
@@ -491,11 +496,13 @@ private:
     pv::toolbars::SamplingBar   *_sampling_bar;
 
     QWidget                 *_viewcenter;
-    ViewStatus              *_viewbottom;
+    // Zero-initialised so get_bottom_margin(), reached via headerWidth()
+    // during construction, sees null (not garbage) before these are assigned.
+    ViewStatus              *_viewbottom = nullptr;
     QVBoxLayout             *_statusLayout;
     QSplitter               *_vsplitter;
     Viewport                *_time_viewport;
-    Viewport                *_fft_viewport;
+    Viewport                *_fft_viewport = nullptr;
     Viewport                *_active_viewport;
     LissajousFigure         *_lissajous;
     std::list<QWidget *>    _viewport_list;

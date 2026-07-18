@@ -885,6 +885,12 @@ void DsoSignal::paint_mid(QPainter &p, int left, int right, QColor fore, QColor 
                 _mean = (index == 0) ? status.ch0_acc_mean : status.ch1_acc_mean;
                 _mean = hw_offset - _mean / _data->get_sample_count();
             }
+
+            // The hardware frequently returns no cycle data for the 2nd
+            // channel even on a valid signal, so its period/frequency/duty/
+            // count/width read "--". Fall back to a software measurement.
+            if (!_level_valid || _period == 0)
+                compute_soft_measure(hw_offset);
         }
     }
 }
@@ -1033,6 +1039,108 @@ void DsoSignal::paint_trace(QPainter &p,
 
         delete[] points;
     }
+}
+
+void DsoSignal::compute_soft_measure(int hw_offset)
+{
+    if (_data == NULL || _data->empty())
+        return;
+
+    const uint64_t total = _data->get_sample_count();
+    if (total < 2)
+        return;
+
+    const uint8_t *buf = _data->get_samples(0, 0, get_index());
+    if (buf == NULL)
+        return;
+
+    const double samplerate = _data->samplerate();
+    if (samplerate <= 0)
+        return;
+
+    uint16_t total_channels = g_slist_length(session->get_device()->get_channels());
+    if (total_channels == 1 && _data->is_file())
+        total_channels++;
+    const uint16_t enabled_channels = _data->get_channel_num();
+    if (enabled_channels == 0)
+        return;
+
+    // Nanoseconds per channel sample (matches the hardware measurement path).
+    const double tfactor = ((double)total_channels / enabled_channels)
+                           * SR_GHZ(1) * 1.0 / samplerate;
+
+    // Cap the scan so continuous repaints stay cheap; this still covers many
+    // cycles for a stable measurement.
+    const uint64_t MaxScan = 1000000;
+    const uint64_t n = min<uint64_t>(total, MaxScan);
+
+    // Work in voltage-proportional space (higher value = higher voltage) so
+    // "high time" matches the hardware's positive-duty convention.
+    auto val = [&](uint64_t i) -> double { return (double)hw_offset - buf[i]; };
+
+    double vmin = 1e300, vmax = -1e300;
+    int rmin = 255, rmax = 0;
+    for (uint64_t i = 0; i < n; i++) {
+        const double v = val(i);
+        vmin = min(vmin, v);
+        vmax = max(vmax, v);
+        rmin = min(rmin, (int)buf[i]);
+        rmax = max(rmax, (int)buf[i]);
+    }
+    if (vmax <= vmin)
+        return;   // flat: nothing to measure
+
+    const double mid = (vmin + vmax) / 2.0;
+    const double hyst = (vmax - vmin) * 0.05;
+    const double hi = mid + hyst;
+    const double lo = mid - hyst;
+
+    // Schmitt-trigger edge detection (rising = low->high voltage).
+    std::vector<uint64_t> rising, falling;
+    bool is_high = (val(0) >= mid);
+    for (uint64_t i = 1; i < n; i++) {
+        const double v = val(i);
+        if (!is_high && v >= hi) {
+            is_high = true;
+            rising.push_back(i);
+        } else if (is_high && v <= lo) {
+            is_high = false;
+            falling.push_back(i);
+        }
+    }
+
+    if (rising.size() < 2)
+        return;   // not enough cycles
+
+    // Mean period (samples) from consecutive rising edges.
+    double psum = 0;
+    for (size_t k = 1; k < rising.size(); k++)
+        psum += rising[k] - rising[k - 1];
+    const double period_samples = psum / (rising.size() - 1);
+
+    // Mean high-level duration: rising edge to the next falling edge.
+    double hsum = 0;
+    int hn = 0;
+    size_t fi = 0;
+    for (size_t k = 0; k < rising.size(); k++) {
+        while (fi < falling.size() && falling[fi] <= rising[k])
+            fi++;
+        if (fi < falling.size()) {
+            hsum += (double)(falling[fi] - rising[k]);
+            hn++;
+        }
+    }
+    const double high_samples = (hn > 0) ? hsum / hn : 0.0;
+
+    _period      = period_samples * tfactor;
+    _high_time   = high_samples * tfactor;
+    _pcount      = (uint32_t)rising.size();
+    _min         = (uint8_t)rmin;
+    _max         = (uint8_t)rmax;
+    _low         = (uint8_t)rmin;
+    _high        = (uint8_t)rmax;
+    _level_valid = true;
+    _mValid      = true;
 }
 
 void DsoSignal::paint_envelope(QPainter &p,
@@ -1286,25 +1394,15 @@ QRectF DsoSignal::get_rect(DsoSetRegions type, int y, int right)
 void DsoSignal::paint_hover_measure(QPainter &p, QColor fore, QColor back)
 {
     const int hw_offset = get_hw_offset();
-    // Hover measure
-    if (_hover_en && _hover_point != QPointF(-1, -1)) {
-        QString hover_str = get_voltage(hw_offset - _hover_value, 2);
-        const int hover_width = p.boundingRect(0, 0, INT_MAX, INT_MAX,
-            Qt::AlignLeft | Qt::AlignTop, hover_str).width() + 10;
-        const int hover_height = p.boundingRect(0, 0, INT_MAX, INT_MAX,
-            Qt::AlignLeft | Qt::AlignTop, hover_str).height();
-        QRectF hover_rect(_hover_point.x(), _hover_point.y()-hover_height/2, hover_width, hover_height);
-        if (hover_rect.right() > get_view_rect().right())
-            hover_rect.moveRight(_hover_point.x());
-        if (hover_rect.top() < get_view_rect().top())
-            hover_rect.moveTop(_hover_point.y());
-        if (hover_rect.bottom() > get_view_rect().bottom())
-            hover_rect.moveBottom(_hover_point.y());
 
+    // Hover measure. Only the point marker is drawn on the trace here; the
+    // voltage value itself is shown in the consolidated floating panel drawn
+    // by Viewport::paintMeasure (see the DSO_VALUE branch), which is far
+    // easier to read than a number printed on top of the waveform.
+    if (_hover_en && _hover_point != QPointF(-1, -1)) {
         p.setPen(fore);
         p.setBrush(back);
         p.drawRect(_hover_point.x()-1, _hover_point.y()-1, HoverPointSize, HoverPointSize);
-        p.drawText(hover_rect, Qt::AlignCenter | Qt::AlignTop | Qt::TextDontClip, hover_str);
     }
 
     auto &cursor_list = _view->get_cursorList();
