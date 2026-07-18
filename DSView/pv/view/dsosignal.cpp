@@ -76,6 +76,7 @@ DsoSignal::DsoSignal(data::DsoSnapshot *data,
     _vDialActive = false;
     _mValid = false;
     _level_valid = false;
+    _soft_measure_logged = false;
     _autoV = false;
     _autoH = false;
     _autoV_over = false;
@@ -887,11 +888,43 @@ void DsoSignal::paint_mid(QPainter &p, int left, int right, QColor fore, QColor 
                 _mean = hw_offset - _mean / _data->get_sample_count();
             }
 
-            // The hardware frequently returns no cycle data for the 2nd
-            // channel even on a valid signal, so its period/frequency/duty/
-            // count/width read "--". Fall back to a software measurement.
-            if (!_level_valid || _period == 0)
+            // The hardware's own cycle/level measurement engine can fail to
+            // evaluate a channel correctly - most commonly because that
+            // channel's trigger is misconfigured (the trigger comparator and
+            // the auto-measurement level detection share the same hardware
+            // path), while the displayed waveform is unaffected since it is
+            // just the raw streamed samples. Fall back to a software
+            // measurement derived from those samples in that case.
+            if (!_level_valid || _period == 0) {
+                if (!_soft_measure_logged) {
+                    // Log the raw hardware fields behind the fallback decision
+                    // (not just the fact of it), so it is possible to tell
+                    // whether the device genuinely found no valid cycle
+                    // (count/levels read 0) or reports invalid despite having
+                    // usable-looking counters.
+                    const uint32_t count = (index == 0) ? status.ch0_cyc_cnt : status.ch1_cyc_cnt;
+                    const uint32_t tlen = (index == 0) ? status.ch0_cyc_tlen : status.ch1_cyc_tlen;
+                    const uint8_t lvl_high = (index == 0) ? status.ch0_high_level : status.ch1_high_level;
+                    const uint8_t lvl_low = (index == 0) ? status.ch0_low_level : status.ch1_low_level;
+                    dsv_info("DsoSignal: channel %d reports no valid hardware "
+                              "cycle measurement (level_valid=%d, cyc_cnt=%u, "
+                              "cyc_tlen=%u, high_level=%u, low_level=%u, "
+                              "max=%u, min=%u), using software fallback. "
+                              "This channel's trigger is probably set wrong "
+                              "(the hardware measurement engine shares the "
+                              "trigger comparator, so a misconfigured trigger "
+                              "can break measurement without affecting the "
+                              "displayed waveform).",
+                              index, _level_valid, count, tlen,
+                              lvl_high, lvl_low, _max, _min);
+                    _soft_measure_logged = true;
+                }
                 compute_soft_measure(hw_offset);
+            }
+            else {
+                // Hardware recovered: log again if it drops out later.
+                _soft_measure_logged = false;
+            }
         }
     }
 }

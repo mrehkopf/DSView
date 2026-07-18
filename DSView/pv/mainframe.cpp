@@ -47,6 +47,7 @@
 #include <QFont>
 #include <algorithm>
 #include <QWindow>
+#include <QHash>
 
  #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
  #include <QDesktopWidget>
@@ -578,10 +579,34 @@ bool MainFrame::eventFilter(QObject *object, QEvent *event)
         }
     }
     else if (type == QEvent::MouseButtonPress) {
-        if (mouse_event->button() == Qt::LeftButton) 
-        if (_hit_border != None)
+        if (mouse_event->button() == Qt::LeftButton && _hit_border != None) {
+
+            // Wayland forbids clients from setting their own geometry, so the
+            // manual per-pixel resize below (computed from raw global mouse
+            // deltas) is a no-op/unreliable there, exactly like the manual
+            // window move was. Ask the compositor to perform the resize
+            // instead, via the same protocol native window-edge resizing uses.
+            if (QGuiApplication::platformName().startsWith("wayland", Qt::CaseInsensitive)) {
+                QWindow *win = windowHandle();
+                if (win != NULL) {
+                    static const QHash<int, Qt::Edges> edgeMap = {
+                        { TopLeft,     Qt::TopEdge | Qt::LeftEdge },
+                        { Top,         Qt::TopEdge },
+                        { TopRight,    Qt::TopEdge | Qt::RightEdge },
+                        { Right,       Qt::RightEdge },
+                        { BottomRight, Qt::BottomEdge | Qt::RightEdge },
+                        { Bottom,      Qt::BottomEdge },
+                        { BottomLeft,  Qt::BottomEdge | Qt::LeftEdge },
+                        { Left,        Qt::LeftEdge },
+                    };
+                    win->startSystemResize(edgeMap.value(_hit_border));
+                    return true;
+                }
+            }
+
             _bDraging = true;
-        _timer.start(50); 
+        }
+        _timer.start(50);
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
         _clickPos = mouse_event->globalPosition().toPoint();
@@ -589,7 +614,7 @@ bool MainFrame::eventFilter(QObject *object, QEvent *event)
         _clickPos = mouse_event->globalPos();
 #endif
         _dragStartRegion = GetFormRegion();
-    } 
+    }
     else if (type == QEvent::MouseButtonRelease) {
         if (mouse_event->button() == Qt::LeftButton) {         
             _bDraging = false;

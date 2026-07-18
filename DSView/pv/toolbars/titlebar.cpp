@@ -21,17 +21,18 @@
 
 #include "titlebar.h"
 #include <QStyle>
-#include <QLabel> 
+#include <QLabel>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QEvent>
-#include <QMouseEvent> 
+#include <QMouseEvent>
 #include <QPainter>
 #include <QStyleOption>
 #include <assert.h>
 #include <QTimer>
 #include <QGuiApplication>
 #include <QWindow>
+#include <QFontMetrics>
 
 #include "../config/appconfig.h"
 #include "../appcontrol.h"
@@ -44,7 +45,7 @@ namespace toolbars {
 
 TitleBar::TitleBar(bool top, QWidget *parent, ITitleParent *titleParent, bool hasClose) :
     QWidget(parent)
-{ 
+{
    _minimizeButton = NULL;
    _maximizeButton = NULL;
    _closeButton = NULL;
@@ -56,14 +57,14 @@ TitleBar::TitleBar(bool top, QWidget *parent, ITitleParent *titleParent, bool ha
    _title = NULL;
    _is_native = false;
    _titleParent = titleParent;
-   _is_done_moved = false; 
+   _is_done_moved = false;
    _is_able_drag = true;
 
     assert(parent);
 
     setObjectName("TitleBar");
     setContentsMargins(0,0,0,0);
-    setFixedHeight(32); 
+    setFixedHeight(32);
 
     QHBoxLayout *lay1 = new QHBoxLayout(this);
 
@@ -77,7 +78,9 @@ TitleBar::TitleBar(bool top, QWidget *parent, ITitleParent *titleParent, bool ha
         _maximizeButton->setObjectName("MaximizeButton");
 
         lay1->addWidget(_minimizeButton);
+        lay1->addSpacing(6);
         lay1->addWidget(_maximizeButton);
+        lay1->addSpacing(6);
 
         connect(this, SIGNAL(normalShow()), parent, SLOT(showNormal()));
         connect(this, SIGNAL( maximizedShow()), parent, SLOT(showMaximized()));
@@ -97,12 +100,12 @@ TitleBar::TitleBar(bool top, QWidget *parent, ITitleParent *titleParent, bool ha
     lay1->setContentsMargins(0,0,0,0);
     lay1->setSpacing(0);
 
-    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed); 
-    
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+
     ADD_UI(this);
 }
 
-TitleBar::~TitleBar(){ 
+TitleBar::~TitleBar(){
     DESTROY_QT_OBJECT(_minimizeButton);
     DESTROY_QT_OBJECT(_maximizeButton);
     DESTROY_QT_OBJECT(_closeButton);
@@ -129,14 +132,14 @@ bool TitleBar::ParentIsMaxsized()
 {
     if (_titleParent != NULL){
         return _titleParent->ParentIsMaxsized();
-    } 
+    }
     else{
         return parentWidget()->isMaximized();
     }
 }
 
 void TitleBar::paintEvent(QPaintEvent *event)
-{ 
+{
     //draw logo icon
     QStyleOption o;
     o.initFrom(this);
@@ -177,9 +180,9 @@ void TitleBar::setTitle(QString title)
     }
     else if (_parent != NULL){
         _parent->setWindowTitle(title);
-    }    
+    }
 }
-  
+
 QString TitleBar::title()
 {
     if (!_is_native){
@@ -200,7 +203,7 @@ void TitleBar::showMaxRestore()
     } else {
         _maximizeButton->setIcon(QIcon(iconPath+"/restore.svg"));
         maximizedShow();
-    }   
+    }
 }
 
 void TitleBar::setRestoreButton(bool max)
@@ -212,19 +215,29 @@ void TitleBar::setRestoreButton(bool max)
         _maximizeButton->setIcon(QIcon(iconPath+"/restore.svg"));
     }
 }
-  
+
 void TitleBar::mousePressEvent(QMouseEvent* event)
-{ 
+{
+    // Middle-click-to-minimize is a common native title bar convention on
+    // Linux desktops (GNOME/KDE/etc.); only the top-level window's bar has a
+    // minimize button/action. showMinimized() remembers the maximized/normal
+    // state to restore to, so it needs no extra bookkeeping here.
+    if (_isTop && event->button() == Qt::MiddleButton) {
+        _parent->showMinimized();
+        event->accept();
+        return;
+    }
+
     bool ableMove = !ParentIsMaxsized();
 
-    if(event->button() == Qt::LeftButton && ableMove && _is_able_drag) 
+    if(event->button() == Qt::LeftButton && ableMove && _is_able_drag)
     {
         int x = event->pos().x();
-        int y = event->pos().y(); 
-        
+        int y = event->pos().y();
+
         bool bTopWidow = AppControl::Instance()->GetTopWindow() == _parent;
         bool bClick = (x >= 6 && y >= 5 && x <= width() - 6);  //top window need resize hit check
- 
+
         if (!bTopWidow || bClick ){
 
             // Wayland forbids clients from positioning themselves; manual
@@ -252,21 +265,21 @@ void TitleBar::mousePressEvent(QMouseEvent* event)
                 _oldPos = _titleParent->GetParentPos();
             }
             else{
-                _oldPos = _parent->pos(); 
+                _oldPos = _parent->pos();
             }
 
             _is_done_moved = false;
-                
+
             event->accept();
             return;
-        } 
-    }  
+        }
+    }
     QWidget::mousePressEvent(event);
 }
 
 void TitleBar::mouseMoveEvent(QMouseEvent *event)
-{  
-    if(_is_draging){ 
+{
+    if(_is_draging){
 
         int datX = 0;
         int datY = 0;
@@ -322,10 +335,10 @@ void TitleBar::mouseMoveEvent(QMouseEvent *event)
 
             _parent->move(x, y);
         }
-        
+
         event->accept();
         return;
-    } 
+    }
     QWidget::mouseMoveEvent(event);
 }
 
@@ -340,10 +353,10 @@ void TitleBar::mouseReleaseEvent(QMouseEvent* event)
 }
 
 void TitleBar::mouseDoubleClickEvent(QMouseEvent *event)
-{  
-    QWidget::mouseDoubleClickEvent(event); 
+{
+    QWidget::mouseDoubleClickEvent(event);
 
-    if (_isTop){ 
+    if (_isTop){
 
       QTimer::singleShot(200, this, [this](){
                 showMaxRestore();
@@ -353,7 +366,7 @@ void TitleBar::mouseDoubleClickEvent(QMouseEvent *event)
 
 void TitleBar::UpdateLanguage()
 {
-    
+
 }
 
 void TitleBar::UpdateTheme()
@@ -362,16 +375,37 @@ void TitleBar::UpdateTheme()
 }
 
 void TitleBar::UpdateFont()
-{  
+{
     QFont font = this->font();
     font.setPointSizeF(AppConfig::Instance().appOptions.fontSize+1);
     _title->setFont(font);
+
+    // Scale the bar height with the configured font instead of a bare fixed
+    // pixel value, so it doesn't look undersized next to a native title bar
+    // when the font size (or a HiDPI/Wayland text scale) is larger than the
+    // default. The +14 padding leaves comfortable room for the min/max/close
+    // button icons; 32 is kept as the floor so the default look is unchanged.
+    const int textHeight = QFontMetrics(font).height();
+    const int barHeight = qMax(32, textHeight + 14);
+    setFixedHeight(barHeight);
+
+    // Scale the min/max/close button icons (and with them, the buttons'
+    // clickable area) with the bar height too - the previous default icon
+    // size (~16px, whatever QToolButton falls back to unset) left them
+    // looking small and cramped next to a taller, native-sized bar.
+    const QSize iconSize(barHeight * 0.55, barHeight * 0.55);
+    if (_minimizeButton != NULL)
+        _minimizeButton->setIconSize(iconSize);
+    if (_maximizeButton != NULL)
+        _maximizeButton->setIconSize(iconSize);
+    if (_closeButton != NULL)
+        _closeButton->setIconSize(iconSize);
 }
 
 void TitleBar::EnableAbleDrag(bool bEnabled)
 {
     _is_able_drag = bEnabled;
 }
- 
+
 } // namespace toolbars
 } // namespace pv
