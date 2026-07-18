@@ -30,6 +30,8 @@
 #include <QCheckBox>
 #include <QRadioButton>
 #include <QSlider>
+#include <QSpinBox>
+#include <QLabel>
 #include "../view/dsosignal.h"
 #include "../toolbars/titlebar.h"
 #include "dsdialog.h"
@@ -80,6 +82,8 @@ private:
     QVector<QRadioButton *> _src1_radio;
     QVector<QRadioButton *> _src2_radio;
     QVector<QRadioButton *> _math_radio;
+    QLabel *_filter_label;
+    QSpinBox *_filter_width;
     QDialogButtonBox _button_box;
     QGridLayout *_layout;
 };

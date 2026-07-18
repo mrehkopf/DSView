@@ -55,23 +55,38 @@ MathOptions::MathOptions(SigSession *session, QWidget *parent) :
     lisa_label->setPixmap(QPixmap(":/icons/math.svg"));
 
     _math_group = new QGroupBox(this);
-    QHBoxLayout *type_layout = new QHBoxLayout();
-    QRadioButton *add_radio = new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_ADD), "Add"), _math_group);
-    add_radio->setProperty("type", data::MathStack::MATH_ADD);
-    type_layout->addWidget(add_radio);
-    QRadioButton *sub_radio = new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SUBSTRACT), "Substract"), _math_group);
-    sub_radio->setProperty("type", data::MathStack::MATH_SUB);
-    type_layout->addWidget(sub_radio);
-    QRadioButton *mul_radio = new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_MULTIPLY), "Multiply"), _math_group);
-    mul_radio->setProperty("type", data::MathStack::MATH_MUL);
-    type_layout->addWidget(mul_radio);
-    QRadioButton *div_radio = new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DIVIDE), "Divide"), _math_group);
-    div_radio->setProperty("type", data::MathStack::MATH_DIV);
-    type_layout->addWidget(div_radio);
-    _math_radio.append(add_radio);
-    _math_radio.append(sub_radio);
-    _math_radio.append(mul_radio);
-    _math_radio.append(div_radio);
+    QGridLayout *type_layout = new QGridLayout();
+
+    // Place operator radios in a 4-column grid (11 operators no longer fit on
+    // a single row).
+    int rrow = 0, rcol = 0;
+    auto place = [&](QRadioButton *b, int t) {
+        b->setProperty("type", t);
+        _math_radio.append(b);
+        type_layout->addWidget(b, rrow, rcol);
+        if (++rcol >= 4) { rcol = 0; rrow++; }
+    };
+
+    place(new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_ADD), "Add"), _math_group), data::MathStack::MATH_ADD);
+    place(new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SUBSTRACT), "Substract"), _math_group), data::MathStack::MATH_SUB);
+    place(new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_MULTIPLY), "Multiply"), _math_group), data::MathStack::MATH_MUL);
+    place(new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DIVIDE), "Divide"), _math_group), data::MathStack::MATH_DIV);
+    place(new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_INTEGRATE), "Integrate"), _math_group), data::MathStack::MATH_INTEG);
+    place(new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DIFFERENTIATE), "Differentiate"), _math_group), data::MathStack::MATH_DIFF);
+    place(new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_ABSOLUTE), "Absolute"), _math_group), data::MathStack::MATH_ABS);
+    place(new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SQUARE), "Square"), _math_group), data::MathStack::MATH_SQUARE);
+    place(new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SQRT), "Sqrt"), _math_group), data::MathStack::MATH_SQRT);
+    place(new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_LOWPASS), "Low pass"), _math_group), data::MathStack::MATH_LOWPASS);
+    place(new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_HIGHPASS), "High pass"), _math_group), data::MathStack::MATH_HIGHPASS);
+
+    // Moving-average window (samples) used by the low/high-pass filters.
+    _filter_label = new QLabel(_math_group);
+    _filter_width = new QSpinBox(_math_group);
+    _filter_width->setRange(1, 100000);
+    _filter_width->setValue(10);
+    type_layout->addWidget(_filter_label, rrow + 1, 0, 1, 2);
+    type_layout->addWidget(_filter_width, rrow + 1, 2, 1, 2);
+
     _math_group->setLayout(type_layout);
 
     _src1_group = new QGroupBox(this);
@@ -104,6 +119,7 @@ MathOptions::MathOptions(SigSession *session, QWidget *parent) :
     auto math = _session->get_math_trace();
     if (math) {
         _enable->setChecked(math->enabled());
+        _filter_width->setValue(math->get_math_stack()->get_filter_width());
         for (QVector<QRadioButton *>::const_iterator i = _src1_radio.begin();
             i != _src1_radio.end(); i++) {
             if ((*i)->property("index").toInt() == math->src1()) {
@@ -171,6 +187,7 @@ void MathOptions::retranslateUi()
 {
     _enable->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_ENABLE), "Enable"));
     _math_group->setTitle(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_MATH_TYPE), "Math Type"));
+    _filter_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_FILTER_WIDTH), "Filter window (samples)"));
     _src1_group->setTitle(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_1ST_SOURCE), "1st Source"));
     _src2_group->setTitle(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_2ST_SOURCE), "2st Source"));
     setTitle(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_MATH_OPTIONS), "Math Options"));
@@ -208,6 +225,11 @@ void MathOptions::Apply()
             break;
         }
     }
+    // Unary operators (integrate/differentiate/abs/square/sqrt/filters) only
+    // use the 1st source; fall back to it so a 2nd source need not be picked.
+    if (data::MathStack::is_unary(type) && src2 == -1)
+        src2 = src1;
+
     bool enable = (src1 != -1 && src2 != -1 && _enable->isChecked());
     view::DsoSignal *dsoSig1 = NULL;
     view::DsoSignal *dsoSig2 = NULL;
@@ -223,8 +245,8 @@ void MathOptions::Apply()
     }
 
     if (dsoSig1 != NULL && dsoSig2 != NULL){
-        _session->math_rebuild(enable, dsoSig1, dsoSig2, type);
-    }    
+        _session->math_rebuild(enable, dsoSig1, dsoSig2, type, _filter_width->value());
+    }
 }
 
 void MathOptions::reject()

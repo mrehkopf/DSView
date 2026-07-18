@@ -29,6 +29,9 @@
 #include "../dialogs/fftoptions.h"
 #include "../dialogs/lissajousoptions.h"
 #include "../dialogs/mathoptions.h"
+#include "../dialogs/dsohistogram.h"
+#include "../dialogs/chanmeasure.h"
+#include "../dialogs/refoptions.h"
 #include "../view/trace.h"
 #include "../dialogs/applicationpardlg.h"
 #include "../ui/langresource.h"
@@ -60,11 +63,23 @@ TrigBar::TrigBar(SigSession *session, QWidget *parent) :
    
     _action_math = new QAction(this);
     _action_math->setObjectName(QString::fromUtf8("actionMath"));
-     
+
+    _action_histogram = new QAction(this);
+    _action_histogram->setObjectName(QString::fromUtf8("actionHistogram"));
+
+    _action_chanmeasure = new QAction(this);
+    _action_chanmeasure->setObjectName(QString::fromUtf8("actionChanMeasure"));
+
+    _action_reference = new QAction(this);
+    _action_reference->setObjectName(QString::fromUtf8("actionReference"));
+
     _function_menu = new QMenu(this);
     _function_menu->setContentsMargins(0,0,0,0);
     _function_menu->addAction(_action_fft);
     _function_menu->addAction(_action_math);
+    _function_menu->addAction(_action_histogram);
+    _function_menu->addAction(_action_chanmeasure);
+    _function_menu->addAction(_action_reference);
     _function_button.setPopupMode(QToolButton::InstantPopup);
     _function_button.setMenu(_function_menu);
 
@@ -129,6 +144,9 @@ TrigBar::TrigBar(SigSession *session, QWidget *parent) :
 
     connect(_action_fft, SIGNAL(triggered()), this, SLOT(on_actionFft_triggered()));
     connect(_action_math, SIGNAL(triggered()), this, SLOT(on_actionMath_triggered()));
+    connect(_action_histogram, SIGNAL(triggered()), this, SLOT(on_actionHistogram_triggered()));
+    connect(_action_chanmeasure, SIGNAL(triggered()), this, SLOT(on_actionChanMeasure_triggered()));
+    connect(_action_reference, SIGNAL(triggered()), this, SLOT(on_actionReference_triggered()));
     connect(_action_lissajous, SIGNAL(triggered()), this, SLOT(on_actionLissajous_triggered()));
     connect(_dark_style, SIGNAL(triggered()), this, SLOT(on_actionDark_triggered()));
     connect(_light_style, SIGNAL(triggered()), this, SLOT(on_actionLight_triggered()));
@@ -165,6 +183,9 @@ void TrigBar::retranslateUi()
 
     _action_fft->setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_FUNCTION_FFT), "FFT"));
     _action_math->setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_FUNCTION_MATH), "Math"));
+    _action_histogram->setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_FUNCTION_HISTOGRAM), "Histogram"));
+    _action_chanmeasure->setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_FUNCTION_CHMEASURE), "Ch-Ch Measure"));
+    _action_reference->setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_FUNCTION_REFERENCE), "Reference"));
 
     _action_dispalyOptions->setText(L_S(STR_PAGE_TOOLBAR, S_ID(IDS_TOOLBAR_DISPLAY_OPTIONS), "Options"));
 }
@@ -183,6 +204,9 @@ void TrigBar::reStyle()
 
     _action_fft->setIcon(QIcon(iconPath+"/fft.svg"));
     _action_math->setIcon(QIcon(iconPath+"/math.svg"));
+    _action_histogram->setIcon(QIcon(iconPath+"/measure.svg"));
+    _action_chanmeasure->setIcon(QIcon(iconPath+"/measure.svg"));
+    _action_reference->setIcon(QIcon(iconPath+"/math.svg"));
     _action_lissajous->setIcon(QIcon(iconPath+"/lissajous.svg"));
     _dark_style->setIcon(QIcon(iconPath+"/dark.svg"));
     _light_style->setIcon(QIcon(iconPath+"/light.svg"));
@@ -327,6 +351,24 @@ void TrigBar::on_actionMath_triggered()
     {
         math_dlg.Apply();
     }
+}
+
+void TrigBar::on_actionHistogram_triggered()
+{
+    pv::dialogs::DsoHistogram hist_dlg(_session, this);
+    hist_dlg.exec();
+}
+
+void TrigBar::on_actionChanMeasure_triggered()
+{
+    pv::dialogs::DsoChannelMeasure ch_dlg(_session, this);
+    ch_dlg.exec();
+}
+
+void TrigBar::on_actionReference_triggered()
+{
+    pv::dialogs::RefOptions ref_dlg(_session, this);
+    ref_dlg.exec();
 }
 
 void TrigBar::on_actionDark_triggered()
