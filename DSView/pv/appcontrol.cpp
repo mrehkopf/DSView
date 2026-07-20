@@ -94,15 +94,35 @@ bool AppControl::Init()
 
     srd_log_set_context(dsv_log_context());
 
-#if defined(_WIN32) && defined(DEBUG_INFO)
-    //able run debug with qtcreator
-    QString pythonHome = "c:/python";
+#if defined(_WIN32)
+    // The packaged app carries its own copy of the Python standard library
+    // next to DSView.exe (see the "pylib" folder produced by the Windows CI
+    // build), since CPython's own relative-path auto-detection isn't
+    // reliable once the interpreter DLL is copied out of its original
+    // MSYS2/mingw64 prefix layout into a flat distribution folder. Without
+    // PYTHONHOME pointing at it, Py_InitializeEx() fails to find the stdlib
+    // and calls Py_FatalError(), which aborts the process before any window
+    // is shown and before any of our own logging can run.
+    QString pythonHome = QCoreApplication::applicationDirPath() + "/pylib";
     QDir pydir;
     if (pydir.exists(pythonHome)){
         const wchar_t *pyhome = reinterpret_cast<const wchar_t*>(pythonHome.utf16());
         srd_set_python_home(pyhome);
+
+        // PYTHONHOME alone isn't enough: MSYS2's Python is built with a
+        // Unix-style prefix layout, so Py_SetPythonHome() makes CPython look
+        // for the stdlib under "<home>/lib/pythonX.Y/...", not directly
+        // inside "<home>/". Our bundled copy sits flat in "pylib/" (its
+        // encodings/, os.py etc. are direct children), so point PYTHONPATH
+        // straight at it too - this is read during interpreter bootstrap,
+        // before Py_SetPythonHome's own (mismatched) landmark search would
+        // otherwise fail to find "encodings" and abort the process.
+        QString libDynload = pythonHome + "/lib-dynload";
+        QString pythonPath = pythonHome;
+        if (pydir.exists(libDynload))
+            pythonPath += ";" + libDynload;
+        qputenv("PYTHONPATH", pythonPath.toUtf8());
     }
-  
 #endif
     
     //the python script path of decoder
