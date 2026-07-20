@@ -181,6 +181,7 @@ jobs:
           install: >-
             git
             zip
+            rsync
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-ninja
@@ -197,9 +198,21 @@ jobs:
 
       - name: Configure
         run: |
+          # Force CMake to find MSYS2's own mingw64 Python (whose runtime DLL
+          # we actually bundle below) instead of the native Windows Python
+          # that's preinstalled on the windows-latest runner (e.g. python314.dll
+          # under the hosted tool cache). If CMake picks that one up instead,
+          # DSView.exe ends up linked against a DLL that only exists on the CI
+          # runner, isn't found by the /mingw64/bin-only dependency bundling
+          # loop, and the packaged app fails to start with "python314.dll was
+          # not found".
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=dsview-dist
+            -DCMAKE_INSTALL_PREFIX=dsview-dist \
+            -DPython3_ROOT_DIR=/mingw64 \
+            -DPython3_FIND_STRATEGY=LOCATION \
+            -DPython3_FIND_REGISTRY=NEVER \
+            -DPython3_FIND_VIRTUALENV=STANDARD
 
       - name: Build
         run: cmake --build build -j "$(nproc)"
@@ -220,6 +233,19 @@ jobs:
             mkdir -p "dsview-dist/${group}"
             cp -v /mingw64/share/qt6/plugins/${group}/*.dll "dsview-dist/${group}/"
           done
+
+          # DSView embeds Python (for its protocol decoders) via
+          # Py_InitializeEx(); without its own copy of the standard library
+          # (encodings, os.py, etc.) next to the exe, the interpreter can't
+          # bootstrap once libpython3.14.dll is copied out of MSYS2's
+          # /mingw64 prefix layout, and Py_FatalError() aborts the process
+          # silently before any window is shown. Bundle it under "pylib",
+          # which appcontrol.cpp points PYTHONHOME at via applicationDirPath().
+          PYVER="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+          mkdir -p "dsview-dist/pylib"
+          rsync -a \
+            --exclude 'test' --exclude 'idlelib' --exclude 'tkinter' --exclude '__pycache__' \
+            "/mingw64/lib/python${PYVER}/" "dsview-dist/pylib/"
 
           # The install rules only place DSView.exe + data files; the MSYS2
           # toolchain/Qt6 runtime DLLs it's dynamically linked against still
