@@ -1850,23 +1850,28 @@ void Viewport::measure()
             }
             else if (s->signal_type() == SR_CHANNEL_DSO) {
                  view::DsoSignal *dsoSig = ( view::DsoSignal*)s;
-                if (s->enabled()) {
-                    if (_measure_en && dsoSig->measure(_view.hover_point())) {
-                        _measure_type = DSO_VALUE;
-                    }
-                    else {
-                        _measure_type = NO_MEASURE;
-                    }
+                // measure() must run even while the channel is disabled: it
+                // resets its own hover state (_hover_en = false) and returns
+                // false in that case. Gating the call itself on s->enabled()
+                // (as before) skipped that reset entirely, so a channel
+                // disabled after being hovered kept showing a stale row in
+                // the floating measurement panel forever.
+                //
+                // Only ever promote _measure_type to DSO_VALUE here, never
+                // reset it back to NO_MEASURE - it already starts each call
+                // at NO_MEASURE (set once above, before this loop), and with
+                // several DSO/analog channels in play, one channel failing
+                // to hover-match (e.g. because it's disabled, or the mouse
+                // is outside its row in split mode) must not clobber another
+                // channel's successful match from earlier in this same loop.
+                if (_measure_en && dsoSig->measure(_view.hover_point())) {
+                    _measure_type = DSO_VALUE;
                 }
             }
             else if (s->signal_type() == SR_CHANNEL_ANALOG) {
                 view::AnalogSignal *analogSig = (view::AnalogSignal*)s;
-                if (s->enabled()) {
-                    if (_measure_en && analogSig->measure(_view.hover_point())) {
-                        _measure_type = DSO_VALUE;
-                    } else {
-                        _measure_type = NO_MEASURE;
-                    }
+                if (_measure_en && analogSig->measure(_view.hover_point())) {
+                    _measure_type = DSO_VALUE;
                 }
             }
         }
