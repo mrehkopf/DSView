@@ -1,0 +1,13 @@
+#!/bin/sh
+# Reload udev after removing 60-dreamsourcelab.rules, so a DreamSourceLab
+# device's permissions revert immediately rather than only on next reboot.
+set -e
+
+if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
+    if command -v udevadm >/dev/null 2>&1; then
+        udevadm control --reload-rules || true
+        udevadm trigger --subsystem-match=usb || true
+    fi
+fi
+
+exit 0

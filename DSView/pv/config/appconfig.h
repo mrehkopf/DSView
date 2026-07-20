@@ -132,6 +132,7 @@ struct UserHistory
   QString   openDir;
   QString   protocolExportPath;
   QString   exportFormat;
+  bool      showDriverHint;
 };
 
 struct FontParam

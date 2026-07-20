@@ -737,6 +737,12 @@ void MainFrame::ShowFormInit()
         mainWindow->restore_dock();
     });
 
+    // Delayed past ShowHelpDocAsync()'s 300ms so the two one-time startup
+    // notices (help doc, driver hint) don't pop up on top of each other.
+    QTimer::singleShot(800, this, [this](){
+        show_driver_hint_once();
+    });
+
     if (!_is_win32_parent_window){
         QFrame::show();
         return;
@@ -1151,6 +1157,89 @@ void MainFrame::show_doc()
             app.userHistory.showDocuments = false;
             app.SaveHistory();
         }   
+    }
+}
+
+void MainFrame::show_driver_hint_once()
+{
+    AppConfig &app = AppConfig::Instance();
+    if (!app.userHistory.showDriverHint)
+        return;
+
+    QString text;
+
+#ifdef _WIN32
+    // Skip entirely if this is an installed copy from the Inno Setup
+    // installer (installer/windows/dsview.iss) - it already stages the
+    // WinUSB driver via pnputil during setup, so there's nothing to warn
+    // about. Only the portable zip (which can't run pnputil unelevated)
+    // needs the hint below.
+    if (QFile::exists(QCoreApplication::applicationDirPath()
+                       + "/installed_via_setup.marker"))
+        return;
+
+    // Unlike Linux (a permission bit), Windows needs an actual WinUSB driver
+    // bound to the device before libusb can open it at all - there is no
+    // generic "any USB device just works" path. The installer sets this up
+    // automatically; the portable zip build does not.
+    text = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DRIVER_HINT_WIN),
+        "DreamSourceLab hardware needs a WinUSB driver to be recognized by "
+        "Windows. If your device does not appear in the device list, install "
+        "a WinUSB driver for it (for example with the free 'Zadig' tool), "
+        "then reconnect the device.");
+#else
+    // Skip entirely if the udev rule is already active system-wide (a
+    // .deb/source "make install" already places it there) - nothing to warn
+    // the user about in that case.
+    static const char *rule_paths[] = {
+        "/usr/lib/udev/rules.d/60-dreamsourcelab.rules",
+        "/lib/udev/rules.d/60-dreamsourcelab.rules",
+        "/etc/udev/rules.d/60-dreamsourcelab.rules",
+    };
+    for (const char *p : rule_paths) {
+        if (QFile::exists(p))
+            return;
+    }
+
+    // A copy of the rule ships in share/DSView next to the executable in
+    // every Linux packaging (system install, .deb, AppImage - see the
+    // install() rule in CMakeLists.txt); a plain uninstalled dev build won't
+    // have it, so fall back to printing the one-line rule to create by hand.
+    const QString bundled = QCoreApplication::applicationDirPath()
+        + "/../share/DSView/DreamSourceLab.rules";
+
+    if (QFile::exists(bundled)) {
+        text = QString(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DRIVER_HINT_LINUX_BUNDLED),
+            "DreamSourceLab hardware needs a udev rule granting USB access, "
+            "which was not found on this system (this is normal when running "
+            "the AppImage). To install it, run:\n\n"
+            "sudo cp \"%1\" /etc/udev/rules.d/ && "
+            "sudo udevadm control --reload-rules"))
+            .arg(bundled);
+    } else {
+        text = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DRIVER_HINT_LINUX),
+            "DreamSourceLab hardware needs a udev rule granting USB access, "
+            "which was not found on this system. Create "
+            "/etc/udev/rules.d/60-dreamsourcelab.rules with the following "
+            "line, then run 'sudo udevadm control --reload-rules':\n\n"
+            "SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"2a0e\", MODE=\"0666\"");
+    }
+#endif
+
+    QMessageBox msg(this);
+    msg.setWindowTitle(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DRIVER_HINT_TITLE),
+                           "Hardware driver note"));
+    msg.setText(text);
+    QPushButton *noMoreButton = msg.addButton(
+        L_S(STR_PAGE_MSG, S_ID(IDS_MSG_NOT_SHOW_AGAIN), "Not Show Again"),
+        QMessageBox::ActionRole);
+    msg.addButton(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_IGNORE), "Ignore"),
+                  QMessageBox::ActionRole);
+    msg.exec();
+
+    if (msg.clickedButton() == noMoreButton) {
+        app.userHistory.showDriverHint = false;
+        app.SaveHistory();
     }
 }
 

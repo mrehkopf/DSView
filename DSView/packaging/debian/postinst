@@ -1,0 +1,15 @@
+#!/bin/sh
+# Reload udev after installing 60-dreamsourcelab.rules (see CMakeLists.txt),
+# so the device permission fix takes effect immediately - without this, a
+# freshly plugged-in DreamSourceLab device would still be denied access by
+# libusb until the next reboot or a manual `udevadm control --reload-rules`.
+set -e
+
+if [ "$1" = "configure" ]; then
+    if command -v udevadm >/dev/null 2>&1; then
+        udevadm control --reload-rules || true
+        udevadm trigger --subsystem-match=usb || true
+    fi
+fi
+
+exit 0

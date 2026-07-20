@@ -13,6 +13,9 @@ autom4te.cache
 !cmake_modules
 CPackConfig.cmake
 CPackSourceConfig.cmake
+_CPack_Packages
+*.deb
+*.AppImage
 cmake_install.cmake
 Makefile
 *.cxx

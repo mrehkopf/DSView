@@ -277,6 +277,32 @@ jobs:
           name: DSView-windows
           path: DSView-windows-x86_64.zip
 
+      # Native Windows shell rather than the job-default MSYS2 bash for the
+      # Inno Setup steps below: iscc.exe/pnputil.exe are plain Windows tools,
+      # and MSYS2 bash's automatic POSIX<->Windows path conversion is an
+      # unnecessary complication for invoking them.
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          # Read the app version from CMakeLists.txt instead of hand-duplicating
+          # it here, so the installer's version can't silently drift from the
+          # one DSView itself reports.
+          $major = (Select-String -Path CMakeLists.txt -Pattern 'DS_VERSION_MAJOR (\d+)').Matches[0].Groups[1].Value
+          $minor = (Select-String -Path CMakeLists.txt -Pattern 'DS_VERSION_MINOR (\d+)').Matches[0].Groups[1].Value
+          $micro = (Select-String -Path CMakeLists.txt -Pattern 'DS_VERSION_MICRO (\d+)').Matches[0].Groups[1].Value
+          $version = "$major.$minor.$micro"
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer\windows\dsview.iss" "/DMyAppVersion=$version"
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: DSView-windows-installer
+          path: installer/windows/Output/DSView-windows-x86_64-setup.exe
+
   release:
     name: Publish latest pre-release
     needs: [linux, windows]
