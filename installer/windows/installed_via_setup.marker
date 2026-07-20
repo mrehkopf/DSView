@@ -1,0 +1,4 @@
+This file's presence tells DSView (MainFrame::show_driver_hint_once() in
+mainframe.cpp) that it was installed via the Inno Setup installer, which
+already staged the WinUSB driver (dsl_usb_instruments.inf) via pnputil during
+setup - so the first-start driver hint dialog should stay silent.

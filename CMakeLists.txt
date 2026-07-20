@@ -709,6 +709,15 @@ else()
             install(FILES DSView/DreamSourceLab.rules DESTINATION /etc/udev/rules.d RENAME 60-dreamsourcelab.rules)
         endif()
 
+        # Also ship a copy alongside the app itself (share/DSView, same as the
+        # other resources installed below), so it ends up inside the AppImage
+        # too - unlike the install() rules above, AppImage packaging has no
+        # way to place files outside its own AppDir, so this is the only copy
+        # an AppImage user has access to. MainFrame::show_driver_hint_once()
+        # looks for it here to give AppImage users a one-time copy-paste fix
+        # when the system-wide rule (installed above) isn't present.
+        install(FILES DSView/DreamSourceLab.rules DESTINATION share/DSView)
+
     endif()
 
     install(FILES NEWS25 DESTINATION share/DSView RENAME NEWS25)
@@ -733,6 +742,16 @@ set(CPACK_SOURCE_IGNORE_FILES ${CMAKE_CURRENT_BINARY_DIR} ".gitignore" ".git")
 set(CPACK_SOURCE_PACKAGE_FILE_NAME
     "${CMAKE_PROJECT_NAME}-${DS_VERSION_MAJOR}.${DS_VERSION_MINOR}.${DS_VERSION_MICRO}")
 set(CPACK_SOURCE_GENERATOR "TGZ")
+
+# Reload udev immediately after installing/removing the .deb, so the
+# 60-dreamsourcelab.rules permission fix (see the udev install() rules above)
+# takes effect without requiring a reboot or manual `udevadm` invocation.
+# CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA is ignored by every generator except DEB,
+# so this is safe to set unconditionally.
+set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
+    "${CMAKE_CURRENT_SOURCE_DIR}/DSView/packaging/debian/postinst"
+    "${CMAKE_CURRENT_SOURCE_DIR}/DSView/packaging/debian/postrm"
+)
 
 include(CPack)
 

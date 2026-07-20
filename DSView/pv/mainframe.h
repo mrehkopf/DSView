@@ -144,6 +144,7 @@ private:
     void writeSettings();
     void ReadSettings();
     void AttachNativeWindow();
+    void show_driver_hint_once();
 
     //ITitleParent
     void MoveWindow(int x, int y) override;
