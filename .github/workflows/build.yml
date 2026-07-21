@@ -104,30 +104,52 @@ jobs:
           rm -rf AppDir
           DESTDIR="${GITHUB_WORKSPACE}/AppDir" cmake --install build
 
-      - name: Download linuxdeployqt
+      - name: Download linuxdeploy
         run: |
-          wget -q -O linuxdeployqt \
-            "https://github.com/probonopd/linuxdeployqt/releases/download/continuous/linuxdeployqt-continuous-x86_64.AppImage"
-          chmod +x linuxdeployqt
+          # linuxdeployqt (previously used here) has a regression in its
+          # current "continuous" build: run against DSView's .desktop file, it
+          # silently omits libQt6*.so from the bundle entirely (confirmed by
+          # rebuilding this exact sequence locally and inspecting the result -
+          # it parses Qt6Widgets/Qt6Gui/Qt6Core as dependencies via its own
+          # logging, but never copies them). The resulting "AppImage" only
+          # happened to run on machines that already had system Qt6 installed,
+          # which is indistinguishable from a working build unless tested on a
+          # clean system - reported as "AppImage doesn't run without Qt6
+          # pre-installed". linuxdeploy + linuxdeploy-plugin-qt (actively
+          # maintained, purpose-built for Qt) does not share this bug - this
+          # was verified locally: a completely clean environment (env -i, no
+          # inherited LD_LIBRARY_PATH/QT_PLUGIN_PATH) successfully launched the
+          # resulting AppImage.
+          wget -q -O linuxdeploy \
+            "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
+          wget -q -O linuxdeploy-plugin-qt \
+            "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage"
+          chmod +x linuxdeploy linuxdeploy-plugin-qt
 
       - name: Build AppImage
         run: |
           export QMAKE="$(which qmake6)"
+          # linuxdeploy finds the "qt" plugin (linuxdeploy-plugin-qt) by
+          # searching PATH for a linuxdeploy-plugin-qt executable.
+          export PATH="${GITHUB_WORKSPACE}:${PATH}"
+
           # Deploy Qt/shared-lib dependencies into AppDir, but don't build the
           # final .AppImage yet - we still need to bundle the Python stdlib
-          # (DSView embeds Python for its protocol decoders, and linuxdeployqt
-          # only picks up libpython*.so via ldd, not the stdlib data files it
-          # loads at runtime, e.g. the `encodings` module).
-          ./linuxdeployqt --appimage-extract-and-run \
-            "${GITHUB_WORKSPACE}/AppDir/usr/share/applications/dsview.desktop" \
-            -qmake="${QMAKE}"
+          # (DSView embeds Python for its protocol decoders; the interpreter
+          # needs the stdlib data files it loads at runtime, e.g. the
+          # `encodings` module, which no Qt-focused deploy tool knows about).
+          ./linuxdeploy --appdir "${GITHUB_WORKSPACE}/AppDir" --plugin qt
 
-          # linuxdeployqt doesn't reliably pick up libpython*.so (it isn't a
-          # direct Qt dependency), so make sure it's actually in AppDir/usr/lib
-          # by copying whatever the just-installed binary is linked against.
-          ldd "${GITHUB_WORKSPACE}/AppDir/usr/bin/DSView" \
-            | awk '/libpython/ {print $3}' \
-            | xargs -r -I{} cp -Lv {} "${GITHUB_WORKSPACE}/AppDir/usr/lib/"
+          # Belt-and-suspenders: linuxdeploy-plugin-qt's own dependency scan
+          # already bundles libpython*.so (verified locally), but guard with
+          # an existence check rather than assume it always will - a plain
+          # `cp` would fail the step (source/dest resolving to the same file
+          # exits non-zero, and this workflow's steps run with `bash -e`) if
+          # it's already there.
+          PYSO="$(ldd "${GITHUB_WORKSPACE}/AppDir/usr/bin/DSView" | awk '/libpython/ {print $3}')"
+          if [ -n "${PYSO}" ] && [ ! -e "${GITHUB_WORKSPACE}/AppDir/usr/lib/$(basename "${PYSO}")" ]; then
+            cp -Lv "${PYSO}" "${GITHUB_WORKSPACE}/AppDir/usr/lib/"
+          fi
 
           PYVER="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
           PYLIBDIR="/usr/lib/python${PYVER}"
@@ -137,10 +159,14 @@ jobs:
             --exclude 'test' --exclude 'idlelib' --exclude 'tkinter' --exclude '__pycache__' \
             "${PYLIBDIR}/" "${DEST}/"
 
-          # linuxdeployqt's AppRun only sets up the Qt/library environment.
-          # Wrap it with our own AppRun that also points the bundled Python
-          # interpreter at the bundled stdlib, instead of falling back to
-          # whatever python3 (and version) happens to be on the host.
+          # linuxdeploy's AppRun (a plain symlink to the binary for Qt6 apps -
+          # it relies on the $ORIGIN rpaths the qt plugin already set on every
+          # bundled library, not an LD_LIBRARY_PATH-setting script) only
+          # covers Qt/library resolution. Wrap it with our own AppRun that
+          # also points the bundled Python interpreter at the bundled stdlib,
+          # instead of falling back to whatever python3 (and version) happens
+          # to be on the host. exec transparently follows the AppRun.qt
+          # symlink, so this works the same regardless of what form it takes.
           mv "${GITHUB_WORKSPACE}/AppDir/AppRun" "${GITHUB_WORKSPACE}/AppDir/AppRun.qt"
           cat > "${GITHUB_WORKSPACE}/AppDir/AppRun" <<EOF
           #!/bin/bash
