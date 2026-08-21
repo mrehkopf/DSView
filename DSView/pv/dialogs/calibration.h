@@ -49,6 +49,7 @@ class Calibration : public DSDialog, public IUiWindow
     {
         QLabel *lable;
         QSlider *slider;
+        QLabel *value_label;
     };
 
     struct channel_param_widget

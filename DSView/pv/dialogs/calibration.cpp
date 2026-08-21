@@ -22,6 +22,8 @@
 #include "calibration.h"
   
 #include <QGridLayout>
+#include <QHBoxLayout>
+#include <QScrollArea>
 #include <QFuture>
 #include <QProgressDialog>
 #include <QtConcurrent/QtConcurrent>
@@ -65,7 +67,8 @@ Calibration::Calibration(QWidget *parent) :
     Qt::WindowFlags flags = windowFlags();
     this->setWindowFlags(flags | Qt::Tool);
 #endif
-    this->setFixedSize(450, 300);
+    this->setMinimumSize(650, 400);
+    this->resize(750, 560);
     this->setWindowOpacity(0.7);
     this->setModal(false);
 
@@ -81,10 +84,21 @@ Calibration::Calibration(QWidget *parent) :
     _flayout->setFormAlignment(Qt::AlignLeft);
     _flayout->setLabelAlignment(Qt::AlignLeft);
     _flayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+
+    QWidget *scrollContent = new QWidget(this);
+    scrollContent->setLayout(_flayout);
+
+    QScrollArea *scrollArea = new QScrollArea(this);
+    scrollArea->setWidget(scrollContent);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+
     QGridLayout *glayout = new QGridLayout();
     glayout->setVerticalSpacing(5);
 
-    glayout->addLayout(_flayout, 1, 0, 1, 7);
+    glayout->addWidget(scrollArea, 1, 0, 1, 7);
     glayout->addWidget(_save_btn, 2, 0);
     glayout->addWidget(new QWidget(this), 2, 1);
     glayout->setColumnStretch(1, 1);
@@ -142,45 +156,51 @@ void Calibration::BuildUI()
         sr_channel *const probe = (sr_channel*)l->data;
         assert(probe);
 
-        QSlider *gain_slider = new QSlider(Qt::Horizontal, this);
-        QLabel *gain_label = new QLabel("gain", this);
-        gain_label->setAlignment(Qt::AlignVCenter);   
-        _flayout->addRow(gain_label, gain_slider);
- 
-        QSlider *off_slider = new QSlider(Qt::Horizontal, this);
-        QLabel *off_label = new QLabel("off", this);
-        off_label->setAlignment(Qt::AlignVCenter);   
-        _flayout->addRow(off_label, off_slider);
+        auto addSliderRow = [this](const char *name) -> ui_param_info {
+            ui_param_info info;
+            info.slider = new QSlider(Qt::Horizontal, this);
+            info.slider->setMinimumWidth(450);
+            info.lable = new QLabel(name, this);
+            info.lable->setAlignment(Qt::AlignVCenter);
+            info.lable->setMinimumWidth(40);
+            info.value_label = new QLabel("0", this);
+            info.value_label->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
+            info.value_label->setMinimumWidth(60);
 
-        QSlider *comp_slider = NULL;
-        QLabel *comp_label = NULL;
+            QWidget *row = new QWidget(this);
+            QHBoxLayout *hlayout = new QHBoxLayout(row);
+            hlayout->setContentsMargins(0, 0, 0, 0);
+            hlayout->addWidget(info.slider, 1);
+            hlayout->addWidget(info.value_label, 0);
 
-         bool comb_comp_en = false;
+            _flayout->addRow(info.lable, row);
+            return info;
+        };
+
+        ui_param_info gain_info = addSliderRow("gain");
+        ui_param_info off_info = addSliderRow("off");
+
+        ui_param_info comp_info = {NULL, NULL, NULL};
+        bool comb_comp_en = false;
         _device_agent->get_config_bool(SR_CONF_PROBE_COMB_COMP_EN, comb_comp_en);
 
         if (comb_comp_en){
-            comp_slider = new QSlider(Qt::Horizontal, this);
-            comp_label = new QLabel("comp", this);
-            comp_label->setAlignment(Qt::AlignVCenter);
-            _flayout->addRow(comp_label, comp_slider);            
-        } 
+            comp_info = addSliderRow("comp");
+        }
 
         channel_param_widget form;
-        form.gain.lable = gain_label;
-        form.gain.slider = gain_slider;
-        form.off.lable = off_label;
-        form.off.slider = off_slider;
-        form.comp.lable = comp_label;
-        form.comp.slider = comp_slider;
+        form.gain = gain_info;
+        form.off = off_info;
+        form.comp = comp_info;
         form.probe = probe;
 
         _params.push_back(form);
- 
-        connect(gain_slider, SIGNAL(valueChanged(int)), this, SLOT(set_value(int)));
-        connect(off_slider, SIGNAL(valueChanged(int)), this, SLOT(set_value(int))); 
 
-        if (comp_slider != NULL){
-            connect(comp_slider, SIGNAL(valueChanged(int)), this, SLOT(set_value(int)));
+        connect(gain_info.slider, SIGNAL(valueChanged(int)), this, SLOT(set_value(int)));
+        connect(off_info.slider, SIGNAL(valueChanged(int)), this, SLOT(set_value(int)));
+
+        if (comp_info.slider != NULL){
+            connect(comp_info.slider, SIGNAL(valueChanged(int)), this, SLOT(set_value(int)));
         }
     }
 
@@ -215,7 +235,8 @@ void Calibration::update_device_info()
     
         form->gain.slider->setRange(-vgain_range/2, vgain_range/2);
         form->gain.slider->setValue(vgain - vgain_default);
-         
+        form->gain.value_label->setText(QString::number(form->gain.slider->value()));
+
         uint64_t voff = 0;
         uint16_t voff_range = 0;
         int v;
@@ -229,14 +250,16 @@ void Calibration::update_device_info()
  
         form->off.slider->setRange(0, voff_range);
         form->off.slider->setValue(voff);
-         
+        form->off.value_label->setText(QString::number(form->off.slider->value()));
+
         if (form->comp.slider != NULL) {
             int comb_comp = 0;
            _device_agent->get_config_int16(SR_CONF_PROBE_COMB_COMP, comb_comp, probe, NULL);
 
             form->comp.slider->setRange(-127, 127);
             form->comp.slider->setValue(comb_comp);
-        } 
+            form->comp.value_label->setText(QString::number(form->comp.slider->value()));
+        }
     }
  
     update();
@@ -274,15 +297,18 @@ void Calibration::set_value(int value)
         if (form.gain.slider == sc){
             uint64_t vgain_default;
             if (_device_agent->get_config_uint64(SR_CONF_PROBE_VGAIN_DEFAULT, vgain_default, form.probe)){
-                _device_agent->set_config_uint64(SR_CONF_PROBE_VGAIN, value+vgain_default, form.probe);          
+                _device_agent->set_config_uint64(SR_CONF_PROBE_VGAIN, value+vgain_default, form.probe);
             }
+            form.gain.value_label->setText(QString::number(value));
         }
         else if (form.off.slider == sc){
-            _device_agent->set_config_uint16(SR_CONF_PROBE_PREOFF, value, form.probe); 
+            _device_agent->set_config_uint16(SR_CONF_PROBE_PREOFF, value, form.probe);
+            form.off.value_label->setText(QString::number(value));
         }
         else if (form.comp.slider == sc){
             _device_agent->set_config_int16(SR_CONF_PROBE_COMB_COMP, value, form.probe);
-        } 
+            form.comp.value_label->setText(QString::number(value));
+        }
     }
 }
 
