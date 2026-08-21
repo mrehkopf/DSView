@@ -144,7 +144,7 @@
  * trans: the whole windows offset map to the offset pwm(1024 total)
  * voff: offset pwm constant bias to balance circuit offset
  */
-#define CALI_VGAIN_RANGE 200
+#define CALI_VGAIN_RANGE 600
 
 struct DSL_caps {
     uint64_t mode_caps;

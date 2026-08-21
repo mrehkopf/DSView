@@ -203,6 +203,7 @@ bool DsoSignal::go_vDialPre(bool manul)
         }
         session->get_device()->set_config_uint16(SR_CONF_PROBE_OFFSET,
                               _zero_offset, _probe, NULL);
+        _data->set_measure_voltage_factor(_vDial->get_value(), get_index());
 
         _view->vDial_updated();
         _view->set_update(_viewport, true);
@@ -219,7 +220,7 @@ bool DsoSignal::go_vDialPre(bool manul)
 bool DsoSignal::go_vDialNext(bool manul)
 {
     if (_autoV && manul)
-        autoV_end(); 
+        autoV_end();
 
     if (enabled() && !_vDial->isMax())
     {
@@ -238,6 +239,7 @@ bool DsoSignal::go_vDialNext(bool manul)
         }
         session->get_device()->set_config_uint16(SR_CONF_PROBE_OFFSET,
                               _zero_offset, _probe, NULL);
+        _data->set_measure_voltage_factor(_vDial->get_value(), get_index());
 
         _view->vDial_updated();
         _view->set_update(_viewport, true);
@@ -940,8 +942,11 @@ void DsoSignal::paint_fore(QPainter &p, int left, int right, QColor fore, QColor
 
     assert(_view); 
 
-    fore.setAlpha(View::BackAlpha);
-    QPen pen(fore);
+    // Use the channel's own colour (not the grid's fore colour) so the zero
+    // line stands out against the grid instead of blending into it.
+    QColor zero_colour = _colour;
+    zero_colour.setAlpha(View::ForeAlpha);
+    QPen pen(zero_colour);
     pen.setStyle(Qt::DotLine);
     p.setPen(pen);
     p.drawLine(left, get_zero_vpos(), right, get_zero_vpos());

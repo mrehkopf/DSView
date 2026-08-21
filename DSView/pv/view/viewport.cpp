@@ -2076,6 +2076,8 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
 
         struct MRow { QString name; QString val; QColor colour; };
         std::vector<MRow> rows;
+        bool have_hover_index = false;
+        uint64_t hover_sample_index = 0;
 
         for(auto s : _view.session().get_signals()) {
             if (s->signal_type() == SR_CHANNEL_DSO) {
@@ -2094,6 +2096,11 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
                     r.val = dsoSig->get_voltage(dsoSig->get_hw_offset() - value, 3);
                     r.colour = dsoSig->get_colour();
                     rows.push_back(r);
+
+                    if (!have_hover_index) {
+                        hover_sample_index = index;
+                        have_hover_index = true;
+                    }
                 }
             }
             else if (s->signal_type() == SR_CHANNEL_ANALOG) {
@@ -2114,6 +2121,16 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
         // logic-mode measurement popup) instead of printing each number on
         // top of its trace, where it is hard to read.
         if (!rows.empty()) {
+            if (have_hover_index) {
+                MRow r;
+                r.name = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_TIME), "Time");
+                r.val = _view.get_ruler()->format_real_time(
+                    hover_sample_index - _view.session().get_trigger_pos(),
+                    _view.session().cur_snap_samplerate());
+                r.colour = fore;
+                rows.insert(rows.begin(), r);
+            }
+
             // The floating panel is drawn 50% larger than the trace font and
             // in bold to keep the hovered values easy to read.
             const double sc = _view.get_trace_font_scale() * 1.2;
@@ -2123,7 +2140,13 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
             measure_font.setPointSizeF(AppConfig::Instance().GetTraceFontSize() * sc);
             p.setFont(measure_font);
 
-            int name_w = 0, val_w = 0;
+            // Size the value column from a worst-case template rather than the
+            // actual strings, so the panel doesn't resize when a value's unit
+            // switches (e.g. V <-> mV) as the signal changes.
+            const QString val_w_template = "-999.000mV";
+
+            int name_w = 0, val_w = p.boundingRect(0, 0, INT_MAX, INT_MAX,
+                Qt::AlignLeft | Qt::AlignVCenter, val_w_template).width();
             for (auto &r : rows) {
                 name_w = max(name_w, p.boundingRect(0, 0, INT_MAX, INT_MAX,
                     Qt::AlignLeft | Qt::AlignVCenter, r.name).width());
