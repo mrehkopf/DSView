@@ -347,6 +347,10 @@ void Header::wheelEvent(QWheelEvent *event)
         // Vertical scrolling
         double shift = 0;
 
+        // The dials the traces expose react in whole steps only, so the raw
+        // delta has to be turned into whole wheel detents first - high
+        // resolution wheels report a fraction of a detent per event and would
+        // otherwise always be rounded down to zero.
 #ifdef Q_OS_DARWIN
         static bool active = true;
         static int64_t last_time;
@@ -362,19 +366,25 @@ void Header::wheelEvent(QWheelEvent *event)
                 active = true;
             else
                 active = false;
+
+            if (shift == 0)
+                _wheel_accum.reset();
         }
         else
         {
-            shift = -delta / 80.0;
+            shift = -_wheel_accum.take(delta);
         }
 #else
-        shift = delta / 80.0;
+        shift = _wheel_accum.take(delta);
 #endif
 
-        for (auto t : traces)
+        if (shift != 0)
         {
-            if (t->mouse_wheel(width(), pos, shift))
-                break;
+            for (auto t : traces)
+            {
+                if (t->mouse_wheel(width(), pos, shift))
+                    break;
+            }
         }
         _view.verticalScrollBar()->setValue(_view.verticalScrollBar()->value() - delta);
         update();

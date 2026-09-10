@@ -321,11 +321,14 @@ bool View::zoom(double steps, int offset)
             return ret;
         }
 
+        // The horizontal knob only moves in whole positions, so sub-step wheel
+        // events (high-resolution wheels) have to be summed up first, otherwise
+        // they would each be discarded and zooming would never happen.
+        const int knob_steps = _dso_zoom_accum.take(steps);
+
         double hori_res = -1;
-        if(steps > 0.5)
-            hori_res = _sampling_bar->hori_knob(-1);
-        else if (steps < -0.5)
-            hori_res = _sampling_bar->hori_knob(1);
+        for (int i = 0; i < ABS_VAL(knob_steps); i++)
+            hori_res = _sampling_bar->hori_knob(knob_steps > 0 ? -1 : 1);
 
         if (hori_res > 0) {
             const double scale = _session->cur_view_time() / width;

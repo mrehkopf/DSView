@@ -135,12 +135,9 @@ void KeyLineEdit::wheelEvent(QWheelEvent *event)
             delta = event->delta();
 #endif
 
-            if (delta > 0){
-                v++;
-            }
-            else{
-                v--;
-            }
+            // High-resolution wheels send a fraction of a detent per event, so
+            // only step once a whole detent has been scrolled.
+            v += _wheel_accum.take(delta);
 
             if (_min != 0 || _max != 0)
             {
