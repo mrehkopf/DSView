@@ -4,6 +4,7 @@
  *
  * Copyright (C) 2012 Joel Holdsworth <joel@airwebreathe.org.uk>
  * Copyright (C) 2013 DreamSourceLab <support@dreamsourcelab.com>
+ * Copyright (C) 2026 Schildkroet
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1781,7 +1782,8 @@ namespace pv
 
     void SigSession::math_rebuild(bool enable, view::DsoSignal *dsoSig1,
                                   view::DsoSignal *dsoSig2,
-                                  data::MathStack::MathType type)
+                                  data::MathStack::MathType type,
+                                  int filter_width)
     {
         ds_lock_guard lock(_data_mutex);
 
@@ -1790,7 +1792,8 @@ namespace pv
 
         DESTROY_OBJECT(_math_trace);
 
-        auto math_stack = new data::MathStack(this, dsoSig1, dsoSig2, type);        
+        auto math_stack = new data::MathStack(this, dsoSig1, dsoSig2, type);
+        math_stack->set_filter_width(filter_width);
         _math_trace = new view::MathTrace(enable, math_stack, dsoSig1, dsoSig2);
 
         if (_math_trace && _math_trace->enabled())
@@ -1809,6 +1812,40 @@ namespace pv
     {
         if (_math_trace)
             _math_trace->set_enable(false);
+    }
+
+    void SigSession::add_ref_wave(view::DsoSignal *sig)
+    {
+        if (sig == NULL)
+            return;
+
+        data::DsoSnapshot *data = sig->data();
+        if (data == NULL || data->empty())
+            return;
+
+        const uint64_t n = data->get_sample_count();
+        const uint8_t *buf = data->get_samples(0, 0, sig->get_index());
+        if (n == 0 || buf == NULL)
+            return;
+
+        RefWave rw;
+        rw.index = sig->get_index();
+        rw.samples.assign(buf, buf + n);
+        rw.samplerate = data->samplerate();
+        rw.colour = sig->get_colour();
+        rw.name = QString("Ref %1").arg((int)_ref_waves.size() + 1);
+        _ref_waves.push_back(rw);
+
+        signals_changed();
+    }
+
+    void SigSession::clear_ref_waves()
+    {
+        if (_ref_waves.empty())
+            return;
+
+        _ref_waves.clear();
+        signals_changed();
     }
 
     void SigSession::nodata_timeout()
@@ -2475,9 +2512,10 @@ namespace pv
     }
 
     void SigSession::clear_signals()
-    {   
+    {
         DESTROY_OBJECT(_math_trace);
-        
+        _ref_waves.clear();
+
         for (int i=0; i< (int)_signals.size(); i++)
         {
             auto *p = _signals[i];

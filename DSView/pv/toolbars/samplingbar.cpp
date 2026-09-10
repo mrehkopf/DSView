@@ -1139,6 +1139,7 @@ namespace pv
 
             _device_selector.clear();
 
+            int max_text_width = 0;
             for (int i = 0; i < dev_count; i++)
             {
                 p = (array + i);
@@ -1168,7 +1169,7 @@ namespace pv
             }
 
             _last_device_index = select_index;
-            const int width = max_text_width + 20;
+            const int width = max_text_width + 30;
             const int selector_width = min(width, ComboBoxMaxWidth);
             const int popup_width = width;
 

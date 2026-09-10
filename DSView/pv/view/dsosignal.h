@@ -3,6 +3,7 @@
  * DSView is based on PulseView.
  *
  * Copyright (C) 2013 DreamSourceLab <support@dreamsourcelab.com>
+ * Copyright (C) 2026 Schildkroet
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,6 +26,7 @@
 
 #include "signal.h"
 #include "../dstimer.h"
+#include <QDateTime>
   
 namespace pv {
 namespace data {
@@ -260,6 +262,11 @@ private:
         uint64_t num_channels);
 
     void paint_hover_measure(QPainter &p, QColor fore, QColor back);
+
+    // Compute the cycle measurements (period/frequency/duty/count/width/level)
+    // from the sample buffer. Used as a fallback for channels the hardware
+    // leaves unmeasured - e.g. the 2nd channel often returns no cycle data.
+    void compute_soft_measure(int hw_offset);
     void auto_set();
 
     void call_auto_end();
@@ -287,6 +294,22 @@ private:
     uint8_t _min;
     double _period;
     bool _level_valid;
+    // Set once compute_soft_measure() has logged that it is substituting for
+    // missing hardware cycle data, so repeated repaints don't spam the log.
+    // Cleared again once the hardware reports valid cycle data.
+    bool _soft_measure_logged;
+
+    // Identifies the dataset compute_soft_measure() last computed its result
+    // for, so it can skip re-scanning the sample buffer on repaints that
+    // don't follow a new acquisition (e.g. hover/cursor redraws while the
+    // hardware measurement stays invalid for many consecutive frames).
+    // get_trig_time() changes on every new capture even when the configured
+    // sample depth (and so get_sample_count()) stays the same between runs,
+    // which a count-only check would miss.
+    bool _soft_measure_cache_valid;
+    const pv::data::DsoSnapshot *_soft_measure_cache_data;
+    uint64_t _soft_measure_cache_sample_count;
+    QDateTime _soft_measure_cache_trig_time;
     uint8_t _high;
     uint8_t _low;
     double _rms;

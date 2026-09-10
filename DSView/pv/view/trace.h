@@ -51,6 +51,10 @@ protected:
 	static const int LabelHitPadding;
 
 public:
+    // The font size (in points) the Margin/SquareWidth pixel constants
+    // were tuned against - used to scale the boxes with AppConfig's font
+    // size setting, not just the (independent) trace height factor.
+    static constexpr double BaseFontSize = 9.0;
     static const int SquareWidth = 20;
     static const int COLOR = 1;
     static const int NAME = 2;
@@ -95,6 +99,12 @@ public:
 	inline void set_colour(QColor colour){
         _colour = colour;
     }
+
+	/**
+	 * The colour to fall back to when the signal has no explicit user-set
+	 * colour, so a channel's waveform matches the colour of its label flag.
+	 */
+	QColor get_default_colour();
 
 	/**
 	 * Gets the vertical layout offset of this signal.
@@ -161,17 +171,23 @@ public:
     /**
      * Geom
      */
-    inline int get_leftWidth(){
-        return SquareWidth/2 + Margin;
-    }
 
-    inline int get_rightWidth(){
-        return 2 * Margin + _typeWidth * SquareWidth + 1.5 * SquareWidth;
-    }
+    /**
+     * Scale applied to the header-label geometry (square/box sizes, margins)
+     * so the labels and trigger buttons grow together with the trace height.
+     * Returns 1.0 when no view is attached or the trace height is not scaled.
+     */
+    double get_label_scale();
 
-    inline int get_headerHeight(){
-        return SquareWidth;
-    }
+    // Square and margin sizes scaled by get_label_scale().
+    int get_squareWidth();
+    int get_squareMargin();
+
+    int get_leftWidth();
+
+    int get_rightWidth();
+
+    int get_headerHeight();
 
     /**
      * Gets the old vertical layout offset of this signal.

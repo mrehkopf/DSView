@@ -1,0 +1,356 @@
+name: Build
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+jobs:
+  linux:
+    name: Linux (deb + AppImage)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake git pkg-config \
+            qt6-base-dev libqt6svg6-dev libgl1-mesa-dev libxkbcommon-dev libvulkan-dev \
+            libglib2.0-dev zlib1g-dev libusb-1.0-0-dev libboost-dev libfftw3-dev \
+            python3-dev libudev-dev dpkg-dev rsync patchelf
+
+      - name: Configure
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DCPACK_PACKAGE_CONTACT="pat.felix92@gmail.com" \
+            -DCPACK_DEBIAN_PACKAGE_SHLIBDEPS=ON
+
+      - name: Build
+        run: cmake --build build -j "$(nproc)"
+
+      - name: Build .deb package
+        run: |
+          cd build
+          cpack -G DEB
+
+      - name: Bundle Python (lib + stdlib) so the .deb doesn't depend on the host's Python
+        run: |
+          cd build
+          DEB="$(ls *.deb)"
+          rm -rf deb-extract
+          dpkg-deb -R "$DEB" deb-extract
+
+          # DSView embeds Python (for its protocol decoders) and links
+          # libpython directly, so the binary has a hard DT_NEEDED on the
+          # exact libpythonX.Y.so the runner (Ubuntu 22.04, Python 3.10)
+          # built against, and the interpreter needs that same version's
+          # stdlib (encodings, etc.) to even bootstrap. Neither exists on
+          # newer distros (24.04 only ships Python 3.12), so the app would
+          # fail to start even though apt happily installed it. Fix: carry
+          # our own copy of both inside the package and point the binary at
+          # them via RPATH + a PYTHONHOME/PYTHONPATH wrapper, so it never
+          # relies on whatever Python happens to be on the host.
+          PYVER="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+          BIN="deb-extract/usr/bin/DSView"
+          PYSO="$(ldd "$BIN" | awk '/libpython/ {print $3}')"
+          BUNDLE="deb-extract/usr/lib/dsview"
+          mkdir -p "$BUNDLE"
+          cp -Lv "$PYSO" "$BUNDLE/"
+          patchelf --set-rpath '$ORIGIN/../lib/dsview' "$BIN"
+
+          rsync -a \
+            --exclude 'test' --exclude 'idlelib' --exclude 'tkinter' --exclude '__pycache__' \
+            "/usr/lib/python${PYVER}/" "$BUNDLE/python${PYVER}/"
+
+          mv "$BIN" "${BIN}.bin"
+          cat > "$BIN" <<WRAPPER
+          #!/bin/bash
+          export PYTHONHOME="/usr/lib/dsview"
+          export PYTHONPATH="/usr/lib/dsview/python${PYVER}:/usr/lib/dsview/python${PYVER}/lib-dynload"
+          exec "/usr/bin/DSView.bin" "\$@"
+          WRAPPER
+          chmod +x "$BIN"
+
+          # Drop the auto-detected libpythonX.Y dependency from the control
+          # file - we no longer rely on the system providing it. Handles the
+          # dependency appearing first, last, or in the middle of the list.
+          sed -E -i \
+            -e "s/, libpython${PYVER//./\\.}[^,]*//g" \
+            -e "s/libpython${PYVER//./\\.}[^,]*, //g" \
+            -e "s/libpython${PYVER//./\\.}[^,]*\$//g" \
+            deb-extract/DEBIAN/control
+          echo "--- patched control ---"
+          cat deb-extract/DEBIAN/control
+          echo "--- ldd after patch ---"
+          ldd "${BIN}.bin" 2>/dev/null || true
+
+          dpkg-deb --root-owner-group -b deb-extract "$DEB"
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: DSView-linux-deb
+          path: build/*.deb
+
+      - name: Install into AppDir
+        run: |
+          rm -rf AppDir
+          DESTDIR="${GITHUB_WORKSPACE}/AppDir" cmake --install build
+
+      - name: Download linuxdeploy
+        run: |
+          # linuxdeployqt (previously used here) has a regression in its
+          # current "continuous" build: run against DSView's .desktop file, it
+          # silently omits libQt6*.so from the bundle entirely (confirmed by
+          # rebuilding this exact sequence locally and inspecting the result -
+          # it parses Qt6Widgets/Qt6Gui/Qt6Core as dependencies via its own
+          # logging, but never copies them). The resulting "AppImage" only
+          # happened to run on machines that already had system Qt6 installed,
+          # which is indistinguishable from a working build unless tested on a
+          # clean system - reported as "AppImage doesn't run without Qt6
+          # pre-installed". linuxdeploy + linuxdeploy-plugin-qt (actively
+          # maintained, purpose-built for Qt) does not share this bug - this
+          # was verified locally: a completely clean environment (env -i, no
+          # inherited LD_LIBRARY_PATH/QT_PLUGIN_PATH) successfully launched the
+          # resulting AppImage.
+          wget -q -O linuxdeploy \
+            "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage"
+          wget -q -O linuxdeploy-plugin-qt \
+            "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage"
+          chmod +x linuxdeploy linuxdeploy-plugin-qt
+
+      - name: Build AppImage
+        run: |
+          export QMAKE="$(which qmake6)"
+          # linuxdeploy finds the "qt" plugin (linuxdeploy-plugin-qt) by
+          # searching PATH for a linuxdeploy-plugin-qt executable.
+          export PATH="${GITHUB_WORKSPACE}:${PATH}"
+
+          # Deploy Qt/shared-lib dependencies into AppDir, but don't build the
+          # final .AppImage yet - we still need to bundle the Python stdlib
+          # (DSView embeds Python for its protocol decoders; the interpreter
+          # needs the stdlib data files it loads at runtime, e.g. the
+          # `encodings` module, which no Qt-focused deploy tool knows about).
+          ./linuxdeploy --appdir "${GITHUB_WORKSPACE}/AppDir" --plugin qt
+
+          # Belt-and-suspenders: linuxdeploy-plugin-qt's own dependency scan
+          # already bundles libpython*.so (verified locally), but guard with
+          # an existence check rather than assume it always will - a plain
+          # `cp` would fail the step (source/dest resolving to the same file
+          # exits non-zero, and this workflow's steps run with `bash -e`) if
+          # it's already there.
+          PYSO="$(ldd "${GITHUB_WORKSPACE}/AppDir/usr/bin/DSView" | awk '/libpython/ {print $3}')"
+          if [ -n "${PYSO}" ] && [ ! -e "${GITHUB_WORKSPACE}/AppDir/usr/lib/$(basename "${PYSO}")" ]; then
+            cp -Lv "${PYSO}" "${GITHUB_WORKSPACE}/AppDir/usr/lib/"
+          fi
+
+          PYVER="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+          PYLIBDIR="/usr/lib/python${PYVER}"
+          DEST="${GITHUB_WORKSPACE}/AppDir/usr/lib/python${PYVER}"
+          mkdir -p "${DEST}"
+          rsync -a \
+            --exclude 'test' --exclude 'idlelib' --exclude 'tkinter' --exclude '__pycache__' \
+            "${PYLIBDIR}/" "${DEST}/"
+
+          # linuxdeploy's AppRun (a plain symlink to the binary for Qt6 apps -
+          # it relies on the $ORIGIN rpaths the qt plugin already set on every
+          # bundled library, not an LD_LIBRARY_PATH-setting script) only
+          # covers Qt/library resolution. Wrap it with our own AppRun that
+          # also points the bundled Python interpreter at the bundled stdlib,
+          # instead of falling back to whatever python3 (and version) happens
+          # to be on the host. exec transparently follows the AppRun.qt
+          # symlink, so this works the same regardless of what form it takes.
+          mv "${GITHUB_WORKSPACE}/AppDir/AppRun" "${GITHUB_WORKSPACE}/AppDir/AppRun.qt"
+          cat > "${GITHUB_WORKSPACE}/AppDir/AppRun" <<EOF
+          #!/bin/bash
+          HERE="\$(dirname "\$(readlink -f "\${0}")")"
+          export PYTHONHOME="\$HERE/usr"
+          export PYTHONPATH="\$HERE/usr/lib/python${PYVER}:\$HERE/usr/lib/python${PYVER}/lib-dynload"
+          exec "\$HERE/AppRun.qt" "\$@"
+          EOF
+          chmod +x "${GITHUB_WORKSPACE}/AppDir/AppRun"
+
+          wget -q -O appimagetool \
+            "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
+          chmod +x appimagetool
+          ./appimagetool --appimage-extract-and-run \
+            "${GITHUB_WORKSPACE}/AppDir" DSView-x86_64.AppImage
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: DSView-linux-appimage
+          path: '*.AppImage'
+
+  windows:
+    name: Windows (MSYS2)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            zip
+            rsync
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-qt6-base
+            mingw-w64-x86_64-qt6-svg
+            mingw-w64-x86_64-qt6-5compat
+            mingw-w64-x86_64-glib2
+            mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-boost
+            mingw-w64-x86_64-fftw
+            mingw-w64-x86_64-python
+            mingw-w64-x86_64-pkg-config
+
+      - name: Configure
+        run: |
+          # Force CMake to find MSYS2's own mingw64 Python (whose runtime DLL
+          # we actually bundle below) instead of the native Windows Python
+          # that's preinstalled on the windows-latest runner (e.g. python314.dll
+          # under the hosted tool cache). If CMake picks that one up instead,
+          # DSView.exe ends up linked against a DLL that only exists on the CI
+          # runner, isn't found by the /mingw64/bin-only dependency bundling
+          # loop, and the packaged app fails to start with "python314.dll was
+          # not found".
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=dsview-dist \
+            -DPython3_ROOT_DIR=/mingw64 \
+            -DPython3_FIND_STRATEGY=LOCATION \
+            -DPython3_FIND_REGISTRY=NEVER \
+            -DPython3_FIND_VIRTUALENV=STANDARD
+
+      - name: Build
+        run: cmake --build build -j "$(nproc)"
+
+      - name: Install
+        run: cmake --install build
+
+      - name: Bundle runtime DLLs
+        run: |
+          # Qt loads platform/image/style plugins dynamically (not visible to
+          # ldd); without qwindows.dll in particular, the app can't even open
+          # a window. Qt's default search looks for a "platforms" etc. folder
+          # next to the executable. Copy these first so the ldd pass below
+          # also picks up libraries only the plugins need (e.g. Qt6Svg.dll,
+          # needed by the qsvg imageformat/iconengine plugins but not linked
+          # directly by DSView.exe itself).
+          for group in platforms styles imageformats iconengines; do
+            mkdir -p "dsview-dist/${group}"
+            cp -v /mingw64/share/qt6/plugins/${group}/*.dll "dsview-dist/${group}/"
+          done
+
+          # DSView embeds Python (for its protocol decoders) via
+          # Py_InitializeEx(); without its own copy of the standard library
+          # (encodings, os.py, etc.) next to the exe, the interpreter can't
+          # bootstrap once libpython3.14.dll is copied out of MSYS2's
+          # /mingw64 prefix layout, and Py_FatalError() aborts the process
+          # silently before any window is shown. Bundle it under "pylib",
+          # which appcontrol.cpp points PYTHONHOME at via applicationDirPath().
+          PYVER="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+          mkdir -p "dsview-dist/pylib"
+          rsync -a \
+            --exclude 'test' --exclude 'idlelib' --exclude 'tkinter' --exclude '__pycache__' \
+            "/mingw64/lib/python${PYVER}/" "dsview-dist/pylib/"
+
+          # The install rules only place DSView.exe + data files; the MSYS2
+          # toolchain/Qt6 runtime DLLs it's dynamically linked against still
+          # need to be copied in manually. Resolve the dependency closure with
+          # ldd and keep looping until a pass copies nothing new, since some
+          # transitive deps only show up once their dependents are present.
+          while :; do
+            new=0
+            for dll in $(find dsview-dist -name '*.exe' -o -name '*.dll' \
+                | xargs ldd 2>/dev/null \
+                | grep -i '/mingw64/bin/' | awk '{print $3}' | sort -u); do
+              base="$(basename "$dll")"
+              if [ ! -f "dsview-dist/$base" ]; then
+                cp -v "$dll" dsview-dist/
+                new=1
+              fi
+            done
+            [ "$new" -eq 0 ] && break
+          done
+
+      - name: Package as zip
+        run: |
+          cd dsview-dist
+          zip -r "${GITHUB_WORKSPACE}/DSView-windows-x86_64.zip" .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: DSView-windows
+          path: DSView-windows-x86_64.zip
+
+      # Native Windows shell rather than the job-default MSYS2 bash for the
+      # Inno Setup steps below: iscc.exe/pnputil.exe are plain Windows tools,
+      # and MSYS2 bash's automatic POSIX<->Windows path conversion is an
+      # unnecessary complication for invoking them.
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          # Read the app version from CMakeLists.txt instead of hand-duplicating
+          # it here, so the installer's version can't silently drift from the
+          # one DSView itself reports.
+          $major = (Select-String -Path CMakeLists.txt -Pattern 'DS_VERSION_MAJOR (\d+)').Matches[0].Groups[1].Value
+          $minor = (Select-String -Path CMakeLists.txt -Pattern 'DS_VERSION_MINOR (\d+)').Matches[0].Groups[1].Value
+          $micro = (Select-String -Path CMakeLists.txt -Pattern 'DS_VERSION_MICRO (\d+)').Matches[0].Groups[1].Value
+          $version = "$major.$minor.$micro"
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer\windows\dsview.iss" "/DMyAppVersion=$version"
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: DSView-windows-installer
+          path: installer/windows/Output/DSView-windows-x86_64-setup.exe
+
+  release:
+    name: Publish latest pre-release
+    needs: [linux, windows]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Publish "latest" pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag --repo "${GITHUB_REPOSITORY}" || true
+          gh release create latest artifacts/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Latest build" \
+            --notes "Automated build from commit ${GITHUB_SHA}" \
+            --prerelease \
+            --target "${GITHUB_SHA}"

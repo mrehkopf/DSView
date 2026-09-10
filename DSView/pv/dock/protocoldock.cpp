@@ -480,6 +480,7 @@ void ProtocolDock::set_model()
 {
     pv::dialogs::ProtocolList *protocollist_dlg = new pv::dialogs::ProtocolList(this, _session);
     protocollist_dlg->exec();
+    delete protocollist_dlg;
     resize_table_view(_session->get_decoder_model());
     _model_proxy.setSourceModel(_session->get_decoder_model());
     search_done();
@@ -614,6 +615,7 @@ void ProtocolDock::export_table_view()
 {
     pv::dialogs::ProtocolExp *protocolexp_dlg = new pv::dialogs::ProtocolExp(this, _session);
     protocolexp_dlg->exec();
+    delete protocolexp_dlg;
 }
 
 void ProtocolDock::nav_table_view()
@@ -1072,6 +1074,12 @@ void ProtocolDock::UpdateFont()
     font.setPointSizeF(AppConfig::Instance().appOptions.fontSize);
     ui::set_form_font(this, font);
     _table_view->setFont(font);
+
+    // The decoded-results model provides no size hint, so the table keeps its
+    // default row height and clips larger fonts. Grow the rows with the font,
+    // leaving room for cell margins and descenders.
+    QFontMetrics cell_fm(font);
+    _table_view->verticalHeader()->setDefaultSectionSize(qRound(cell_fm.height() * 1.5));
 
     for(auto lay : _protocol_lay_items){
         lay->update_font();

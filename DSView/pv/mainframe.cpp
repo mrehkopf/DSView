@@ -38,6 +38,7 @@
 #include <QResizeEvent>
 #include <QDesktopServices>
 #include <QPushButton>
+#include <QTimer>
 #include <QMessageBox> 
 #include <QScreen>
 #include <QApplication>
@@ -46,6 +47,7 @@
 #include <QFont>
 #include <algorithm>
 #include <QWindow>
+#include <QHash>
 
  #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
  #include <QDesktopWidget>
@@ -63,6 +65,7 @@
 
 #ifdef _WIN32
 #include "winnativewidget.h"
+#include <shobjidl.h>
 #endif
 
 namespace pv {
@@ -97,7 +100,7 @@ MainFrame::MainFrame()
 #ifdef _WIN32
     setWindowFlags(Qt::FramelessWindowHint);
     _is_win32_parent_window = true;
-    _taskBtn = NULL;
+    _taskbarList3 = NULL;
     isWin32 = true;
 #else
     setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowSystemMenuHint);
@@ -179,7 +182,6 @@ MainFrame::MainFrame()
     }
 
 #ifdef _WIN32
-    _taskBtn = new QWinTaskbarButton(this);
 	connect(_mainWindow, SIGNAL(prgRate(int)), this, SLOT(setTaskbarProgress(int)));
 #endif
 
@@ -193,9 +195,19 @@ MainFrame::MainFrame()
 
     connect(this, SIGNAL(sig_ParentNativeEvent(int)), this, SLOT(OnParentNaitveWindowEvent(int)));
 
-  
+
 }
-  
+
+MainFrame::~MainFrame()
+{
+#ifdef _WIN32
+    if (_taskbarList3 != NULL) {
+        _taskbarList3->Release();
+        _taskbarList3 = NULL;
+    }
+#endif
+}
+
 void MainFrame::MoveWindow(int x, int y)
 {
 #ifdef _WIN32
@@ -251,7 +263,7 @@ void MainFrame::OnParentNativeEvent(ParentNativeEvent msg)
 
 void MainFrame::OnParentNaitveWindowEvent(int msg)
 {
- 
+    (void)msg;
 #ifdef _WIN32
     if (_parentNativeWidget != NULL 
             && msg == PARENT_EVENT_DISPLAY_CHANGED){
@@ -408,12 +420,8 @@ bool MainFrame::eventFilter(QObject *object, QEvent *event)
 { 
     const QEvent::Type type = event->type();
     const QMouseEvent *const mouse_event = (QMouseEvent*)event;
-    int newWidth = 0;
-    int newHeight = 0;
-    int newLeft = 0;
-    int newTop = 0;
 
-#ifdef _WIN32 
+#ifdef _WIN32
     if (_parentNativeWidget != NULL){
         return QFrame::eventFilter(object, event);
     }
@@ -468,7 +476,11 @@ bool MainFrame::eventFilter(QObject *object, QEvent *event)
  
         QPoint pt;
         int k = 1;
-        pt = mouse_event->globalPos(); 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        pt = mouse_event->globalPosition().toPoint();
+#else
+        pt = mouse_event->globalPos();
+#endif
 
         int datX = pt.x() - _clickPos.x();
         int datY = pt.y() - _clickPos.y();
@@ -567,14 +579,42 @@ bool MainFrame::eventFilter(QObject *object, QEvent *event)
         }
     }
     else if (type == QEvent::MouseButtonPress) {
-        if (mouse_event->button() == Qt::LeftButton) 
-        if (_hit_border != None)
-            _bDraging = true;
-        _timer.start(50); 
+        if (mouse_event->button() == Qt::LeftButton && _hit_border != None) {
 
+            // Wayland forbids clients from setting their own geometry, so the
+            // manual per-pixel resize below (computed from raw global mouse
+            // deltas) is a no-op/unreliable there, exactly like the manual
+            // window move was. Ask the compositor to perform the resize
+            // instead, via the same protocol native window-edge resizing uses.
+            if (QGuiApplication::platformName().startsWith("wayland", Qt::CaseInsensitive)) {
+                QWindow *win = windowHandle();
+                if (win != NULL) {
+                    static const QHash<int, Qt::Edges> edgeMap = {
+                        { TopLeft,     Qt::TopEdge | Qt::LeftEdge },
+                        { Top,         Qt::TopEdge },
+                        { TopRight,    Qt::TopEdge | Qt::RightEdge },
+                        { Right,       Qt::RightEdge },
+                        { BottomRight, Qt::BottomEdge | Qt::RightEdge },
+                        { Bottom,      Qt::BottomEdge },
+                        { BottomLeft,  Qt::BottomEdge | Qt::LeftEdge },
+                        { Left,        Qt::LeftEdge },
+                    };
+                    win->startSystemResize(edgeMap.value(_hit_border));
+                    return true;
+                }
+            }
+
+            _bDraging = true;
+        }
+        _timer.start(50);
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        _clickPos = mouse_event->globalPosition().toPoint();
+#else
         _clickPos = mouse_event->globalPos();
+#endif
         _dragStartRegion = GetFormRegion();
-    } 
+    }
     else if (type == QEvent::MouseButtonRelease) {
         if (mouse_event->button() == Qt::LeftButton) {         
             _bDraging = false;
@@ -686,6 +726,22 @@ void MainFrame::ShowFormInit()
         move(x, y);
         resize(w, h);
     }
+
+    // Restore the dockwidget layout only after the window has actually reached its
+    // final size. move()/resize()/showMaximized() above can be asynchronous (the
+    // window manager negotiates the real geometry later), and
+    // QMainWindow::restoreState() sizes the docks relative to the window's size at
+    // the moment it is called, so calling it too early collapses the dock widths.
+    MainWindow *mainWindow = _mainWindow;
+    QTimer::singleShot(0, this, [mainWindow](){
+        mainWindow->restore_dock();
+    });
+
+    // Delayed past ShowHelpDocAsync()'s 300ms so the two one-time startup
+    // notices (help doc, driver hint) don't pop up on top of each other.
+    QTimer::singleShot(800, this, [this](){
+        show_driver_hint_once();
+    });
 
     if (!_is_win32_parent_window){
         QFrame::show();
@@ -1009,11 +1065,9 @@ void MainFrame::ReadSettings()
             full_rect.width(), full_rect.height());
     }
 
-    dsv_info("Normal region, x:%d, y:%d, w:%d, h:%d",  
+    dsv_info("Normal region, x:%d, y:%d, w:%d, h:%d",
        _normalRegion.x, _normalRegion.y, _normalRegion.w, _normalRegion.h);
 
-    // restore dockwidgets
-    _mainWindow->restore_dock();
     _titleBar->setRestoreButton(app.frameOptions.isMax);
     _initWndInfo.k = k;
 }
@@ -1021,10 +1075,15 @@ void MainFrame::ReadSettings()
 #ifdef _WIN32
 void MainFrame::showEvent(QShowEvent *event)
 {
-    // Taskbar Progress Effert for Win7 and Above
-    if (_taskBtn && _taskBtn->window() == NULL) {
-        _taskBtn->setWindow(windowHandle());
-        _taskPrg = _taskBtn->progress();
+    // Taskbar Progress Effert for Win7 and Above, via native ITaskbarList3 COM interface
+    if (_taskbarList3 == NULL) {
+        if (SUCCEEDED(CoCreateInstance(CLSID_TaskbarList, NULL, CLSCTX_INPROC_SERVER,
+                IID_ITaskbarList3, (void**)&_taskbarList3))) {
+            if (FAILED(_taskbarList3->HrInit())) {
+                _taskbarList3->Release();
+                _taskbarList3 = NULL;
+            }
+        }
     }
     event->accept();
 }
@@ -1033,11 +1092,16 @@ void MainFrame::showEvent(QShowEvent *event)
 void MainFrame::setTaskbarProgress(int progress)
 {
 #ifdef _WIN32
+    if (_taskbarList3 == NULL)
+        return;
+
+    HWND hwnd = (HWND)winId();
+
     if (progress > 0) {
-        _taskPrg->setVisible(true);
-        _taskPrg->setValue(progress);
+        _taskbarList3->SetProgressState(hwnd, TBPF_NORMAL);
+        _taskbarList3->SetProgressValue(hwnd, (ULONGLONG)progress, 100);
     } else {
-        _taskPrg->setVisible(false);
+        _taskbarList3->SetProgressState(hwnd, TBPF_NOPROGRESS);
     }
 #else
 	(void)progress;
@@ -1096,6 +1160,89 @@ void MainFrame::show_doc()
     }
 }
 
+void MainFrame::show_driver_hint_once()
+{
+    AppConfig &app = AppConfig::Instance();
+    if (!app.userHistory.showDriverHint)
+        return;
+
+    QString text;
+
+#ifdef _WIN32
+    // Skip entirely if this is an installed copy from the Inno Setup
+    // installer (installer/windows/dsview.iss) - it already stages the
+    // WinUSB driver via pnputil during setup, so there's nothing to warn
+    // about. Only the portable zip (which can't run pnputil unelevated)
+    // needs the hint below.
+    if (QFile::exists(QCoreApplication::applicationDirPath()
+                       + "/installed_via_setup.marker"))
+        return;
+
+    // Unlike Linux (a permission bit), Windows needs an actual WinUSB driver
+    // bound to the device before libusb can open it at all - there is no
+    // generic "any USB device just works" path. The installer sets this up
+    // automatically; the portable zip build does not.
+    text = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DRIVER_HINT_WIN),
+        "DreamSourceLab hardware needs a WinUSB driver to be recognized by "
+        "Windows. If your device does not appear in the device list, install "
+        "a WinUSB driver for it (for example with the free 'Zadig' tool), "
+        "then reconnect the device.");
+#else
+    // Skip entirely if the udev rule is already active system-wide (a
+    // .deb/source "make install" already places it there) - nothing to warn
+    // the user about in that case.
+    static const char *rule_paths[] = {
+        "/usr/lib/udev/rules.d/60-dreamsourcelab.rules",
+        "/lib/udev/rules.d/60-dreamsourcelab.rules",
+        "/etc/udev/rules.d/60-dreamsourcelab.rules",
+    };
+    for (const char *p : rule_paths) {
+        if (QFile::exists(p))
+            return;
+    }
+
+    // A copy of the rule ships in share/DSView next to the executable in
+    // every Linux packaging (system install, .deb, AppImage - see the
+    // install() rule in CMakeLists.txt); a plain uninstalled dev build won't
+    // have it, so fall back to printing the one-line rule to create by hand.
+    const QString bundled = QCoreApplication::applicationDirPath()
+        + "/../share/DSView/DreamSourceLab.rules";
+
+    if (QFile::exists(bundled)) {
+        text = QString(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DRIVER_HINT_LINUX_BUNDLED),
+            "DreamSourceLab hardware needs a udev rule granting USB access, "
+            "which was not found on this system (this is normal when running "
+            "the AppImage). To install it, run:\n\n"
+            "sudo cp \"%1\" /etc/udev/rules.d/ && "
+            "sudo udevadm control --reload-rules"))
+            .arg(bundled);
+    } else {
+        text = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DRIVER_HINT_LINUX),
+            "DreamSourceLab hardware needs a udev rule granting USB access, "
+            "which was not found on this system. Create "
+            "/etc/udev/rules.d/60-dreamsourcelab.rules with the following "
+            "line, then run 'sudo udevadm control --reload-rules':\n\n"
+            "SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"2a0e\", MODE=\"0666\"");
+    }
+#endif
+
+    QMessageBox msg(this);
+    msg.setWindowTitle(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DRIVER_HINT_TITLE),
+                           "Hardware driver note"));
+    msg.setText(text);
+    QPushButton *noMoreButton = msg.addButton(
+        L_S(STR_PAGE_MSG, S_ID(IDS_MSG_NOT_SHOW_AGAIN), "Not Show Again"),
+        QMessageBox::ActionRole);
+    msg.addButton(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_IGNORE), "Ignore"),
+                  QMessageBox::ActionRole);
+    msg.exec();
+
+    if (msg.clickedButton() == noMoreButton) {
+        app.userHistory.showDriverHint = false;
+        app.SaveHistory();
+    }
+}
+
 QWidget* MainFrame::GetMainWindow()
 {
     return _mainWindow;
@@ -1122,8 +1269,8 @@ bool MainFrame::nativeEvent(const QByteArray &eventType, void *message, MESSAGE_
             case WM_NCLBUTTONDBLCLK:
             case WM_NCHITTEST:
             {
-                *result = long(SendMessageW(hwnd, 
-                        msg->message, msg->wParam, msg->lParam));
+                *result = (MESSAGE_RESULT_TYPE)SendMessageW(hwnd,
+                        msg->message, msg->wParam, msg->lParam);
                 return true;
             }           
         }

@@ -72,13 +72,13 @@ static int b_load_directory = 0;
 static char* demo_mode_names[3] = {"logic", "dso", "analog"};
 
 static const struct DEMO_channels logic_channel_modes[] = {
-    {DEMO_LOGIC125x16,  LOGIC,  SR_CHANNEL_LOGIC,  16, 1, SR_MHZ(1), SR_Mn(1),
+    {(enum DEMO_CHANNEL_ID)DEMO_LOGIC125x16,  LOGIC,  SR_CHANNEL_LOGIC,  16, 1, SR_MHZ(1), SR_Mn(1),
      SR_KHZ(50), SR_MHZ(125), "Use 16 Channels (Max 125MHz)"},
-    {DEMO_LOGIC250x12,  LOGIC,  SR_CHANNEL_LOGIC,  12, 1, SR_MHZ(1), SR_Mn(1),
+    {(enum DEMO_CHANNEL_ID)DEMO_LOGIC250x12,  LOGIC,  SR_CHANNEL_LOGIC,  12, 1, SR_MHZ(1), SR_Mn(1),
      SR_KHZ(50), SR_MHZ(250), "Use 12 Channels (Max 250MHz)"},
-    {DEMO_LOGIC500x6,  LOGIC,  SR_CHANNEL_LOGIC,  6, 1, SR_MHZ(1), SR_Mn(1),
+    {(enum DEMO_CHANNEL_ID)DEMO_LOGIC500x6,  LOGIC,  SR_CHANNEL_LOGIC,  6, 1, SR_MHZ(1), SR_Mn(1),
      SR_KHZ(50), SR_MHZ(500), "Use 6 Channels (Max 500MHz)"},
-    {DEMO_LOGIC1000x3,  LOGIC,  SR_CHANNEL_LOGIC,  3, 1, SR_MHZ(1), SR_Mn(1),
+    {(enum DEMO_CHANNEL_ID)DEMO_LOGIC1000x3,  LOGIC,  SR_CHANNEL_LOGIC,  3, 1, SR_MHZ(1), SR_Mn(1),
      SR_KHZ(50), SR_GHZ(1), "Use 3 Channels (Max 1GHz)"},
 };
 
@@ -474,6 +474,9 @@ static void scan_dsl_file(struct sr_dev_inst *sdi)
 {
     struct session_vdev * vdev = sdi->priv;
     int dex;
+    int init_mode;
+    const char *default_file;
+    uint64_t mode_caps;
 
     if (b_load_directory == 0)
     {
@@ -483,14 +486,31 @@ static void scan_dsl_file(struct sr_dev_inst *sdi)
         b_load_directory = 1;
     }
 
-    dex = get_pattern_mode_index_by_string(LOGIC, DEFAULT_LOGIC_FILE);
+    /* Pick the device's own default mode, so devices that don't support
+     * LOGIC mode (e.g. a DSO-only demo profile) don't get forced into it. */
+    mode_caps = (vdev->profile != NULL) ? vdev->profile->dev_caps.mode_caps : CAPS_MODE_LOGIC;
+
+    if (mode_caps & CAPS_MODE_LOGIC){
+        init_mode = LOGIC;
+        default_file = DEFAULT_LOGIC_FILE;
+    }
+    else if (mode_caps & CAPS_MODE_DSO){
+        init_mode = DSO;
+        default_file = DEFAULT_DSO_FILE;
+    }
+    else{
+        init_mode = ANALOG;
+        default_file = DEFAULT_ANALOG_FILE;
+    }
+
+    dex = get_pattern_mode_index_by_string(init_mode, default_file);
 
     if(dex == -1){
         dex = PATTERN_RANDOM;
     }
 
     vdev->sample_generator = dex;
-    sdi->mode = LOGIC;
+    sdi->mode = init_mode;
     reset_dsl_path(sdi, dex);
 }
 
@@ -636,50 +656,63 @@ static GSList *hw_scan(GSList *options)
     struct sr_dev_inst *sdi;
     struct session_vdev *vdev;
     GSList *devices;
+    int i;
+    int init_mode;
 
     (void)options;
     devices = NULL;
 
-    vdev = g_try_malloc0(sizeof(struct session_vdev));
-    if (vdev == NULL)
+    for (i = 0; supported_Demo[i].vendor != 0; i++)
     {
-        sr_err("%s: sdi->priv malloc failed", __func__);
-        return devices;
+        vdev = g_try_malloc0(sizeof(struct session_vdev));
+        if (vdev == NULL)
+        {
+            sr_err("%s: sdi->priv malloc failed", __func__);
+            continue;
+        }
+        memset(vdev, 0, sizeof(struct session_vdev));
+
+        init_mode = (supported_Demo[i].dev_caps.mode_caps & CAPS_MODE_LOGIC) ? LOGIC :
+                    (supported_Demo[i].dev_caps.mode_caps & CAPS_MODE_DSO) ? DSO : ANALOG;
+
+        sdi = sr_dev_inst_new(init_mode, SR_ST_INACTIVE,
+                              supported_Demo[i].vendor,
+                              supported_Demo[i].model,
+                              supported_Demo[i].model_version);
+        if (!sdi)
+        {
+            safe_free(vdev);
+            sr_err("Device instance creation failed.");
+            continue;
+        }
+
+        vdev->profile = &supported_Demo[i];
+
+        sdi->priv = vdev;
+        sdi->driver = di;
+        sdi->dev_type = DEV_TYPE_DEMO;
+
+        vdev->is_loop = 0;
+
+        devices = g_slist_append(devices, sdi);
     }
-    memset(vdev, 0, sizeof(struct session_vdev));
-
-    sdi = sr_dev_inst_new(LOGIC, SR_ST_INACTIVE,
-                          supported_Demo[0].vendor,
-                          supported_Demo[0].model,
-                          supported_Demo[0].model_version);
-    if (!sdi) 
-    {
-        safe_free(vdev);
-        sr_err("Device instance creation failed.");
-        return NULL;
-    }
-
-    sdi->priv = vdev;
-    sdi->driver = di;
-    sdi->dev_type = DEV_TYPE_DEMO;
-
-    vdev->is_loop = 0;
-
-    devices = g_slist_append(devices, sdi);
 
     return devices;
 }
 
 static const GSList *hw_dev_mode_list(const struct sr_dev_inst *sdi)
 {
-    (void)sdi;
-
+    struct session_vdev *vdev;
+    const struct DEMO_profile *profile;
     GSList *l = NULL;
     unsigned int i;
 
-    for (i = 0; i < ARRAY_SIZE(sr_mode_list); i++) 
+    vdev = (sdi != NULL) ? sdi->priv : NULL;
+    profile = (vdev != NULL && vdev->profile != NULL) ? vdev->profile : &supported_Demo[0];
+
+    for (i = 0; i < ARRAY_SIZE(sr_mode_list); i++)
     {
-        if (supported_Demo[0].dev_caps.mode_caps & (1 << i)){
+        if (profile->dev_caps.mode_caps & (1 << i)){
             l = g_slist_append(l, (gpointer)&sr_mode_list[i]);
         }
     }
@@ -1135,7 +1168,7 @@ static int config_set(int id, GVariant *data, struct sr_dev_inst *sdi,
                 if(logic_channel_modes[i].id == (enum DEMO_CHANNEL_ID)nv)
                 {
                     vdev->logic_ch_mode_index = i;
-                    vdev->logic_ch_mode = (enum DEMO_CHANNEL_ID)nv;
+                    vdev->logic_ch_mode = (enum DEMO_LOGIC_CHANNEL_ID)nv;
                     load_virtual_device_session(sdi);
                     vdev->channel_mode_change = TRUE;
                     break;

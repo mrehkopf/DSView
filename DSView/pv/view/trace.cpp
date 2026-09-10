@@ -98,11 +98,56 @@ Trace::Trace(const Trace &t) :
 int Trace::get_name_width()
 {
     QFont font;
-    float fSize = AppConfig::Instance().appOptions.fontSize;
-    font.setPointSizeF(fSize <= 10 ? fSize : 10);
+    float fSize = AppConfig::Instance().GetTraceFontSize();
+    // Keep the reserved label width in sync with the scaled label font so
+    // channel names are not clipped when the trace height is scaled up.
+    fSize *= get_label_scale();
+    font.setPointSizeF(fSize);
     QFontMetrics fm(font);
 
     return fm.boundingRect(get_name()).width();
+}
+
+double Trace::get_label_scale()
+{
+    return (_view != NULL) ? _view->get_trace_font_scale() : 1.0;
+}
+
+// Ratio between the currently configured trace font size and the font size
+// the Margin/SquareWidth pixel constants were tuned against. Without this,
+// the per-channel config boxes (AC/DC, AUTO, x1/x10/x100, etc.) stayed a
+// fixed pixel size regardless of the font size setting, while the text
+// drawn inside them (sized off the same GetTraceFontSize() value, see
+// Viewport::paintEvent) grew - so bigger font settings just clipped the
+// box text instead of growing the box with it.
+static double square_font_ratio()
+{
+    return AppConfig::Instance().GetTraceFontSize() / Trace::BaseFontSize;
+}
+
+int Trace::get_squareWidth()
+{
+    return (int)(SquareWidth * square_font_ratio() * get_label_scale());
+}
+
+int Trace::get_squareMargin()
+{
+    return (int)(Margin * square_font_ratio() * get_label_scale());
+}
+
+int Trace::get_leftWidth()
+{
+    return get_squareWidth() / 2 + get_squareMargin();
+}
+
+int Trace::get_rightWidth()
+{
+    return 2 * get_squareMargin() + _typeWidth * get_squareWidth() + 1.5 * get_squareWidth();
+}
+
+int Trace::get_headerHeight()
+{
+    return get_squareWidth();
 }
 
 void Trace::set_name(QString name)
@@ -156,6 +201,15 @@ void Trace::paint_prepare()
     _view->set_trig_hoff(0);
 }
 
+QColor Trace::get_default_colour()
+{
+    if (_type == SR_CHANNEL_DSO || _type == SR_CHANNEL_FFT ||
+        _type == SR_CHANNEL_ANALOG || _type == SR_CHANNEL_MATH || _index_list.empty())
+        return QColor();
+
+    return PROBE_COLORS[*_index_list.begin() % countof(PROBE_COLORS)];
+}
+
 void Trace::paint_back(QPainter &p, int left, int right, QColor fore, QColor back)
 {
     (void)back;
@@ -201,8 +255,9 @@ void Trace::paint_label(QPainter &p, int right, const QPoint pt, QColor fore)
     // Paint the ColorButton
     QColor foreBack = fore;
     foreBack.setAlpha(View::BackAlpha);
+    QColor defaultColour = get_default_colour();
     p.setPen(Qt::transparent);
-    p.setBrush(enabled() ? (_colour.isValid() ? _colour : fore) : foreBack);
+    p.setBrush(enabled() ? (_colour.isValid() ? _colour : (defaultColour.isValid() ? defaultColour : fore)) : foreBack);
     p.drawRect(color_rect);
     
     if (_type == SR_CHANNEL_DSO ||
@@ -374,10 +429,10 @@ int Trace::rows_size()
 
 QRectF Trace::get_rect(const char *s, int y, int right)
 {
-    const QSizeF color_size(get_leftWidth() - Margin, SquareWidth);
-   // const QSizeF name_size(right - get_leftWidth() - get_rightWidth(), SquareWidth);
-    const QSizeF name_size(right - get_leftWidth() - get_rightWidth(), SquareWidth);
-    const QSizeF label_size(SquareWidth, SquareWidth);
+    const int squareWidth = get_squareWidth();
+    const QSizeF color_size(get_leftWidth() - get_squareMargin(), squareWidth);
+    const QSizeF name_size(right - get_leftWidth() - get_rightWidth(), squareWidth);
+    const QSizeF label_size(squareWidth, squareWidth);
 
     if (!strcmp(s, "name"))
         return QRectF(
@@ -397,8 +452,8 @@ QRectF Trace::get_rect(const char *s, int y, int right)
     else
         return QRectF(
             2,
-            y - SquareWidth / 2,
-            SquareWidth, SquareWidth);
+            y - squareWidth / 2,
+            squareWidth, squareWidth);
 }
 
 } // namespace view

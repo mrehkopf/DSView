@@ -212,10 +212,19 @@ void DecoderOptionsDlg::load_options_view()
     int real_content_width = _content_width;
     int content_height = _contentHeight;
 
-     // scroll     
+     // scroll
     QSize tsize = dlg->sizeHint();
-    int w = tsize.width(); 
-    int other_height = 190 + h_ex2; 
+    int w = tsize.width();
+    int other_height = 190 + h_ex2;
+
+    // The 190 constant was tuned for a small font; with larger fonts the
+    // non-scroll widgets (cursor combos, buttons, ...) grow taller. Derive the
+    // reserved height from the dialog's actual size hint so the scroll area is
+    // not over-sized, which would otherwise push the bottom widgets off-dialog.
+    int dynamic_other = tsize.height() - _contentHeight + 10;
+    if (dynamic_other > other_height)
+        other_height = dynamic_other;
+
     content_height += 20;
 
     int cursor_line_width = lb1->sizeHint().width() + _start_comboBox->sizeHint().width();

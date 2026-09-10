@@ -4,6 +4,7 @@
  *
  * Copyright (C) 2012 Joel Holdsworth <joel@airwebreathe.org.uk>
  * Copyright (C) 2013 DreamSourceLab <support@dreamsourcelab.com>
+ * Copyright (C) 2026 Schildkroet
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,9 +27,11 @@
 #include <set>
 #include <string>
 #include <vector>
-#include <stdint.h> 
+#include <stdint.h>
 #include <QString>
+#include <QColor>
 #include <thread>
+#include <atomic>
 #include <QDateTime>
 #include <list>
 
@@ -238,7 +241,26 @@ public:
     inline view::MathTrace* get_math_trace(){
         return _math_trace;
     }
- 
+
+    // ---- Reference waveforms ------------------------------------------------
+    // A frozen copy of a DSO channel's samples, overlaid on the live view. It
+    // is rendered with the source channel's current vertical scaling (looked
+    // up by index at paint time) so it stays aligned to the grid.
+    struct RefWave {
+        int         index;          // source DSO channel index
+        std::vector<uint8_t> samples;
+        double      samplerate;
+        QColor      colour;
+        QString     name;
+    };
+
+    // Snapshot the given DSO channel into a new reference waveform.
+    void add_ref_wave(view::DsoSignal *sig);
+    void clear_ref_waves();
+    inline std::vector<RefWave>& get_ref_waves(){
+        return _ref_waves;
+    }
+
     uint16_t get_ch_num(int type); 
  
     inline bool is_data_lock(){
@@ -254,7 +276,8 @@ public:
 
     void math_rebuild(bool enable,pv::view::DsoSignal *dsoSig1,
                       pv::view::DsoSignal *dsoSig2,
-                      data::MathStack::MathType type);
+                      data::MathStack::MathType type,
+                      int filter_width = 10);
 
     inline bool trigd(){
         return _trigger_flag;
@@ -573,6 +596,7 @@ private:
     std::vector<view::SpectrumTrace*> _spectrum_traces;
     view::LissajousTrace            *_lissajous_trace;
     view::MathTrace                 *_math_trace;
+    std::vector<RefWave>            _ref_waves;
   
     DsTimer     _feed_timer;
     DsTimer     _out_timer;
@@ -583,13 +607,13 @@ private:
    
     int         _noData_cnt;
     bool        _data_lock;
-    bool        _data_updated;
+    std::atomic<bool>  _data_updated;
     int         _data_auto_lock;
 
     QDateTime   _session_time;
     QDateTime   _trig_time;
-    bool        _is_triged;
-    bool        _trigger_flag;
+    std::atomic<bool>  _is_triged;
+    std::atomic<bool>  _trigger_flag;
     uint8_t     _trigger_ch;
     bool        _hw_replied;
 
@@ -599,24 +623,24 @@ private:
     bool        _bClose;  
  
     uint64_t    _save_start;
-    uint64_t    _save_end; 
-    volatile bool  _is_working;
+    uint64_t    _save_end;
+    std::atomic<bool>  _is_working;
     double      _repeat_intvl; // The progress wait timer interval.
     int         _repeat_hold_prg; // The time sleep progress
     int         _repeat_wait_prog_step;
     bool        _is_saving;
     bool        _is_instant;
-    volatile int  _device_status;
+    std::atomic<int>  _device_status;
     int         _work_time_id;
-    int         _capture_times; 
+    int         _capture_times;
     int         _confirm_store_time_id;
     uint64_t    _rt_refresh_time_id;
     uint64_t    _rt_ck_refresh_time_id;
     DEVICE_COLLECT_MODE    _clt_mode;
     bool        _is_stream_mode;
-    
+
     bool        _is_action;
-    uint64_t    _dso_packet_count;
+    std::atomic<uint64_t>  _dso_packet_count;
     bool        _is_task_end;
  
 

@@ -13,6 +13,9 @@ autom4te.cache
 !cmake_modules
 CPackConfig.cmake
 CPackSourceConfig.cmake
+_CPack_Packages
+*.deb
+*.AppImage
 cmake_install.cmake
 Makefile
 *.cxx
@@ -48,7 +51,9 @@ moc_*.cpp
 moc_*.cpp_parameters
 
 DSView-prj
-build*
+build/*
+build.dir*
+.cache/*
 share
 .vscode
 qtpro

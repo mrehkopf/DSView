@@ -3,6 +3,7 @@
  * DSView is based on PulseView.
  * 
  * Copyright (C) 2016 DreamSourceLab <support@dreamsourcelab.com>
+ * Copyright (C) 2026 Schildkroet
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -86,6 +87,7 @@ MathStack::MathStack(pv::SigSession *session,
     _dsoSig1(dsoSig1),
     _dsoSig2(dsoSig2),
     _type(type),
+    _filter_width(10),
     _sample_num(0),
     _total_sample_num(0),
     _math_state(Init),
@@ -181,6 +183,9 @@ uint64_t MathStack::default_vDialValue()
     case MATH_DIV:
         value = dial1_value * 1000.0 / dial2_value;
         break;
+    default:  // unary operators: scale off the single source
+        value = dial1_value;
+        break;
     }
 
     bool bFind = false;
@@ -220,6 +225,9 @@ uint64_t MathStack::default_factor()
             break;
         case MATH_DIV:
             value = factor1 / factor2;
+            break;
+        default:  // unary operators: single-source factor
+            value = factor1;
             break;
     }
 
@@ -276,6 +284,17 @@ view::dslDial* MathStack::get_vDial()
         for(int i = 0; i < vDialUnitCount; i++)
             vUnit.append(vDialDivUnit[i]);
         break;
+    default:  // unary operators: derive the dial from the single source
+        for (int i = 0; i < vDialValueCount; i++) {
+            if (vDialValue[i] < dial1_min)
+                continue;
+            vValue.append(vDialValue[i]);
+            if (vDialValue[i] > dial1_max)
+                break;
+        }
+        for(int i = 0; i < vDialUnitCount; i++)
+            vUnit.append(vDialAddUnit[i]);
+        break;
     }
 
     view::dslDial *vDial = new view::dslDial(vValue.count(), vDialValueStep, vValue, vUnit, true);
@@ -299,6 +318,9 @@ QString MathStack::get_unit(int level)
     case MATH_DIV:
         unit = vDialDivUnit[level];
         break;
+    default:  // unary operators use voltage-style units
+        unit = vDialAddUnit[level];
+        break;
     }
 
     return unit;
@@ -317,6 +339,9 @@ double MathStack::get_math_scale()
         scale = 1.0 / DS_CONF_DSO_VDIVS;
         break;
     case MATH_DIV:
+        scale = 1.0 / DS_CONF_DSO_VDIVS;
+        break;
+    default:  // unary operators
         scale = 1.0 / DS_CONF_DSO_VDIVS;
         break;
     }
@@ -371,52 +396,112 @@ void MathStack::calc_math(uint64_t mathFactor)
     if (data->empty() || _math.size() < _total_sample_num)
         return;
 
-    if (!_dsoSig1->enabled() || !_dsoSig2->enabled())
+    const bool unary = is_unary(_type);
+
+    if (!_dsoSig1->enabled())
         return;
 
-    if (data->get_channel_num() < 2)
+    // The binary operators need a valid, enabled 2nd source; the unary ones
+    // (integrate/differentiate/abs/square/sqrt/filters) work off src1 alone.
+    if (!unary && (!_dsoSig2->enabled() || data->get_channel_num() < 2))
         return;
 
     auto k1 = _dsoSig1->get_factor();
-    auto k2 = _dsoSig2->get_factor();
 
     const double scale1 = _dsoSig1->get_vDialValue() / 1000.0 * k1 * DS_CONF_DSO_VDIVS *
                           _dsoSig1->get_scale() / _dsoSig1->get_view_rect().height();
 
     const double delta1 = _dsoSig1->get_hw_offset() * scale1;
 
-    const double scale2 = _dsoSig2->get_vDialValue() / 1000.0 * k2 * DS_CONF_DSO_VDIVS *
-                          _dsoSig2->get_scale() / _dsoSig2->get_view_rect().height();
-
-    const double delta2 = _dsoSig2->get_hw_offset() * scale2;
-
     _sample_num = data->get_sample_count();
     assert(_sample_num <= _total_sample_num);
 
     const int index1 = _dsoSig1->get_index();
-    const int index2 = _dsoSig2->get_index();
     const uint8_t* value_buffer1 = data->get_samples(0, 0, index1);
-    const uint8_t* value_buffer2 = data->get_samples(0, 0, index2);
-    double value1, value2;
 
-    for (uint64_t sample = 0; sample < _sample_num; sample++) {
-        value1 = *(value_buffer1 + sample);
-        value2 = *(value_buffer2 + sample);
+    // Source #1 in volts for a given sample index.
+    auto v1 = [&](uint64_t s) -> double {
+        return delta1 - scale1 * (*(value_buffer1 + s));
+    };
 
-        switch(_type) 
-        {
-            case MATH_ADD:
-                _math[sample] = ((delta1 - scale1 * value1) + (delta2 - scale2 * value2)) / mathFactor;
-                break;
-            case MATH_SUB:
-                _math[sample] = ((delta1 - scale1 * value1) - (delta2 - scale2 * value2)) / mathFactor;
-                break;
-            case MATH_MUL:
-                _math[sample] = (delta1 - scale1 * value1) * (delta2 - scale2 * value2) / mathFactor;
-                break;
-            case MATH_DIV:
-                _math[sample] = (delta1 - scale1 * value1) / (delta2 - scale2 * value2) / mathFactor;
-                break;
+    if (unary) {
+        const double dt = (samplerate() > 0) ? 1.0 / samplerate() : 1.0;
+        const uint64_t win = (uint64_t)max(1, _filter_width);
+        double integ = 0.0;
+        double acc = 0.0;   // running window sum for the filters
+
+        for (uint64_t sample = 0; sample < _sample_num; sample++) {
+            const double v = v1(sample);
+            double r = 0.0;
+
+            switch(_type)
+            {
+                case MATH_INTEG:
+                    integ += v * dt;
+                    r = integ;
+                    break;
+                case MATH_DIFF:
+                    r = (v - v1(sample == 0 ? 0 : sample - 1)) / dt;
+                    break;
+                case MATH_ABS:
+                    r = fabs(v);
+                    break;
+                case MATH_SQUARE:
+                    r = v * v;
+                    break;
+                case MATH_SQRT:
+                    r = (v < 0) ? -sqrt(-v) : sqrt(v);
+                    break;
+                case MATH_LOWPASS:
+                case MATH_HIGHPASS: {
+                    acc += v;
+                    if (sample >= win)
+                        acc -= v1(sample - win);
+                    const uint64_t n = min<uint64_t>(sample + 1, win);
+                    const double avg = acc / n;
+                    r = (_type == MATH_LOWPASS) ? avg : (v - avg);
+                    break;
+                }
+                default:
+                    r = v;
+                    break;
+            }
+
+            _math[sample] = r / mathFactor;
+        }
+    }
+    else {
+        auto k2 = _dsoSig2->get_factor();
+
+        const double scale2 = _dsoSig2->get_vDialValue() / 1000.0 * k2 * DS_CONF_DSO_VDIVS *
+                              _dsoSig2->get_scale() / _dsoSig2->get_view_rect().height();
+
+        const double delta2 = _dsoSig2->get_hw_offset() * scale2;
+
+        const int index2 = _dsoSig2->get_index();
+        const uint8_t* value_buffer2 = data->get_samples(0, 0, index2);
+
+        for (uint64_t sample = 0; sample < _sample_num; sample++) {
+            const double value1 = v1(sample);
+            const double value2 = delta2 - scale2 * (*(value_buffer2 + sample));
+
+            switch(_type)
+            {
+                case MATH_ADD:
+                    _math[sample] = (value1 + value2) / mathFactor;
+                    break;
+                case MATH_SUB:
+                    _math[sample] = (value1 - value2) / mathFactor;
+                    break;
+                case MATH_MUL:
+                    _math[sample] = value1 * value2 / mathFactor;
+                    break;
+                case MATH_DIV:
+                    _math[sample] = value1 / value2 / mathFactor;
+                    break;
+                default:
+                    break;
+            }
         }
     }
 

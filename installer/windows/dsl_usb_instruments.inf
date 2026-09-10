@@ -1,0 +1,91 @@
+; WinUSB driver binding for DreamSourceLab USB instruments (DSLogic/DSCope
+; family), for use with `pnputil /add-driver dsl_usb_instruments.inf /install`.
+;
+; Trimmed from DreamSourceLab's own official installer
+; (DSView_v1.3.2_x64_setup.exe, Drivers\dsl_usb_instruments.inf): the
+; [Manufacturer]/model list and the WinUSB-binding sections below are copied
+; verbatim from that proven-working INF. The WDF co-installer sections
+; (CoInstallers/CopyFiles/SourceDisks*) were dropped - those exist only to
+; support Windows versions older than 10, where KMDF/WinUSB were not yet
+; in-box; on Windows 10/11 they are unnecessary, so no co-installer DLLs need
+; to be bundled or redistributed here.
+;
+; If DreamSourceLab ships a new product with a new USB PID, both this file
+; and libsigrok4DSL/hardware/DSL/dsl.h's device tables need updating - there
+; is no automatic sync between the two.
+
+[Version]
+Signature = "$Windows NT$"
+Class = USB
+ClassGUID={36FC9E60-C465-11CF-8056-444553540000}
+Provider = %Provider%
+DriverVer=11/02/2006,6.0.6000.16388
+
+
+; ========== Manufacturer/Models sections ===========
+
+[Manufacturer]
+%Provider% = DreamSourceLabMfg,NTamd64
+
+[DreamSourceLabMfg.NTamd64]
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_0001
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_0002
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_0003
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_0004
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_0005
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_0006
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_0007
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_0008
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_0009
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_000A
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_000B
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_000C
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_000D
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_000E
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_000F
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_0010
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_0011
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_0012
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_0013
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_0014
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_0015
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_0016
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_0017
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_0018
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_0019
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_001A
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_001B
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_001C
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_001D
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_001E
+%USB\DreamSourceLab.DeviceDesc% = DSL_Install, USB\VID_2A0E&PID_001F
+
+; =================== Installation ===================
+
+[DSL_Install]
+Include=winusb.inf
+Needs=WINUSB.NT
+
+[DSL_Install.Services]
+Include=winusb.inf
+AddService=WinUSB,0x00000002,WinUSB_ServiceInstall
+
+[WinUSB_ServiceInstall]
+DisplayName     = %WinUSB_SvcDesc%
+ServiceType     = 1
+StartType       = 3
+ErrorControl    = 1
+ServiceBinary   = %12%\WinUSB.sys
+
+[DSL_Install.Wdf]
+KmdfService=WINUSB, WinUsb_Install
+
+[WinUSB_Install]
+KmdfLibraryVersion=1.7
+
+; =================== Strings ===================
+
+[Strings]
+Provider="DreamSourceLab"
+USB\DreamSourceLab.DeviceDesc="DreamSourceLab USB-based Instrument"
+WinUSB_SvcDesc="DreamSourceLab USB-based Instrument"

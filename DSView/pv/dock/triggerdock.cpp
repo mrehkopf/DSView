@@ -64,7 +64,8 @@ TriggerDock::TriggerDock(QWidget *parent, SigSession *session) :
     QScrollArea(parent),
     _session(session)
 {
-    
+    this->setWidgetResizable(true);
+
     _cur_ch_num = 16;
     if (_session->get_device()->have_instance()) {
         _session->get_device()->get_config_int16(SR_CONF_TOTAL_CH_NUM, _cur_ch_num);

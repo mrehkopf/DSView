@@ -108,8 +108,8 @@ void WinShadow::hideShadow()
     QWidget::hide();
 }
 
-bool WinShadow::nativeEvent(const QByteArray &eventType, void *message, long *result)
-{  
+bool WinShadow::nativeEvent(const QByteArray &eventType, void *message, SHADOW_MESSAGE_RESULT_PTR result)
+{
     MSG *msg = static_cast<MSG*>(message);
 
     switch (msg->message)
@@ -139,7 +139,7 @@ bool WinShadow::nativeEvent(const QByteArray &eventType, void *message, long *re
         case WM_NCLBUTTONDBLCLK:
         case WM_NCHITTEST:
         { 
-            *result = long(SendMessageW(m_hwnd, msg->message, msg->wParam, msg->lParam));
+            *result = (SHADOW_MESSAGE_RESULT_TYPE)SendMessageW(m_hwnd, msg->message, msg->wParam, msg->lParam);
             return true;
         }
     }

@@ -4,6 +4,7 @@
  *
  * Copyright (C) 2012 Joel Holdsworth <joel@airwebreathe.org.uk>
  * Copyright (C) 2013 DreamSourceLab <support@dreamsourcelab.com>
+ * Copyright (C) 2026 Schildkroet
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,6 +28,7 @@
 #include <QEvent>
 #include <QMouseEvent>
 #include <QScrollBar>
+#include <QFontMetrics>
 #include <algorithm>
 
 #include "groupsignal.h"
@@ -63,8 +65,15 @@ const int View::RulerHeight = 50;
 const int View::MaxScrollValue = INT_MAX / 2;
 const int View::HeightUnit = 20; // also serves as minimum signal height
 
-const int View::SignalMargin = 3;
+const int View::SignalMargin = 12;
+const int View::SignalMarginCompact = 3;
 const int View::SignalSnapGridSize = 10;
+
+int View::get_signal_margin()
+{
+    return AppConfig::Instance().appOptions.logicChannelDivider
+        ? SignalMargin : SignalMarginCompact;
+}
 
 const QColor View::CursorAreaColour(220, 231, 243);
 const QSizeF View::LabelPadding(4, 4);
@@ -99,7 +108,7 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
     _dso_auto(true),
     _show_lissajous(false),
     _back_ready(false)
-{  
+{
    _trig_cursor = NULL;
    _search_cursor = NULL;
    _cali = NULL;
@@ -107,11 +116,17 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
    _session = session;
    _device_agent = session->get_device();
 
+   _trace_height_factor = AppConfig::Instance().appOptions.traceHeightFactor;
+   if (_trace_height_factor < MinTraceHeightFactor || _trace_height_factor > MaxTraceHeightFactor)
+       _trace_height_factor = 1.0;
+
+   _dso_split_channels = AppConfig::Instance().appOptions.dsoSplitChannels;
+
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
 //    setWidgetResizable(true);
 //    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-  
+
     // trace viewport map
     _trace_view_map[SR_CHANNEL_LOGIC] = TIME_VIEW;
     _trace_view_map[SR_CHANNEL_GROUP] = TIME_VIEW;
@@ -126,19 +141,19 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
     _ruler = new Ruler(*this);
     _header = new Header(*this);
     _devmode = new DevMode(this, session);
-    
-    setViewportMargins(headerWidth(), RulerHeight, 0, 0);
+
+    setViewportMargins(headerWidth(), RulerHeight, 0, get_bottom_margin());
 
     // windows splitter
     _time_viewport = new Viewport(*this, TIME_VIEW);
     _time_viewport->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
     _time_viewport->setMinimumHeight(100);
-  
+
     _fft_viewport = new Viewport(*this, FFT_VIEW);
     _fft_viewport->setVisible(false);
     _fft_viewport->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
     _fft_viewport->setMinimumHeight(100);
- 
+
     _vsplitter = new QSplitter(this);
     _vsplitter->setOrientation(Qt::Vertical);
     _vsplitter->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
@@ -159,13 +174,13 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
     layout->setContentsMargins(0,0,0,0);
     _viewcenter->setLayout(layout);
     layout->addWidget(_vsplitter, 0, 0);
-    QVBoxLayout* statusLayout = new QVBoxLayout(this);
-    statusLayout->setSpacing(0);
-    statusLayout->setContentsMargins(0,0,verticalScrollBar()->geometry().width()+2, horizontalScrollBar()->geometry().height()+1);
+    _statusLayout = new QVBoxLayout(this);
+    _statusLayout->setSpacing(0);
+    _statusLayout->setContentsMargins(0,0,verticalScrollBar()->geometry().width()+2, horizontalScrollBar()->geometry().height()+1);
     _viewbottom = new ViewStatus(_session, *this);
     _viewbottom->setFixedHeight(StatusHeight);
-    setLayout(statusLayout);
-    statusLayout->addWidget(_viewbottom, 0, Qt::AlignBottom);
+    setLayout(_statusLayout);
+    _statusLayout->addWidget(_viewbottom, 0, Qt::AlignBottom);
 
 #ifdef Q_OS_DARWIN
     QWidget *lineSpan = new QWidget(this);
@@ -205,7 +220,7 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
     connect(_fft_viewport, SIGNAL(measure_updated()), this, SLOT(on_measure_updated()));
 
     connect(_vsplitter, SIGNAL(splitterMoved(int,int)), this, SLOT(splitterMoved(int, int)));
-      
+
     connect(_header, SIGNAL(traces_moved()),this, SLOT(on_traces_moved()));
     connect(_header, SIGNAL(header_updated()),this, SLOT(header_updated()));
 
@@ -242,13 +257,13 @@ void View::capture_init()
         show_trig_cursor(true);
     else if (!_session->is_repeating())
         show_trig_cursor(false);
- 
+
     _maxscale = _session->cur_sampletime() / (width * MaxViewRate);
 
     if (mode == ANALOG){
         set_scale_offset(_maxscale, 0);
     }
-    
+
     status_clear();
 
     _trig_hoff = 0;
@@ -300,22 +315,25 @@ bool View::zoom(double steps, int offset)
     if (_device_agent->get_work_mode() != DSO) {
         _scale *= std::pow(3.0/2.0, -steps);
         _scale = max(min(_scale, _maxscale), _minscale);
-    } 
+    }
     else {
         if (_session->is_running_status() && _session->is_instant()){
             return ret;
         }
 
+        // The horizontal knob only moves in whole positions, so sub-step wheel
+        // events (high-resolution wheels) have to be summed up first, otherwise
+        // they would each be discarded and zooming would never happen.
+        const int knob_steps = _dso_zoom_accum.take(steps);
+
         double hori_res = -1;
-        if(steps > 0.5)
-            hori_res = _sampling_bar->hori_knob(-1);
-        else if (steps < -0.5)
-            hori_res = _sampling_bar->hori_knob(1);
+        for (int i = 0; i < ABS_VAL(knob_steps); i++)
+            hori_res = _sampling_bar->hori_knob(knob_steps > 0 ? -1 : 1);
 
         if (hori_res > 0) {
             const double scale = _session->cur_view_time() / width;
             _scale = max(min(scale, _maxscale), _minscale);
-        } 
+        }
         else {
             ret = false;
         }
@@ -332,6 +350,47 @@ bool View::zoom(double steps, int offset)
     }
 
     return ret;
+}
+
+void View::vzoom(double steps)
+{
+    if (_device_agent->have_instance() == false)
+        return;
+
+    // Vertical scaling only makes sense for the logic trace window.
+    if (_device_agent->get_work_mode() != LOGIC)
+        return;
+
+    // Halve the step size (relative to horizontal zoom) for finer adjustment.
+    double factor = _trace_height_factor * std::pow(3.0/2.0, steps * 0.5);
+    set_trace_height_factor(factor);
+}
+
+void View::set_trace_height_factor(double factor)
+{
+    factor = max(min(factor, MaxTraceHeightFactor), MinTraceHeightFactor);
+
+    if (factor == _trace_height_factor)
+        return;
+
+    _trace_height_factor = factor;
+
+    AppConfig &app = AppConfig::Instance();
+    app.appOptions.traceHeightFactor = factor;
+    app.SaveApp();
+
+    signals_changed(NULL);
+    _header->update();
+    viewport_update();
+    update_scroll();
+}
+
+double View::get_trace_font_scale()
+{
+    // Vertical scaling only applies to the logic trace window (see vzoom()).
+    if (_device_agent->have_instance() && _device_agent->get_work_mode() == LOGIC)
+        return _trace_height_factor;
+    return 1.0;
 }
 
 void View::timebase_changed()
@@ -372,7 +431,7 @@ void View::set_scale_offset(double scale, int64_t offset)
 }
 
 void View::set_preScale_preOffset()
-{ 
+{
     set_scale_offset(_preScale, _preOffset);
 }
 
@@ -381,16 +440,16 @@ void View::get_traces(int type, std::vector<Trace*> &traces)
     assert(_session);
 
     auto &sigs = _session->get_signals();
- 
+
     const auto &decode_sigs = _session->get_decode_signals();
- 
+
     const auto &spectrums = _session->get_spectrum_traces();
- 
+
     for(auto t : sigs) {
         if (type == ALL_VIEW || _trace_view_map[t->get_type()] == type)
             traces.push_back(t);
     }
- 
+
     for(auto t : decode_sigs) {
         if (type == ALL_VIEW || _trace_view_map[t->get_type()] == type)
             traces.push_back(t);
@@ -429,11 +488,11 @@ bool View::compare_trace_v_offsets(const Trace *a, const Trace *b)
     if (a1->get_type() != b1->get_type()){
         v1 = a1->get_type();
         v2 = b1->get_type();
-    } 
+    }
     else if (a1->get_type() == SR_CHANNEL_DSO || a1->get_type() == SR_CHANNEL_ANALOG){
         v1 = a1->get_index();
         v2 = b1->get_index();
-    } 
+    }
     else{
         v1 = a1->get_v_offset();
         v2 = b1->get_v_offset();
@@ -509,7 +568,7 @@ void View::receive_end()
         bool ret;
 
         ret = _device_agent->get_config_bool(SR_CONF_RLE, rle);
-      
+
         if (ret && rle) {
             ret = _device_agent->get_config_uint64(SR_CONF_ACTUAL_SAMPLES, actual_samples);
             if (ret) {
@@ -517,7 +576,7 @@ void View::receive_end()
                     _viewbottom->set_rle_depth(actual_samples);
                 }
             }
-        }       
+        }
     }
     _time_viewport->unshow_wait_trigger();
 }
@@ -531,7 +590,7 @@ void View::receive_trigger(quint64 trig_pos1)
 }
 
 void View::set_trig_cursor_posistion(uint64_t trig_pos)
-{   
+{
     const double time = trig_pos * 1.0 / _session->cur_snap_samplerate();
     _trig_cursor->set_index(trig_pos);
 
@@ -564,7 +623,7 @@ void View::set_trig_pos(int percent)
 }
 
 void View::set_search_pos(uint64_t search_pos, bool hit)
-{ 
+{
     QColor fore(QWidget::palette().color(QWidget::foregroundRole()));
     fore.setAlpha(View::BackAlpha);
 
@@ -585,7 +644,7 @@ void View::set_search_pos(uint64_t search_pos, bool hit)
 }
 
 void View::normalize_layout()
-{   
+{
     int v_min = INT_MAX;
     std::vector<Trace*> traces;
     get_traces(ALL_VIEW, traces);
@@ -601,7 +660,7 @@ void View::normalize_layout()
         }
     }
 
-	const int delta = -min(v_min - (top->get_totalHeight() / 2 + 2 * SignalMargin), 0);
+	const int delta = -min(v_min - (top->get_totalHeight() / 2 + 2 * get_signal_margin()), 0);
 
     verticalScrollBar()->setSliderPosition(delta);
 	v_scroll_value_changed(verticalScrollBar()->sliderPosition());
@@ -643,24 +702,33 @@ void View::update_scroll()
             _x_offset * 1.0  / length * MaxScrollValue);
 	}
 
-    // Set up vertical scrollbar
+    // Set up vertical scrollbar. Only the time-view traces occupy the
+    // scrollable top pane; the FFT traces live in the fixed, splitter-sized
+    // _fft_viewport. Counting the FFT pane here would invent a scroll range
+    // that has no matching time content, so scrolling it would slide the
+    // whole left panel out of alignment with the FFT view.
     std::vector<Trace*> traces;
-    get_traces(ALL_VIEW, traces);
+    get_traces(TIME_VIEW, traces);
 
-    // Calculate total required height for all traces
+    // Calculate total required height for the time-pane traces
     int total_height = 0;
     for (auto t : traces) {
         if (t->enabled())
-            total_height += t->get_totalHeight() + 2 * SignalMargin;
+            total_height += t->get_totalHeight() + 2 * get_signal_margin();
     }
 
     // Make sure we can scroll the last signal past the status bar
     total_height += StatusHeight;
 
+    // Scroll the time pane against its own visible height (which excludes the
+    // FFT pane when the splitter is showing one).
+    const int avail_height = _fft_viewport->isVisible()
+        ? _time_viewport->height() : areaSize.height();
+
     // Enable vertical scrolling if total height exceeds viewport
-    if (total_height > areaSize.height()) {
-        verticalScrollBar()->setRange(0, total_height - areaSize.height());
-        verticalScrollBar()->setPageStep(areaSize.height());
+    if (total_height > avail_height) {
+        verticalScrollBar()->setRange(0, total_height - avail_height);
+        verticalScrollBar()->setPageStep(avail_height);
     } else {
         verticalScrollBar()->setRange(0, 0);
     }
@@ -668,18 +736,18 @@ void View::update_scroll()
 }
 
 void View::update_scale_offset()
-{   
+{
     int width = get_view_width();
     if (width == 0){
         return;
     }
 
     if (_device_agent->get_work_mode() != DSO) {
-        _maxscale = _session->cur_sampletime() / (width * MaxViewRate);     
+        _maxscale = _session->cur_sampletime() / (width * MaxViewRate);
         _minscale = (1.0 / _session->cur_snap_samplerate()) / MaxPixelsPerSample;
     }
     else {
-        _scale = _session->cur_view_time() / width;     
+        _scale = _session->cur_view_time() / width;
         _maxscale = 1e9;
         _minscale = 1e-15;
     }
@@ -703,7 +771,7 @@ void View::mode_changed()
 
 void View::signals_changed(const Trace* eventTrace)
 {
-    double actualMargin = SignalMargin;
+    double actualMargin = get_signal_margin();
     int total_rows = 0;
     int label_size = 0;
     uint8_t max_height = HeightUnit;
@@ -744,7 +812,11 @@ void View::signals_changed(const Trace* eventTrace)
             t->set_view(this);
             t->set_viewport(_fft_viewport);
             t->set_totalHeight(_fft_viewport->height());
-            t->set_v_offset(_fft_viewport->geometry().bottom());
+            // The header spans the whole view (both splitter panes); the FFT
+            // viewport's geometry is expressed in that same coordinate space,
+            // so anchoring the label to the pane's vertical centre keeps the
+            // left-panel label lined up with the FFT view it belongs to.
+            t->set_v_offset(_fft_viewport->geometry().center().y());
         }
     }
     else {
@@ -766,11 +838,21 @@ void View::signals_changed(const Trace* eventTrace)
 
     if (!time_traces.empty() && _time_viewport) {
         for(auto t : time_traces) {
-            if (dynamic_cast<DsoSignal*>(t) || t->enabled())
+            // A disabled DSO channel still needs a slot when every channel
+            // shares one overlaid area (so it keeps a valid, if unused,
+            // band), but in split mode it shouldn't reserve a whole row of
+            // waveport space that nothing is drawn into.
+            bool isDso = (t->signal_type() == SR_CHANNEL_DSO);
+            bool occupiesRow = t->enabled() || (isDso && !_dso_split_channels);
+            if (occupiesRow)
                 total_rows += t->rows_size();
             if (t->rows_size() != 0)
                 label_size++;
         }
+
+        // Every DSO channel can end up disabled at once in split mode; avoid
+        // a division by zero below.
+        total_rows = max(total_rows, 1);
 
         const double height = (_time_viewport->height()
                                - 2 * actualMargin * label_size) * 1.0 / total_rows;
@@ -778,12 +860,19 @@ void View::signals_changed(const Trace* eventTrace)
         if (_device_agent->have_instance() == false){
             assert(false);
         }
-        
+
         int mode = _device_agent->get_work_mode();
 
         if (mode == LOGIC) {
             int v;
             bool ret;
+
+            // Minimum row height must accommodate the configured font so that
+            // in-trace text (e.g. decoder annotations) is not cut off.
+            QFont trace_font;
+            trace_font.setPointSizeF(AppConfig::Instance().GetTraceFontSize());
+            const int min_row_height = max((int)HeightUnit,
+                                           QFontMetrics(trace_font).height() + 4);
 
             ret = _device_agent->get_config_byte(SR_CONF_MAX_HEIGHT_VALUE, v);
             if (ret) {
@@ -791,15 +880,25 @@ void View::signals_changed(const Trace* eventTrace)
             }
             if (height < 2*actualMargin) {
                 //actualMargin /= 2;
-                _signalHeight = max((double)HeightUnit, (_time_viewport->height()
+                _signalHeight = max((double)min_row_height, (_time_viewport->height()
                                           - 2 * actualMargin * label_size) * 1.0 / total_rows);
             }
             else {
-                _signalHeight = max((double)HeightUnit, (height >= max_height) ? max_height : height);
+                _signalHeight = max((double)min_row_height, (height >= max_height) ? max_height : height);
             }
+
+            // Apply the user-controlled vertical scaling so logic signals can
+            // grow to use the full window height (see View::vzoom).
+            _signalHeight = max((double)min_row_height, _signalHeight * _trace_height_factor);
         }
         else if (_device_agent->get_work_mode() == DSO) {
-            _signalHeight = max((double)HeightUnit, (_header->height()
+            // Size the channels to the pane they actually live in. Using the
+            // full-height header would keep them sized for the whole view even
+            // after the FFT splitter pane has shrunk the time viewport, so the
+            // channels would overflow the time pane and invent vertical scroll
+            // range with nothing to scroll to. When no FFT pane is shown the
+            // time viewport fills the view, so this matches the old behaviour.
+            _signalHeight = max((double)HeightUnit, (_time_viewport->height()
                              - horizontalScrollBar()->height()
                              - 2 * actualMargin * label_size) * 1.0 / total_rows);
         }
@@ -809,10 +908,10 @@ void View::signals_changed(const Trace* eventTrace)
 
         _spanY = _signalHeight + 2 * actualMargin;
         int next_v_offset = actualMargin;
-        
+
         //Make list by view-index;
         if (mode == LOGIC)
-        {   
+        {
             time_traces.clear();
 
             std::vector<Trace*> all_traces;
@@ -828,7 +927,7 @@ void View::signals_changed(const Trace* eventTrace)
                     time_traces.push_back(t);
             }
 
-            sort(all_traces.begin(), all_traces.end(), compare_trace_view_index);    
+            sort(all_traces.begin(), all_traces.end(), compare_trace_view_index);
 
             for(auto t : all_traces){
                 time_traces.push_back(t);
@@ -842,6 +941,16 @@ void View::signals_changed(const Trace* eventTrace)
             if (t->rows_size() == 0)
                 continue;
 
+            // Mirror the total_rows accounting above: a disabled DSO channel
+            // in split mode gets no row of its own, so it doesn't leave a
+            // block of empty space where nothing is drawn.
+            bool isDso = (t->signal_type() == SR_CHANNEL_DSO);
+            if (!t->enabled() && isDso && _dso_split_channels){
+                t->set_totalHeight(0);
+                t->set_v_offset(next_v_offset);
+                continue;
+            }
+
             const double traceHeight = _signalHeight*t->rows_size();
             t->set_totalHeight((int)traceHeight);
             t->set_v_offset(next_v_offset + 0.5 * traceHeight + actualMargin);
@@ -850,7 +959,7 @@ void View::signals_changed(const Trace* eventTrace)
             if (t->signal_type() == SR_CHANNEL_DSO)
             {
                 auto sig = dynamic_cast<view::DsoSignal*>(t);
-                sig->set_scale(sig->get_view_rect().height());              
+                sig->set_scale(sig->get_view_rect().height());
             }
             else if (t->signal_type() == SR_CHANNEL_ANALOG)
             {
@@ -884,7 +993,7 @@ bool View::eventFilter(QObject *object, QEvent *event)
             else
                 _hover_point = mouse_event->pos();
         } else if (object == _header)
-			_hover_point = QPoint(0, mouse_event->y());
+			_hover_point = QPoint(0, mouse_event->pos().y());
 		else
 			_hover_point = QPoint(-1, -1);
 
@@ -914,6 +1023,17 @@ bool View::viewportEvent(QEvent *e)
 	}
 }
 
+int View::get_bottom_margin()
+{
+    // The status/measurement bar floats over the bottom of the viewport. The
+    // scrollable time pane can scroll its content clear of it, but the fixed
+    // FFT splitter pane cannot, so reserve room for the bar only while the FFT
+    // pane is visible - otherwise it would be cropped underneath the bar.
+    if (_viewbottom && _fft_viewport && _fft_viewport->isVisible())
+        return _viewbottom->height();
+    return 0;
+}
+
 int View::headerWidth()
 {
     int headerWidth = _header->get_nameEditWidth();
@@ -921,7 +1041,7 @@ int View::headerWidth()
     std::vector<Trace*> traces;
     get_traces(ALL_VIEW, traces);
 
-    if (!traces.empty()) 
+    if (!traces.empty())
     {
         for(auto t : traces){
             int w = t->get_name_width() + t->get_leftWidth() + t->get_rightWidth();
@@ -929,7 +1049,7 @@ int View::headerWidth()
         }
     }
 
-    setViewportMargins(headerWidth, RulerHeight, 0, 0);
+    setViewportMargins(headerWidth, RulerHeight, 0, get_bottom_margin());
 
     return headerWidth;
 }
@@ -943,7 +1063,7 @@ void View::resizeEvent(QResizeEvent*)
     }
 
     reconstruct();
-    setViewportMargins(headerWidth(), RulerHeight, 0, 0);
+    setViewportMargins(headerWidth(), RulerHeight, 0, get_bottom_margin());
     update_margins();
     update_scroll();
     signals_changed(NULL);
@@ -976,7 +1096,7 @@ void View::h_scroll_value_changed(int value)
 	const int range = horizontalScrollBar()->maximum();
 	if (range < MaxScrollValue)
         _x_offset = value;
-	else 
+	else
     {
         int64_t length = 0;
         int64_t offset = 0;
@@ -997,9 +1117,12 @@ void View::v_scroll_value_changed(int value)
     // Track vertical offset
     _y_offset = value;
 
-    // Update vertical positions of all traces based on scroll value
+    // Only the time-view traces live in the scrollable top pane. The FFT
+    // traces sit in the separate, splitter-controlled _fft_viewport whose
+    // content is painted at a fixed viewport-relative position, so scrolling
+    // them here would drift their header label away from the FFT view.
     std::vector<Trace*> traces;
-    get_traces(ALL_VIEW, traces);
+    get_traces(TIME_VIEW, traces);
 
     for (auto t : traces) {
         if (t->enabled()) {
@@ -1013,7 +1136,7 @@ void View::v_scroll_value_changed(int value)
 
 void View::data_updated()
 {
-    setViewportMargins(headerWidth(), RulerHeight, 0, 0);
+    setViewportMargins(headerWidth(), RulerHeight, 0, get_bottom_margin());
     update_margins();
 
 	// Update the scroll bars
@@ -1039,7 +1162,22 @@ void View::update_margins()
         _ruler->setGeometry(_viewcenter->x(), 0,  width, _viewcenter->y());
         _header->setGeometry(0, _viewcenter->y(), _viewcenter->x(), _viewcenter->height());
         _devmode->setGeometry(0, 0, _viewcenter->x(), _viewcenter->y());
-    } 
+    }
+}
+
+void View::update_status_margins()
+{
+    // The bottom/right margins were only ever computed once, at
+    // construction time, before the scrollbars had a real on-screen
+    // geometry - and never refreshed afterwards. That was mostly hidden in
+    // LOGIC mode (a fixed, short StatusHeight), but became visibly wrong in
+    // DSO mode once _viewbottom grows to DsoStatusHeight for its two-row
+    // measurement layout: the reserved strip stayed sized for the stale
+    // scrollbar height, so the lower measurement row overlapped the real
+    // horizontal scrollbar. Recompute with the scrollbars' current geometry.
+    _statusLayout->setContentsMargins(0, 0,
+        verticalScrollBar()->geometry().width() + 2,
+        horizontalScrollBar()->geometry().height() + 1);
 }
 
 void View::header_updated()
@@ -1070,7 +1208,7 @@ void View::on_traces_moved()
 void View::make_cursors_order()
 {
     int dex = 1;
- 
+
     for (auto cursor :  get_cursorList())
     {
         cursor->set_order(dex++);
@@ -1085,6 +1223,7 @@ void View::make_cursors_order()
 
 void View::add_cursor(QColor color, uint64_t sampleIndex)
 {
+    (void)color;
     Cursor *newCursor = new Cursor(*this, -1, sampleIndex);
     get_cursorList().push_back(newCursor);
     make_cursors_order();
@@ -1236,7 +1375,12 @@ void View::on_state_changed(bool stop)
 
 QRect View::get_view_rect()
 {
-    if (_device_agent->get_work_mode() == DSO) {
+    // In split mode each channel only owns its own row, so returning the
+    // first channel's rect here (as the overlaid case does, since every
+    // channel's rect is the whole viewport there) would confine cursors,
+    // hit-testing, and status text to that single row instead of the whole
+    // viewport.
+    if (_device_agent->get_work_mode() == DSO && !_dso_split_channels) {
         const auto &sigs = _session->get_signals();
         if(sigs.size() > 0) {
             return sigs[0]->get_view_rect();
@@ -1268,7 +1412,14 @@ int View::get_view_width()
 int View::get_view_height()
 {
     int view_height = 0;
-    if (_device_agent->get_work_mode() == DSO) {
+
+    // In split mode each DSO channel's get_view_rect() only spans its own
+    // row, so taking the max over channels would drastically undercount the
+    // actual visible area (used below to size the vertical scrollbar),
+    // making it look like there's a lot more content to scroll to than
+    // there really is. Overlaid channels all still share the full viewport
+    // height, so this only needs a special case for split mode.
+    if (_device_agent->get_work_mode() == DSO && !_dso_split_channels) {
         for(auto s : _session->get_signals()) {
             view_height = max(view_height, s->get_view_rect().height());
         }
@@ -1367,6 +1518,20 @@ void View::show_lissajous(bool show)
     signals_changed(NULL);
 }
 
+void View::set_dso_split_channels(bool split)
+{
+    _dso_split_channels = split;
+
+    AppConfig &app = AppConfig::Instance();
+    if (app.appOptions.dsoSplitChannels != split){
+        app.appOptions.dsoSplitChannels = split;
+        app.SaveApp();
+    }
+
+    signals_changed(NULL);
+    viewport_update();
+}
+
 void View::show_region(uint64_t start, uint64_t end, bool keep)
 {
     assert(start <= end);
@@ -1436,6 +1601,7 @@ void View::reconstruct()
         _viewbottom->setFixedHeight(DsoStatusHeight);
     else
         _viewbottom->setFixedHeight(StatusHeight);
+    update_status_margins();
     _viewbottom->reload();
 }
 
@@ -1459,12 +1625,16 @@ double View::index2pixel(uint64_t index, bool has_hoff)
 {
     const uint64_t rateValue = session().cur_snap_samplerate();
     const double scaleValue = scale();
-    const int64_t offsetValue = x_offset();    
+    const int64_t offsetValue = x_offset();
     const double hoffValue = trig_hoff();
 
     double pixels = 0;
 
     const double samples_per_pixel = rateValue * scaleValue;
+
+    if (samples_per_pixel == 0){
+        return 0;
+    }
 
     if (has_hoff){
         pixels = index / samples_per_pixel - offsetValue + hoffValue / samples_per_pixel;
@@ -1486,12 +1656,12 @@ double View::index2pixel(uint64_t index, bool has_hoff)
 }
 
 uint64_t View::pixel2index(double pixel)
-{   
+{
     const uint64_t rateValue = session().cur_snap_samplerate();
     const double scaleValue = scale();
-    const int64_t offsetValue = x_offset();    
+    const int64_t offsetValue = x_offset();
     const double hoffValue = trig_hoff();
- 
+
     const double samples_per_pixel = rateValue * scaleValue;
     const double index = (pixel + offsetValue) * samples_per_pixel - hoffValue;
 
@@ -1507,7 +1677,7 @@ void View::set_receive_len(uint64_t len)
 {
     if (_time_viewport)
         _time_viewport->set_receive_len(len);
-        
+
     if (_fft_viewport && _session->get_device()->get_work_mode() == DSO)
         _fft_viewport->set_receive_len(len);
 }
@@ -1531,10 +1701,10 @@ void View::check_calibration()
      if (_device_agent->get_work_mode() == DSO){
         bool cali = false;
         _device_agent->get_config_bool(SR_CONF_CALI, cali);
-            
+
         if (cali) {
             show_calibration();
-        }           
+        }
     }
 }
 
@@ -1564,7 +1734,7 @@ void View::auto_set_max_scale()
     {
         _maxscale =  limitTime / (width * MaxViewRate);
         set_scale(_maxscale);
-    }  
+    }
 }
 
 int  View::get_body_width()
@@ -1599,7 +1769,7 @@ void View::check_measure()
 }
 
 std::list<Cursor*>& View::get_cursorList()
-{   
+{
     if (_session->get_device()->get_work_mode() == LOGIC){
         return _logic_cursors;
     }
@@ -1629,16 +1799,16 @@ Cursor* View::get_cursor_by_index(int index)
 
 void View::UpdateLanguage()
 {
-     
+
 }
 
 void View::UpdateTheme()
 {
-    
+
 }
 
 void View::UpdateFont()
-{  
+{
     update_font();
 }
 

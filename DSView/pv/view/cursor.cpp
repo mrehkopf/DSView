@@ -49,7 +49,7 @@ const int Cursor::CloseSize = 10;
 Cursor::Cursor(View &view, int order, uint64_t sampleIndex) :
     TimeMarker(view, sampleIndex)
 {
-   _order = _order;
+   _order = order;
 }
 
 QRect Cursor::get_label_rect(const QRect &rect, bool &visible, bool has_hoff)

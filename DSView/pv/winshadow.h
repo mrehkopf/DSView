@@ -29,6 +29,14 @@
 
 #define SHADOW_BORDER_WIDTH 11
 
+#if QT_VERSION >= QT_VERSION_CHECK(6,0,0)
+typedef qintptr *SHADOW_MESSAGE_RESULT_PTR;
+typedef qintptr SHADOW_MESSAGE_RESULT_TYPE;
+#else
+typedef long *SHADOW_MESSAGE_RESULT_PTR;
+typedef long SHADOW_MESSAGE_RESULT_TYPE;
+#endif
+
 namespace pv {
 
 class IShadowCallback
@@ -69,7 +77,7 @@ private slots:
     void onCheckForeWindow();
 
 private:
-    bool nativeEvent(const QByteArray &eventType, void *message, long *result) override; 
+    bool nativeEvent(const QByteArray &eventType, void *message, SHADOW_MESSAGE_RESULT_PTR result) override;
     void paintEvent(QPaintEvent *event) override;
  
     QWidget     *m_parent;

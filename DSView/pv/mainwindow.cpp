@@ -110,13 +110,18 @@ namespace pv
 
     namespace{
         QString tmp_file;
+
+        // Bump this when the built-in dock layout changes so a windowState
+        // saved under an older layout is not restored over the new one.
+        const int DOCK_LAYOUT_VERSION = 1;
     }
 
     MainWindow::MainWindow(toolbars::TitleBar *title_bar, QWidget *parent)
         : QMainWindow(parent)
     {
         _msg = NULL;
-        _frame = parent; 
+        _frame = parent;
+        _restoring_dock_layout = false;
 
         assert(title_bar);
         assert(_frame);
@@ -225,10 +230,13 @@ namespace pv
         _search_widget = new dock::SearchDock(_search_dock, *_view, _session);
         _search_dock->setWidget(_search_widget);
 
+        // Put all the right-side docks into the same tab group instead of stacking
+        // them on top of each other (which forced scrolling to reach the lower ones).
+        setTabPosition(Qt::RightDockWidgetArea, QTabWidget::North);
         addDockWidget(Qt::RightDockWidgetArea, _protocol_dock);
-        addDockWidget(Qt::RightDockWidgetArea, _trigger_dock);
-        addDockWidget(Qt::RightDockWidgetArea, _dso_trigger_dock);
-        addDockWidget(Qt::RightDockWidgetArea, _measure_dock);
+        tabifyDockWidget(_protocol_dock, _trigger_dock);
+        tabifyDockWidget(_trigger_dock, _dso_trigger_dock);
+        tabifyDockWidget(_dso_trigger_dock, _measure_dock);
         addDockWidget(Qt::BottomDockWidgetArea, _search_dock);
 
         // event filter
@@ -276,6 +284,7 @@ namespace pv
         connect(_trig_bar, SIGNAL(sig_search(bool)), this, SLOT(on_search(bool)));
         connect(_trig_bar, SIGNAL(sig_setTheme(QString)), this, SLOT(switchTheme(QString)));
         connect(_trig_bar, SIGNAL(sig_show_lissajous(bool)), _view, SLOT(show_lissajous(bool)));
+        connect(_trig_bar, &toolbars::TrigBar::sig_dso_split, _view, &view::View::set_dso_split_channels);
 
         // file toolbar
         connect(_file_bar, SIGNAL(sig_load_file(QString)), this, SLOT(on_load_file(QString)));
@@ -438,7 +447,7 @@ namespace pv
             save_config_to_file(sessionFile);
         }
 
-        app.frameOptions.windowState = saveState();
+        app.frameOptions.windowState = saveState(DOCK_LAYOUT_VERSION);
         app.SaveFrame();
     }
 
@@ -483,6 +492,9 @@ namespace pv
     {
         _protocol_dock->setVisible(visible);
 
+        if (visible && !_restoring_dock_layout)
+            _protocol_dock->raise();
+
         if (!visible)
             _view->setFocus();
     }
@@ -494,12 +506,18 @@ namespace pv
             _trigger_widget->update_view();
             _trigger_dock->setVisible(visible);
             _dso_trigger_dock->setVisible(false);
+
+            if (visible && !_restoring_dock_layout)
+                _trigger_dock->raise();
         }
         else
         {
             _dso_trigger_widget->update_view();
             _trigger_dock->setVisible(false);
             _dso_trigger_dock->setVisible(visible);
+
+            if (visible && !_restoring_dock_layout)
+                _dso_trigger_dock->raise();
         }
 
         if (!visible)
@@ -509,6 +527,9 @@ namespace pv
     void MainWindow::on_measure(bool visible)
     {
         _measure_dock->setVisible(visible);
+
+        if (visible && !_restoring_dock_layout)
+            _measure_dock->raise();
 
         if (!visible)
             _view->setFocus();
@@ -539,9 +560,9 @@ namespace pv
         (void)x;
         (void)y;
 
-#ifdef _WIN32 
+#ifdef _WIN32
     #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-        QPixmap pixmap = QGuiApplication::primaryScreen()->grabWindow(QApplication::desktop->winId(), x, y, w, h);
+        QPixmap pixmap = parentWidget()->grab();
     #else
         QPixmap pixmap = QPixmap::grabWidget(parentWidget());
     #endif
@@ -1206,7 +1227,9 @@ namespace pv
         {
             try
             {
-                restoreState(st);
+                // Versioned so a windowState saved before the right-side docks
+                // were tabified doesn't restore the old split (scrolling) layout.
+                restoreState(st, DOCK_LAYOUT_VERSION);
             }
             catch (...)
             {
@@ -1215,8 +1238,11 @@ namespace pv
         }
 
         // Resotre the dock pannel.
-        if (_device_agent->have_instance())
+        if (_device_agent->have_instance()){
+            _restoring_dock_layout = true;
             _trig_bar->reload();
+            _restoring_dock_layout = false;
+        }
     }
 
     bool MainWindow::eventFilter(QObject *object, QEvent *event)
@@ -1397,12 +1423,12 @@ namespace pv
 
         if (language == LAN_CN)
         {
-            _qtTrans.load(":/qt_" + QString::number(language));
+            (void)_qtTrans.load(":/qt_" + QString::number(language));
             qApp->installTranslator(&_qtTrans);
-            _myTrans.load(":/my_" + QString::number(language));
+            (void)_myTrans.load(":/my_" + QString::number(language));
             qApp->installTranslator(&_myTrans);
         }
-        else if (language == LAN_EN)
+        else if (language == LAN_EN || language == LAN_DE)
         {
             qApp->removeTranslator(&_qtTrans);
             qApp->removeTranslator(&_myTrans);
@@ -1618,12 +1644,18 @@ namespace pv
     }
 
     bool MainWindow::confirm_to_store_data()
-    {   
+    {
         bool ret = false;
-        _is_save_confirm_msg = true;       
+        _is_save_confirm_msg = true;
+
+        if (AppConfig::Instance().appOptions.dontAskSaveOnExit)
+        {
+            _is_save_confirm_msg = false;
+            return false;
+        }
 
         if (_session->have_hardware_data() && _session->is_first_store_confirm())
-        {   
+        {
             // Only popup one time.
             ret =  MsgBox::Confirm(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_SAVE_CAPDATE), "Save captured data?"));
 
@@ -2135,6 +2167,10 @@ namespace pv
             case DSV_MSG_APP_OPTIONS_CHANGED:
             {
                 update_title_bar_text();
+                // Recompute trace layout: the inter-channel spacing depends on
+                // the channel-divider option (see View::get_signal_margin()).
+                _view->signals_changed(NULL);
+                _view->viewport_update();
                 break;
             }
             case DSV_MSG_FONT_OPTIONS_CHANGED:

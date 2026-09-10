@@ -111,6 +111,54 @@ const QColor DecodeTrace::OutlineColours[16] = {
 	QColor(0x6B, 0x23, 0x37)
 };
 
+// Official Catppuccin Frappe accent colours
+const QColor DecodeTrace::CatppuccinFrappeColours[14] = {
+	QColor(0xe7, 0x82, 0x84), // Red
+	QColor(0xea, 0x99, 0x9c), // Maroon
+	QColor(0xef, 0x9f, 0x76), // Peach
+	QColor(0xe5, 0xc8, 0x90), // Yellow
+	QColor(0xa6, 0xd1, 0x89), // Green
+	QColor(0x81, 0xc8, 0xbe), // Teal
+	QColor(0x99, 0xd1, 0xdb), // Sky
+	QColor(0x85, 0xc1, 0xdc), // Sapphire
+	QColor(0x8c, 0xaa, 0xee), // Blue
+	QColor(0xba, 0xbb, 0xf1), // Lavender
+	QColor(0xca, 0x9e, 0xe6), // Mauve
+	QColor(0xf4, 0xb8, 0xe4), // Pink
+	QColor(0xee, 0xbe, 0xbe), // Flamingo
+	QColor(0xf2, 0xd5, 0xcf)  // Rosewater
+};
+
+// Official Catppuccin Latte accent colours
+const QColor DecodeTrace::CatppuccinLatteColours[14] = {
+	QColor(0xd2, 0x0f, 0x39), // Red
+	QColor(0xe6, 0x45, 0x53), // Maroon
+	QColor(0xfe, 0x64, 0x0b), // Peach
+	QColor(0xdf, 0x8e, 0x1d), // Yellow
+	QColor(0x40, 0xa0, 0x2b), // Green
+	QColor(0x17, 0x92, 0x99), // Teal
+	QColor(0x04, 0xa5, 0xe5), // Sky
+	QColor(0x20, 0x9f, 0xb5), // Sapphire
+	QColor(0x1e, 0x66, 0xf5), // Blue
+	QColor(0x72, 0x87, 0xfd), // Lavender
+	QColor(0x88, 0x39, 0xef), // Mauve
+	QColor(0xea, 0x76, 0xcb), // Pink
+	QColor(0xdd, 0x78, 0x78), // Flamingo
+	QColor(0xdc, 0x8a, 0x78)  // Rosewater
+};
+
+QColor DecodeTrace::get_row_base_colour(int local_row)
+{
+    const QString &style = AppConfig::Instance().frameOptions.style;
+
+    if (style == THEME_STYLE_FRAPPE)
+        return CatppuccinFrappeColours[local_row % countof(CatppuccinFrappeColours)];
+    else if (style == THEME_STYLE_LATTE)
+        return CatppuccinLatteColours[local_row % countof(CatppuccinLatteColours)];
+
+    return Colours[local_row % countof(Colours)];
+}
+
 
 DecodeTrace::DecodeTrace(pv::SigSession *session,
 	pv::data::DecoderStack *decoder_stack, int index) :
@@ -365,7 +413,8 @@ void DecodeTrace::draw_annotation(const pv::data::decode::Annotation &a,
     const double end = min(a.end_sample() / samples_per_pixel -
         pixels_offset, (double)right);
 
-    const QColor &fill_base = _colour.isValid() ? _colour : fore;
+    const QColor fill_base = _colour.isValid() ? _colour :
+        get_row_base_colour(local_row);
     QColor fill, outline;
     generate_annotation_colours(fill_base, local_row, a, &fill, &outline);
     const QColor &text_color = get_text_colour(fill);
@@ -487,6 +536,7 @@ void DecodeTrace::draw_range(const pv::data::decode::Annotation &a, QPainter &p,
     double end, int y, QColor fore, QColor back)
 {
     (void)fore;
+    (void)back;
 
     AppConfig &app = AppConfig::Instance();
     bool fontStretch = app.appOptions.decoderDynamicFontWidth;
@@ -531,9 +581,7 @@ void DecodeTrace::draw_range(const pv::data::decode::Annotation &a, QPainter &p,
 
 	// Try to find an annotation that will fit
 	QString best_annotation;
-	int best_width = 0;
     int max_width = rect.width();
-    bool isCondensed = false;
     QFontMetrics fm = p.fontMetrics();
     QFont condensed_font = p.font();
     double MIN_STRETCH = fontStretch
@@ -562,8 +610,6 @@ void DecodeTrace::draw_range(const pv::data::decode::Annotation &a, QPainter &p,
         if (stretch >= MIN_STRETCH) {
             // fitting annotation found with condensing
             best_annotation = a;
-            best_width = ceil((double)w * (stretch / 100.0));
-            isCondensed = true;
             break;
         }
 	}

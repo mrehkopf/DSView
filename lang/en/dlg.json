@@ -704,6 +704,10 @@
         "text": "Antialiasing"
     },
     {
+        "id": "IDS_DLG_DONT_ASK_SAVE_ON_EXIT",
+        "text": "Do not ask to save captured data"
+    },
+    {
         "id": "IDS_DLG_SERIAL_HEX",
         "text": "Hex :"
     },
@@ -810,5 +814,33 @@
     {
         "id": "IDS_FFT_MODE_LINEARRSM",
         "text": "Linear RMS"
+    },
+    {
+        "id": "IDS_DLG_DECODER_DYNAMIC_FONT_WIDTH",
+        "text": "Decoder adaptive font width"
+    },
+    {
+        "id": "IDS_DLG_DEFAULT_FONT",
+        "text": "Default"
+    },
+    {
+        "id": "IDS_DLG_MAX_FONT_WIDTH",
+        "text": "Max font width:"
+    },
+    {
+        "id": "IDS_DLG_MIN_FONT_WIDTH",
+        "text": "Min font width:"
+    },
+    {
+        "id": "IDS_DLG_VERTICAL_SCROLL_ACTION",
+        "text": "Vertical Scroll Action"
+    },
+    {
+        "id": "IDS_DLG_VERTICAL_SCROLL_ACTION_SMOOTH_ZOOM",
+        "text": "Zoom"
+    },
+    {
+        "id": "IDS_DLG_VERTICAL_SCROLL_ACTION_VERTICAL_SCROLL",
+        "text": "Scroll"
     }
 ]

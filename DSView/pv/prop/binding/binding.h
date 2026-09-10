@@ -46,6 +46,8 @@ class Binding
 public:
     Binding();
 
+    virtual ~Binding();
+
     const std::vector<Property*>& properties();
 
     void commit();

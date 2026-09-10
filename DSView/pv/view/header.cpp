@@ -135,9 +135,9 @@ void Header::paintEvent(QPaintEvent*)
     fore.setAlpha(View::ForeAlpha);
  
     QFont font(painter.font());
-    float fSize = AppConfig::Instance().appOptions.fontSize;
-    if (fSize > 10)
-        fSize = 10;
+    float fSize = AppConfig::Instance().GetTraceFontSize();
+    // Grow channel-label text together with the trace height (logic mode).
+    fSize *= _view.get_trace_font_scale();
     font.setPointSizeF(fSize);
     painter.setFont(font);
 
@@ -347,6 +347,10 @@ void Header::wheelEvent(QWheelEvent *event)
         // Vertical scrolling
         double shift = 0;
 
+        // The dials the traces expose react in whole steps only, so the raw
+        // delta has to be turned into whole wheel detents first - high
+        // resolution wheels report a fraction of a detent per event and would
+        // otherwise always be rounded down to zero.
 #ifdef Q_OS_DARWIN
         static bool active = true;
         static int64_t last_time;
@@ -362,19 +366,25 @@ void Header::wheelEvent(QWheelEvent *event)
                 active = true;
             else
                 active = false;
+
+            if (shift == 0)
+                _wheel_accum.reset();
         }
         else
         {
-            shift = -delta / 80.0;
+            shift = -_wheel_accum.take(delta);
         }
 #else
-        shift = delta / 80.0;
+        shift = _wheel_accum.take(delta);
 #endif
 
-        for (auto t : traces)
+        if (shift != 0)
         {
-            if (t->mouse_wheel(width(), pos, shift))
-                break;
+            for (auto t : traces)
+            {
+                if (t->mouse_wheel(width(), pos, shift))
+                    break;
+            }
         }
         _view.verticalScrollBar()->setValue(_view.verticalScrollBar()->value() - delta);
         update();
@@ -389,8 +399,10 @@ void Header::changeName(QMouseEvent *event)
     {
         header_resize();
         QFont font = this->font();
-        float fsize = AppConfig::Instance().appOptions.fontSize;
-        font.setPointSizeF(fsize <= 10 ? fsize: 10);
+        float fsize = AppConfig::Instance().GetTraceFontSize();
+        // Match the scaled label font used when painting the channel name.
+        fsize *= _context_trace->get_label_scale();
+        font.setPointSizeF(fsize);
         nameEdit->setFont(font);
 
         nameEdit->setText(_context_trace->get_name());

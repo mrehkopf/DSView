@@ -1,7 +1,7 @@
 /*
  * This file is part of the DSView project.
  * DSView is based on PulseView.
- * 
+ *
  * Copyright (C) 2021 DreamSourceLab <support@dreamsourcelab.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -19,15 +19,15 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
-#include "appconfig.h" 
+#include "appconfig.h"
 #include <QApplication>
 #include <QSettings>
 #include <QLocale>
-#include <QDir> 
+#include <QDir>
 #include <assert.h>
 #include <QStandardPaths>
 #include "../log.h"
-  
+
 #define MAX_PROTOCOL_FORMAT_LIST 15
 
 StringPair::StringPair(const std::string &key, const std::string &value)
@@ -44,10 +44,10 @@ static QString FormatArrayToString(std::vector<StringPair> &protocolFormats)
     for (StringPair &o : protocolFormats){
          if (!str.isEmpty()){
              str += ";";
-         } 
+         }
          str += o.m_key.c_str();
          str += "=";
-         str += o.m_value.c_str(); 
+         str += o.m_value.c_str();
     }
 
     return str;
@@ -99,7 +99,7 @@ static void setFiled(const char *key, QSettings &st, bool f){
 
 static void getFiled(const char *key, QSettings &st, float &f, float dv)
 {
-    f = st.value(key, dv).toInt();
+    f = st.value(key, dv).toFloat();
 }
 
 static void setFiled(const char *key, QSettings &st, float f)
@@ -110,7 +110,7 @@ static void setFiled(const char *key, QSettings &st, float f)
 ///------ app
 static void _loadApp(AppOptions &o, QSettings &st)
 {
-    st.beginGroup("Application"); 
+    st.beginGroup("Application");
     getFiled("quickScroll", st, o.quickScroll, true);
     getFiled("warnofMultiTrig", st, o.warnofMultiTrig, true);
     getFiled("originalData", st, o.originalData, false);
@@ -124,12 +124,17 @@ static void _loadApp(AppOptions &o, QSettings &st)
     getFiled("fontSize", st, o.fontSize, 9.0);
     getFiled("autoScrollLatestData", st, o.autoScrollLatestData, true);
     getFiled("verticalScrollIsZoom", st, o.verticalScrollIsZoom, true);
+    getFiled("traceHeightFactor", st, o.traceHeightFactor, 1.0);
     getFiled("version", st, o.version, 1);
     getFiled("rulerTimeUnits", st, o.rulerTimeUnits, "Time");
     getFiled("antialias", st, o.antialias, true);
     getFiled("decoderDynamicFontWidth", st, o.decoderDynamicFontWidth, false);
     getFiled("maxDecoderFontWidthPercent", st, o.maxDecoderFontWidthPercent, 125);
     getFiled("minDecoderFontWidthPercent", st, o.minDecoderFontWidthPercent, 75);
+    getFiled("dontAskSaveOnExit", st, o.dontAskSaveOnExit, false);
+    getFiled("logicSignalLineWidth", st, o.logicSignalLineWidth, 1.0f);
+    getFiled("logicChannelDivider", st, o.logicChannelDivider, true);
+    getFiled("dsoSplitChannels", st, o.dsoSplitChannels, false);
 
     o.warnofMultiTrig = true;
 
@@ -147,7 +152,17 @@ static void _loadApp(AppOptions &o, QSettings &st)
     {
         o.fontSize = (maxSize + minSize) / 2;
     }
-   
+
+    if (o.traceHeightFactor < 0.1 || o.traceHeightFactor > 20.0)
+    {
+        o.traceHeightFactor = 1.0;
+    }
+
+    if (o.logicSignalLineWidth < 1.0f || o.logicSignalLineWidth > 4.0f)
+    {
+        o.logicSignalLineWidth = 1.0f;
+    }
+
     st.endGroup();
 }
 
@@ -167,16 +182,21 @@ static void _saveApp(AppOptions &o, QSettings &st)
     setFiled("fontSize", st, o.fontSize);
     setFiled("autoScrollLatestData", st, o.autoScrollLatestData);
     setFiled("verticalScrollIsZoom", st, o.verticalScrollIsZoom);
+    setFiled("traceHeightFactor", st, o.traceHeightFactor);
     setFiled("version", st, APP_CONFIG_VERSION);
     setFiled("rulerTimeUnits", st, o.rulerTimeUnits);
     setFiled("antialias", st, o.antialias);
     setFiled("decoderDynamicFontWidth", st, o.decoderDynamicFontWidth);
     setFiled("maxDecoderFontWidthPercent", st, o.maxDecoderFontWidthPercent);
     setFiled("minDecoderFontWidthPercent", st, o.minDecoderFontWidthPercent);
+    setFiled("dontAskSaveOnExit", st, o.dontAskSaveOnExit);
+    setFiled("logicSignalLineWidth", st, o.logicSignalLineWidth);
+    setFiled("logicChannelDivider", st, o.logicChannelDivider);
+    setFiled("dsoSplitChannels", st, o.dsoSplitChannels);
 
     QString fmt =  FormatArrayToString(o.m_protocolFormats);
     setFiled("protocalFormats", st, fmt);
-    st.endGroup();  
+    st.endGroup();
 }
 
 //-----frame
@@ -203,10 +223,10 @@ static void _saveDockOptions(DockOptions &o, QSettings &st, const char *group)
 
 static void _loadFrame(FrameOptions &o, QSettings &st)
 {
-    st.beginGroup("MainFrame"); 
+    st.beginGroup("MainFrame");
     getFiled("style", st, o.style, THEME_STYLE_DARK);
     getFiled("language", st, o.language, -1);
-    getFiled("isMax", st, o.isMax, false);  
+    getFiled("isMax", st, o.isMax, false);
     getFiled("left", st, o.left, 0);
     getFiled("top", st, o.top, 0);
     getFiled("right", st, o.right, 0);
@@ -224,14 +244,16 @@ static void _loadFrame(FrameOptions &o, QSettings &st)
     o.windowState = st.value("windowState", QByteArray()).toByteArray();
     st.endGroup();
 
-    if (o.language == -1 || (o.language != LAN_CN && o.language != LAN_EN)){
+    if (o.language == -1 || (o.language != LAN_CN && o.language != LAN_EN && o.language != LAN_DE)){
         //get local language
         QLocale locale;
 
         if (QLocale::languageToString(locale.language()) == "Chinese")
-            o.language = LAN_CN;            
+            o.language = LAN_CN;
+        else if (QLocale::languageToString(locale.language()) == "German")
+            o.language = LAN_DE;
         else
-            o.language = LAN_EN; 
+            o.language = LAN_EN;
     }
 }
 
@@ -240,7 +262,7 @@ static void _saveFrame(FrameOptions &o, QSettings &st)
     st.beginGroup("MainFrame");
     setFiled("style", st, o.style);
     setFiled("language", st, o.language);
-    setFiled("isMax", st, o.isMax);  
+    setFiled("isMax", st, o.isMax);
     setFiled("left", st, o.left);
     setFiled("top", st, o.top);
     setFiled("right", st, o.right);
@@ -251,12 +273,12 @@ static void _saveFrame(FrameOptions &o, QSettings &st)
     setFiled("oy", st, o.oy);
     setFiled("displayName", st, o.displayName);
 
-    st.setValue("windowState", o.windowState); 
+    st.setValue("windowState", o.windowState);
 
     _saveDockOptions(o._logicDock, st, "LOGIC_DOCK");
     _saveDockOptions(o._analogDock, st, "ANALOG_DOCK");
     _saveDockOptions(o._dsoDock, st, "DSO_DOCK");
-    
+
     st.endGroup();
 }
 
@@ -264,28 +286,30 @@ static void _saveFrame(FrameOptions &o, QSettings &st)
 static void _loadHistory(UserHistory &o, QSettings &st)
 {
     st.beginGroup("UserHistory");
-    getFiled("exportDir", st, o.exportDir, ""); 
-    getFiled("saveDir", st, o.saveDir, ""); 
+    getFiled("exportDir", st, o.exportDir, "");
+    getFiled("saveDir", st, o.saveDir, "");
     getFiled("showDocuments", st, o.showDocuments, true);
-    getFiled("screenShotPath", st, o.screenShotPath, ""); 
-    getFiled("sessionDir", st, o.sessionDir, ""); 
-    getFiled("openDir", st, o.openDir, ""); 
-    getFiled("protocolExportPath", st, o.protocolExportPath, ""); 
-    getFiled("exportFormat", st, o.exportFormat, ""); 
+    getFiled("screenShotPath", st, o.screenShotPath, "");
+    getFiled("sessionDir", st, o.sessionDir, "");
+    getFiled("openDir", st, o.openDir, "");
+    getFiled("protocolExportPath", st, o.protocolExportPath, "");
+    getFiled("exportFormat", st, o.exportFormat, "");
+    getFiled("showDriverHint", st, o.showDriverHint, true);
     st.endGroup();
 }
- 
+
 static void _saveHistory(UserHistory &o, QSettings &st)
 {
     st.beginGroup("UserHistory");
-    setFiled("exportDir", st, o.exportDir); 
-    setFiled("saveDir", st, o.saveDir); 
-    setFiled("showDocuments", st, o.showDocuments); 
-    setFiled("screenShotPath", st, o.screenShotPath); 
-    setFiled("sessionDir", st, o.sessionDir); 
-    setFiled("openDir", st, o.openDir); 
+    setFiled("exportDir", st, o.exportDir);
+    setFiled("saveDir", st, o.saveDir);
+    setFiled("showDocuments", st, o.showDocuments);
+    setFiled("screenShotPath", st, o.screenShotPath);
+    setFiled("sessionDir", st, o.sessionDir);
+    setFiled("openDir", st, o.openDir);
     setFiled("protocolExportPath", st, o.protocolExportPath);
-    setFiled("exportFormat", st, o.exportFormat); 
+    setFiled("exportFormat", st, o.exportFormat);
+    setFiled("showDriverHint", st, o.showDriverHint);
     st.endGroup();
 }
 
@@ -333,10 +357,10 @@ static void _saveFont(FontOptions &o, QSettings &st)
 //------------AppConfig
 
 AppConfig::AppConfig()
-{ 
+{
 }
 
-AppConfig::AppConfig(AppConfig &o) 
+AppConfig::AppConfig(AppConfig &o)
 {
     (void)o;
 }
@@ -347,15 +371,12 @@ AppConfig::~AppConfig()
 
  AppConfig& AppConfig::Instance()
  {
-     static AppConfig *ins = NULL;
-     if (ins == NULL){
-         ins = new AppConfig();
-     }
-     return *ins;
+     static AppConfig ins;
+     return ins;
  }
 
 void AppConfig::LoadAll()
-{   
+{
     QSettings st(QApplication::organizationName(), QApplication::applicationName());
     _loadApp(appOptions, st);
     _loadHistory(userHistory, st);
@@ -390,7 +411,7 @@ void AppConfig::SetProtocolFormat(const std::string &protocolName, const std::st
             o.m_value = value;
             bChange = true;
             break;
-        }    
+        }
     }
 
     if (!bChange)
@@ -414,11 +435,25 @@ void AppConfig::SetProtocolFormat(const std::string &protocolName, const std::st
 std::string AppConfig::GetProtocolFormat(const std::string &protocolName)
 {
      for (StringPair &o : appOptions.m_protocolFormats){
-        if (o.m_key == protocolName){ 
+        if (o.m_key == protocolName){
             return o.m_value;
         }
     }
     return "";
+}
+
+float AppConfig::GetTraceFontSize()
+{
+    float minSize = 0;
+    float maxSize = 0;
+    GetFontSizeRange(&minSize, &maxSize);
+
+    float size = appOptions.fontSize;
+    if (size < minSize)
+        size = minSize;
+    if (size > maxSize)
+        size = maxSize;
+    return size;
 }
 
 void AppConfig::GetFontSizeRange(float *minSize, float *maxSize)
@@ -433,7 +468,7 @@ void AppConfig::GetFontSizeRange(float *minSize, float *maxSize)
 
 #ifdef Q_OS_LINUX
         *minSize = 8;
-        *maxSize = 14;
+        *maxSize = 16;
 #endif
 
 #ifdef Q_OS_DARWIN
@@ -444,7 +479,11 @@ void AppConfig::GetFontSizeRange(float *minSize, float *maxSize)
 
 bool AppConfig::IsDarkStyle()
 {
-    if (frameOptions.style == THEME_STYLE_DARK){
+    // Frappe is Catppuccin's dark flavor - treat it like Dark for anything
+    // that only distinguishes light/dark (icon set selection, background
+    // luminosity-dependent painting, etc), rather than the exact color
+    // scheme in use.
+    if (frameOptions.style == THEME_STYLE_DARK || frameOptions.style == THEME_STYLE_FRAPPE){
         return true;
     }
     return false;
@@ -452,7 +491,13 @@ bool AppConfig::IsDarkStyle()
 
 QColor AppConfig::GetStyleColor()
 {
-    if (IsDarkStyle()){
+    if (frameOptions.style == THEME_STYLE_FRAPPE){
+        return QColor(0x30, 0x34, 0x46); // Catppuccin Frappe "Base"
+    }
+    else if (frameOptions.style == THEME_STYLE_LATTE){
+        return QColor(0xef, 0xf1, 0xf5); // Catppuccin Latte "Base"
+    }
+    else if (IsDarkStyle()){
         return QColor(38, 38, 38);
     }
     else{
@@ -463,10 +508,18 @@ QColor AppConfig::GetStyleColor()
 
 //-------------api
 QString GetIconPath()
-{   
+{
     QString style = AppConfig::Instance().frameOptions.style;
     if (style == ""){
         style = THEME_STYLE_DARK;
+    }
+    // Latte/Frappe don't have their own icon sets - they reuse whichever of
+    // the light/dark icon sets already matches their background darkness.
+    if (AppConfig::Instance().IsDarkStyle()){
+        style = THEME_STYLE_DARK;
+    }
+    else{
+        style = THEME_STYLE_LIGHT;
     }
     return ":/icons/" + style;
 }
@@ -478,7 +531,7 @@ QString GetAppDataDir()
     QDir dir(QCoreApplication::applicationDirPath());
     if (dir.cd("..") && dir.cd("share") && dir.cd("DSView"))
     {
-         return dir.absolutePath();        
+         return dir.absolutePath();
     }
     QDir dir1("/usr/local/share/DSView");
     if (dir1.exists()){
@@ -486,7 +539,7 @@ QString GetAppDataDir()
     }
 
     dsv_err("Data directory is not exists: ../share/DSView");
-    assert(false);   
+    assert(false);
 #else
 
 #ifdef Q_OS_DARWIN
@@ -521,7 +574,7 @@ QString GetFirmwareDir()
     {
          return dir.absolutePath();
     }
- 
+
     dsv_err("%s%s", "Resource directory is not exists:", dir1.absolutePath().toUtf8().data());
     return dir1.absolutePath();
 }
@@ -543,14 +596,14 @@ QString GetDecodeScriptDir()
     // ./decoders
     if (dir1.exists(path))
     {
-         return path;     QColor GetStyleColor();
+         return path;
     }
 
     QDir dir(QCoreApplication::applicationDirPath());
     // ../share/libsigrokdecode4DSL/decoders
     if (dir.cd("..") && dir.cd("share") && dir.cd("libsigrokdecode4DSL") && dir.cd("decoders"))
     {
-         return dir.absolutePath();        
+         return dir.absolutePath();
     }
     dsv_info("ERROR: the decoder directory is not exists: ../share/libsigrokdecode4DSL/decoders");
     return "";

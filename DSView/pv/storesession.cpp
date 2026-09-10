@@ -316,7 +316,7 @@ void StoreSession::save_logic(pv::data::LogicSnapshot *logic_snapshot)
                 block_buf = (uint8_t *)malloc(block_size);
                 if (block_buf == NULL) {
                     _has_error = true;
-                    _error = L_S(STR_PAGE_DLG, S_ID(IDS_MSG_STORESESS_SAVEPROC_ERROR1), 
+                    _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_SAVEPROC_ERROR1), 
                                 "Failed to create zip file. Malloc error.");
                 }
                 else {
@@ -330,7 +330,7 @@ void StoreSession::save_logic(pv::data::LogicSnapshot *logic_snapshot)
             if (ret != SR_OK) {
                 if (!_has_error) {
                     _has_error = true;
-                    _error = L_S(STR_PAGE_DLG, S_ID(IDS_MSG_STORESESS_SAVEPROC_ERROR2), 
+                    _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_SAVEPROC_ERROR2), 
                                 "Failed to create zip file. Please check write permission of this path.");
                 }
                 progress_updated();
@@ -410,7 +410,7 @@ void StoreSession::save_analog(pv::data::AnalogSnapshot *analog_snapshot)
                 uint8_t *tmp = (uint8_t *)malloc(size);
                 if (tmp == NULL) {
                     _has_error = true;
-                    _error = L_S(STR_PAGE_DLG, S_ID(IDS_MSG_STORESESS_SAVEPROC_ERROR1), 
+                    _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_SAVEPROC_ERROR1), 
                                 "Failed to create zip file. Malloc error.");
                 } else {
                     memcpy(tmp, buf, buf_end-buf);
@@ -434,7 +434,7 @@ void StoreSession::save_analog(pv::data::AnalogSnapshot *analog_snapshot)
             if (ret != SR_OK) {
                 if (!_has_error) {
                     _has_error = true;
-                    _error = L_S(STR_PAGE_DLG, S_ID(IDS_MSG_STORESESS_SAVEPROC_ERROR2), 
+                    _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_SAVEPROC_ERROR2), 
                             "Failed to create zip file. Please check write permission of this path.");
                 }
                 progress_updated();
@@ -491,7 +491,7 @@ void StoreSession::save_dso(pv::data::DsoSnapshot *dso_snapshot)
             if (ret != SR_OK) {
                 if (!_has_error) {
                     _has_error = true;
-                    _error = L_S(STR_PAGE_DLG, S_ID(IDS_MSG_STORESESS_SAVEPROC_ERROR2), 
+                    _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_SAVEPROC_ERROR2), 
                             "Failed to create zip file. Please check write permission of this path.");
                 }
                 progress_updated();
@@ -555,7 +555,6 @@ bool StoreSession::meta_gen(data::Snapshot *snapshot, std::string &str)
     struct sr_channel *probe;
     int probecnt;
     char *s;
-    struct sr_status status;
     char meta[300] = {0};
   
     sprintf(meta, "%s", "[version]\n"); str += meta;
@@ -811,11 +810,11 @@ bool StoreSession::export_start()
     }
 
     if (type_set.size() > 1) {
-        _error = L_S(STR_PAGE_DLG, S_ID(IDS_MSG_STORESESS_EXPORTSTART_ERROR1), 
+        _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_EXPORTSTART_ERROR1), 
                 "DSView does not currently support\nfile export for multiple data types.");
         return false;
     } else if (type_set.size() == 0) {
-        _error = L_S(STR_PAGE_DLG, S_ID(IDS_MSG_STORESESS_EXPORTSTART_ERROR2), "No data to save.");
+        _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_EXPORTSTART_ERROR2), "No data to save.");
         return false;
     }
 
@@ -823,12 +822,12 @@ bool StoreSession::export_start()
     assert(snapshot);
     // Check we have data
     if (snapshot->empty()) {
-        _error = L_S(STR_PAGE_DLG, S_ID(IDS_MSG_STORESESS_EXPORTSTART_ERROR2), "No data to save.");
+        _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_EXPORTSTART_ERROR2), "No data to save.");
         return false;
     }
 
     if (_file_name == ""){
-        _error = L_S(STR_PAGE_DLG, S_ID(IDS_MSG_STORESESS_EXPORTSTART_ERROR3), "No set file name.");
+        _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_EXPORTSTART_ERROR3), "No set file name.");
         return false;
     }
 
@@ -847,7 +846,7 @@ bool StoreSession::export_start()
 
     if (_outModule == NULL)
     {
-        _error = L_S(STR_PAGE_DLG, S_ID(IDS_MSG_STORESESS_EXPORTSTART_ERROR4), "Invalid export format.");
+        _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_EXPORTSTART_ERROR4), "Invalid export format.");
     }
     else
     {
@@ -895,7 +894,7 @@ void StoreSession::export_exec(data::Snapshot *snapshot)
         channel_type = SR_CHANNEL_ANALOG;
     } else {
         _has_error = true;
-        _error = L_S(STR_PAGE_DLG, S_ID(IDS_MSG_STORESESS_EXPORTPROC_ERROR1), "data type don't support.");
+        _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_EXPORTPROC_ERROR1), "data type don't support.");
         return;
     }
 
@@ -915,19 +914,36 @@ void StoreSession::export_exec(data::Snapshot *snapshot)
         output.start_sample_index = _start_index;
     }
 
+    auto release_export_params = [&](){
+        g_hash_table_destroy(params);
+        if (filenameGVariant != NULL)
+            g_variant_unref(filenameGVariant);
+        if (typeGVariant != NULL)
+            g_variant_unref(typeGVariant);
+    };
+
     if(_outModule->init){
        if(_outModule->init(&output, params) != SR_OK){
         dsv_err("Failed to init export module.");
+        release_export_params();
         return;
        }
     }
-  
+
     QString dateTimeString = Formatting::DateTimeToString(_session->get_session_time(), TimeStrigFormatType::TIME_STR_FORMAT_ALL);
     strcpy(output.time_string, dateTimeString.toStdString().c_str());
-    
+
     QFile file(_file_name);
-    file.open(QIODevice::WriteOnly | QIODevice::Text);
-    QTextStream out(&file); 
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)){
+        dsv_err("StoreSession::export_proc, failed to open file for writing.");
+        _has_error = true;
+        _error = QString("Failed to open file for writing: %1").arg(_file_name);
+        _outModule->cleanup(&output);
+        release_export_params();
+        progress_updated();
+        return;
+    }
+    QTextStream out(&file);
     encoding::set_utf8(out);
     //out.setGenerateByteOrderMark(true);  // UTF-8 without BOM
 
@@ -1005,6 +1021,9 @@ void StoreSession::export_exec(data::Snapshot *snapshot)
         if (start_index > logic_snapshot->get_ring_sample_count()){
             dsv_err("ERROR:the start curosr is invalid!");
             _units_stored = -1;
+            file.close();
+            _outModule->cleanup(&output);
+            release_export_params();
             progress_updated();
             return;
         }
@@ -1077,7 +1096,11 @@ void StoreSession::export_exec(data::Snapshot *snapshot)
             uint8_t *xbuf = (uint8_t *)malloc(size * unitsize);
             if (xbuf == NULL) {
                 _has_error = true;
-                _error = L_S(STR_PAGE_DLG, S_ID(IDS_MSG_STORESESS_EXPORTPROC_ERROR2), "xbuffer malloc failed.");
+                _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_EXPORTPROC_ERROR2), "xbuffer malloc failed.");
+                file.close();
+                _outModule->cleanup(&output);
+                release_export_params();
+                progress_updated();
                 return;
             }
 
@@ -1190,8 +1213,6 @@ void StoreSession::export_exec(data::Snapshot *snapshot)
         void* data_buffer = analog_snapshot->get_data();
         unsigned int usize = 8192;        
         struct sr_datafeed_analog ap;
-        
-        unsigned char* read_buf = (unsigned char*)data_buffer;
 
         const uint64_t ring_start = analog_snapshot->get_ring_start();
  
@@ -1248,9 +1269,7 @@ void StoreSession::export_exec(data::Snapshot *snapshot)
     // optional, as QFile destructor will already do it:
     file.close();
     _outModule->cleanup(&output);
-    g_hash_table_destroy(params);
-    if (filenameGVariant != NULL)
-        g_variant_unref(filenameGVariant);
+    release_export_params();
 
     progress_updated();
 }

@@ -3,6 +3,7 @@
  * DSView is based on PulseView.
  *
  * Copyright (C) 2013 DreamSourceLab <support@dreamsourcelab.com>
+ * Copyright (C) 2026 Schildkroet
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -68,13 +69,19 @@ signals:
     void sig_measure(bool visible);//post decode button click event,to show or hide measure property panel
     void sig_search(bool visible);
     void sig_show_lissajous(bool visible);
+    void sig_dso_split(bool split); //split each DSO channel into its own row
 
 private slots:
     void on_actionDark_triggered();
     void on_actionLight_triggered();
+    void on_actionLatte_triggered();
+    void on_actionFrappe_triggered();
     void on_actionLissajous_triggered();
     void on_actionFft_triggered();
     void on_actionMath_triggered();
+    void on_actionHistogram_triggered();
+    void on_actionChanMeasure_triggered();
+    void on_actionReference_triggered();
     void on_display_setting();
 
 public slots:
@@ -82,6 +89,7 @@ public slots:
     void trigger_clicked();
     void measure_clicked();
     void search_clicked();
+    void dso_split_clicked();
 
 private:
     SigSession  *_session;
@@ -92,22 +100,29 @@ private:
     XToolButton _search_button;
     XToolButton _function_button;
     XToolButton _setting_button;
+    XToolButton _dso_split_button;
     QAction     *_trig_action;
     QAction     *_protocol_action;
     QAction     *_measure_action;
     QAction     *_search_action;
-    QAction     *_function_action; 
+    QAction     *_function_action;
     QAction     *_display_action;
+    QAction     *_dso_split_action;
 
     QMenu       *_function_menu;
     QAction     *_action_fft;
     QAction     *_action_math;
+    QAction     *_action_histogram;
+    QAction     *_action_chanmeasure;
+    QAction     *_action_reference;
 
     QMenu       *_display_menu;
     QMenu       *_themes;
     QAction     *_action_dispalyOptions;
     QAction     *_dark_style;
     QAction     *_light_style;
+    QAction     *_latte_style;
+    QAction     *_frappe_style;
     QAction     *_action_lissajous;
 };
 

@@ -1,0 +1,198 @@
+[
+    {
+        "id": "IDS_DEVICE_MODE_LOGIC",
+        "text": "&Logikanalysator"
+    },
+    {
+        "id": "IDS_DEVICE_MODE_ANALOG",
+        "text": "&Datenerfassung"
+    },
+    {
+        "id": "IDS_DEVICE_MODE_DSO",
+        "text": "&Oszilloskop"
+    },
+    {
+        "id": "IDS_TOOLBAR_DEVICE_TYPE_DEMO",
+        "text": "Demo"
+    },
+    {
+        "id": "IDS_TOOLBAR_DEVICE_TYPE_FILE",
+        "text": "Datei"
+    },
+    {
+        "id": "IDS_TOOLBAR_DEVICE_OPTION",
+        "text": "&Optionen"
+    },
+    {
+        "id": "IDS_TOOLBAR_CAPTURE_MODE",
+        "text": "&Modus"
+    },
+    {
+        "id": "IDS_TOOLBAR_CAPTURE_MODE_SINGLE",
+        "text": "&Einzeln"
+    },
+    {
+        "id": "IDS_TOOLBAR_CAPTURE_MODE_REPEAT",
+        "text": "&Wiederholen"
+    },
+    {
+        "id": "IDS_TOOLBAR_CAPTURE_MODE_LOOP",
+        "text": "&Endlos"
+    },
+    {
+        "id": "IDS_TOOLBAR_RUN_START",
+        "text": "&Starten"
+    },
+    {
+        "id": "IDS_TOOLBAR_RUN_STOP",
+        "text": "S&topp"
+    },
+    {
+        "id": "IDS_TOOLBAR_ONE_SINGLE",
+        "text": "E&inzel"
+    },
+    {
+        "id": "IDS_TOOLBAR_ONE_INSTANT",
+        "text": "&Sofort"
+    },
+    {
+        "id": "IDS_TOOLBAR_ONE_STOP",
+        "text": "S&topp"
+    },
+    {
+        "id": "IDS_TOOLBAR_TRIGGER",
+        "text": "&Trigger"
+    },
+    {
+        "id": "IDS_TOOLBAR_DECODE",
+        "text": "&Dekodieren"
+    },
+    {
+        "id": "IDS_TOOLBAR_MEASURE",
+        "text": "&Messen"
+    },
+    {
+        "id": "IDS_TOOLBAR_SEARCH",
+        "text": "&Suchen"
+    },
+    {
+        "id": "IDS_TOOLBAR_FUNCTION",
+        "text": "&Funktion"
+    },
+    {
+        "id": "IDS_TOOLBAR_FUNCTION_FFT",
+        "text": "&FFT"
+    },
+    {
+        "id": "IDS_TOOLBAR_FUNCTION_MATH",
+        "text": "&Mathematik"
+    },
+    {
+        "id": "IDS_TOOLBAR_DISPLAY",
+        "text": "&Anzeige"
+    },
+    {
+        "id": "IDS_TOOLBAR_DISPLAY_THEMES",
+        "text": "&Designs"
+    },
+    {
+        "id": "IDS_TOOLBAR_DISPLAY_LISSAJOUS",
+        "text": "&Lissajous"
+    },
+    {
+        "id": "IDS_TOOLBAR_DISPLAY_THEMES_DARK",
+        "text": "&Dunkel"
+    },
+    {
+        "id": "IDS_TOOLBAR_DISPLAY_THEMES_LIGHT",
+        "text": "&Hell"
+    },
+    {
+        "id": "IDS_TOOLBAR_DISPLAY_THEMES_LATTE",
+        "text": "La&tte"
+    },
+    {
+        "id": "IDS_TOOLBAR_DISPLAY_THEMES_FRAPPE",
+        "text": "Fra&ppé"
+    },
+    {
+        "id": "IDS_TOOLBAR_DISPLAY_OPTIONS",
+        "text": "&Optionen"
+    },
+    {
+        "id": "IDS_TOOLBAR_FILE",
+        "text": "&Datei"
+    },
+    {
+        "id": "IDS_TOOLBAR_FILE_CONFIG",
+        "text": "&Konfiguration"
+    },
+    {
+        "id": "IDS_TOOLBAR_FILE_CONFIG_LOAD",
+        "text": "&Sitzung laden"
+    },
+    {
+        "id": "IDS_TOOLBAR_FILE_CONFIG_STORE",
+        "text": "&Sitzung speichern"
+    },
+    {
+        "id": "IDS_TOOLBAR_FILE_CONFIG_DEFAULT",
+        "text": "&Standardsitzung laden"
+    },
+    {
+        "id": "IDS_TOOLBAR_FILE_OPEN",
+        "text": "&Öffnen..."
+    },
+    {
+        "id": "IDS_TOOLBAR_FILE_SAVE",
+        "text": "&Speichern..."
+    },
+    {
+        "id": "IDS_TOOLBAR_FILE_EXPORT",
+        "text": "&Exportieren..."
+    },
+    {
+        "id": "IDS_TOOLBAR_FILE_CAPTURE",
+        "text": "&Aufnehmen..."
+    },
+    {
+        "id": "IDS_TOOLBAR_HELP",
+        "text": "&Hilfe"
+    },
+    {
+        "id": "IDS_TOOLBAR_HELP_LANG",
+        "text": "&Sprache"
+    },
+    {
+        "id": "IDS_TOOLBAR_HELP_LANG_EN",
+        "text": "&Englisch"
+    },
+    {
+        "id": "IDS_TOOLBAR_HELP_LANG_CN",
+        "text": "Chinesisch(&C)"
+    },
+    {
+        "id": "IDS_TOOLBAR_HELP_LANG_DE",
+        "text": "&Deutsch"
+    },
+    {
+        "id": "IDS_TOOLBAR_HELP_ABOUT",
+        "text": "&Über..."
+    },
+    {
+        "id": "IDS_TOOLBAR_HELP_MANUAL",
+        "text": "&Handbuch..."
+    },
+    {
+        "id": "IDS_TOOLBAR_HELP_BUG",
+        "text": "&Fehler melden"
+    },
+    {
+        "id": "IDS_TOOLBAR_HELP_UPDATE",
+        "text": "&Aktualisieren"
+    },
+    {
+        "id": "IDS_TOOLBAR_HELP_LOG",
+        "text": "&Protokolloptionen"
+    }
+]

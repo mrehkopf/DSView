@@ -29,9 +29,12 @@
 
 #define LAN_CN  25
 #define LAN_EN  31
+#define LAN_DE  7
 
 #define THEME_STYLE_DARK   "dark"
 #define THEME_STYLE_LIGHT  "light"
+#define THEME_STYLE_LATTE  "latte"
+#define THEME_STYLE_FRAPPE "frappe"
 
 #define APP_NAME  "DSView"
 
@@ -76,11 +79,16 @@ struct AppOptions
     bool  autoScrollLatestData;
     bool  verticalScrollIsZoom;
     float fontSize;
+    float traceHeightFactor;
     QString rulerTimeUnits;
     bool antialias;
     int minDecoderFontWidthPercent;
     int maxDecoderFontWidthPercent;
     bool decoderDynamicFontWidth;
+    bool dontAskSaveOnExit;
+    float logicSignalLineWidth;
+    bool logicChannelDivider;
+    bool dsoSplitChannels;
     std::vector<StringPair> m_protocolFormats;
 };
  
@@ -124,6 +132,7 @@ struct UserHistory
   QString   openDir;
   QString   protocolExportPath;
   QString   exportFormat;
+  bool      showDriverHint;
 };
 
 struct FontParam
@@ -166,6 +175,10 @@ public:
   }
 
   static void GetFontSizeRange(float *minSize, float *maxSize);
+
+  // The configured application font size, clamped to the valid range. Used
+  // for trace-area text so it honours the user's font-size setting.
+  float GetTraceFontSize();
 
   bool IsDarkStyle();
 

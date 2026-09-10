@@ -32,6 +32,7 @@
 #include <vector>
 #include <QGridLayout>
 #include <QSpinBox>
+#include <QDoubleSpinBox>
 #include <QSizePolicy>
 #include <QRadioButton>
 #include <QButtonGroup>
@@ -138,6 +139,9 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     QCheckBox *ck_autoScrollLatestData = new QCheckBox();
     ck_autoScrollLatestData->setChecked(app.appOptions.autoScrollLatestData);
 
+    QCheckBox *ck_channelDivider = new QCheckBox();
+    ck_channelDivider->setChecked(app.appOptions.logicChannelDivider);
+
     QHBoxLayout *hl_verticalScrollAction = new QHBoxLayout();
     QButtonGroup *bg_verticalScrollAction = new QButtonGroup();
     QRadioButton *rb_zoom = new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_VERTICAL_SCROLL_ACTION_SMOOTH_ZOOM), "Zoom"));
@@ -150,6 +154,9 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     hl_verticalScrollAction->addWidget(rb_scroll);
     QCheckBox *ck_antialias = new QCheckBox();
     ck_antialias->setChecked(app.appOptions.antialias);
+
+    QCheckBox *ck_dontAskSaveOnExit = new QCheckBox();
+    ck_dontAskSaveOnExit->setChecked(app.appOptions.dontAskSaveOnExit);
 
     QComboBox *ftCbSize = new DsComboBox();
     ftCbSize->setFixedWidth(50);
@@ -172,6 +179,14 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     bool fontWidthEnabled = app.appOptions.decoderDynamicFontWidth;
     QCheckBox *ck_decoderDynamicFontWidth = new QCheckBox();
     ck_decoderDynamicFontWidth->setChecked(fontWidthEnabled);
+
+    QDoubleSpinBox *spinBox_lineWidth = new QDoubleSpinBox();
+    spinBox_lineWidth->setDecimals(1);
+    spinBox_lineWidth->setSingleStep(0.5);
+    spinBox_lineWidth->setMinimum(1.0);
+    spinBox_lineWidth->setMaximum(4.0);
+    spinBox_lineWidth->setValue(app.appOptions.logicSignalLineWidth);
+    spinBox_lineWidth->setSuffix(" px");
 
     // Logic group
     QGroupBox *logicGroup = new QGroupBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_GROUP_LOGIC), "Logic"));
@@ -288,18 +303,22 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     logicLay->addLayout(hl_verticalScrollAction, 3, 1, Qt::AlignRight);
     logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_RULER_UNITS), "Ruler / Cursor units")), 4, 0, Qt::AlignLeft);
     logicLay->addLayout(hl_units, 4, 1, Qt::AlignRight);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SIGNAL_LINE_WIDTH), "Signal line width")), 5, 0, Qt::AlignLeft);
+    logicLay->addWidget(spinBox_lineWidth, 5, 1, Qt::AlignRight);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_CHANNEL_DIVIDER), "Channel divider line")), 6, 0, Qt::AlignLeft);
+    logicLay->addWidget(ck_channelDivider, 6, 1, Qt::AlignRight);
 
     // Add sliders to logic layout
-    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DECODER_DYNAMIC_FONT_WIDTH), "Decoder adaptive font width")), 5, 0, Qt::AlignLeft);
-    logicLay->addWidget(ck_decoderDynamicFontWidth, 5, 1, Qt::AlignRight);
-    logicLay->addWidget(label_minFontWidth, 6, 0, Qt::AlignLeft);
-    logicLay->addWidget(spinBox_minFontWidth, 6, 1, Qt::AlignRight);
-    logicLay->addWidget(slider_minFontWidth, 7, 0, Qt::AlignJustify);
-    logicLay->addWidget(label_minSample, 7, 1, Qt::AlignCenter);
-    logicLay->addWidget(label_maxFontWidth, 8, 0, Qt::AlignLeft);
-    logicLay->addWidget(spinBox_maxFontWidth, 8, 1, Qt::AlignRight);
-    logicLay->addWidget(slider_maxFontWidth, 9, 0, Qt::AlignJustify);
-    logicLay->addWidget(label_maxSample, 9, 1, Qt::AlignCenter);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DECODER_DYNAMIC_FONT_WIDTH), "Decoder adaptive font width")), 7, 0, Qt::AlignLeft);
+    logicLay->addWidget(ck_decoderDynamicFontWidth, 7, 1, Qt::AlignRight);
+    logicLay->addWidget(label_minFontWidth, 8, 0, Qt::AlignLeft);
+    logicLay->addWidget(spinBox_minFontWidth, 8, 1, Qt::AlignRight);
+    logicLay->addWidget(slider_minFontWidth, 9, 0, Qt::AlignJustify);
+    logicLay->addWidget(label_minSample, 9, 1, Qt::AlignCenter);
+    logicLay->addWidget(label_maxFontWidth, 10, 0, Qt::AlignLeft);
+    logicLay->addWidget(spinBox_maxFontWidth, 10, 1, Qt::AlignRight);
+    logicLay->addWidget(slider_maxFontWidth, 11, 0, Qt::AlignJustify);
+    logicLay->addWidget(label_maxSample, 11, 1, Qt::AlignCenter);
     logicLay->setColumnMinimumWidth(1, wfm.horizontalAdvance("Example")
         + logicLay->contentsMargins().left()
         + logicLay->contentsMargins().right()
@@ -328,6 +347,8 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     uiLay->addWidget(ftCbSize, 1, 1, Qt::AlignRight);
     uiLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DISPLAY_ANTIALIAS), "Antialiasing")), 2, 0, Qt::AlignLeft);
     uiLay->addWidget(ck_antialias, 2, 1, Qt::AlignRight);
+    uiLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DONT_ASK_SAVE_ON_EXIT), "Do not ask to save captured data")), 3, 0, Qt::AlignLeft);
+    uiLay->addWidget(ck_dontAskSaveOnExit, 3, 1, Qt::AlignRight);
     lay->addWidget(uiGroup);
 
     dlg.layout()->addLayout(lay);      
@@ -381,6 +402,10 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
             app.appOptions.antialias = ck_antialias->isChecked();
             bAppChanged = true;
         }
+        if (app.appOptions.dontAskSaveOnExit != ck_dontAskSaveOnExit->isChecked()){
+            app.appOptions.dontAskSaveOnExit = ck_dontAskSaveOnExit->isChecked();
+            bAppChanged = true;
+        }
         if (app.appOptions.decoderDynamicFontWidth != ck_decoderDynamicFontWidth->isChecked()) {
             app.appOptions.decoderDynamicFontWidth = ck_decoderDynamicFontWidth->isChecked();
             bAppChanged = true;
@@ -391,6 +416,14 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
         }
         if (app.appOptions.maxDecoderFontWidthPercent != slider_maxFontWidth->value()) {
             app.appOptions.maxDecoderFontWidthPercent = slider_maxFontWidth->value();
+            bAppChanged = true;
+        }
+        if (app.appOptions.logicSignalLineWidth != spinBox_lineWidth->value()) {
+            app.appOptions.logicSignalLineWidth = spinBox_lineWidth->value();
+            bAppChanged = true;
+        }
+        if (app.appOptions.logicChannelDivider != ck_channelDivider->isChecked()) {
+            app.appOptions.logicChannelDivider = ck_channelDivider->isChecked();
             bAppChanged = true;
         }
         if (bAppChanged){

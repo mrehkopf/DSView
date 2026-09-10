@@ -246,9 +246,7 @@ void Ruler::paintEvent(QPaintEvent*)
     style()->drawPrimitive(QStyle::PE_Widget, &o, &p, this);
 
     QFont font = p.font();
-    float fSize = AppConfig::Instance().appOptions.fontSize;
-    if (fSize > 10)
-        fSize = 10;
+    float fSize = AppConfig::Instance().GetTraceFontSize();
     font.setPointSizeF(fSize);
     p.setFont(font);
 
@@ -759,7 +757,6 @@ void Ruler::draw_cursor_sel(QPainter &p)
 
     if (!cursor_list.empty()) {
         int index = 1;
-        auto i = cursor_list.begin();
 
         for (auto curosr : cursor_list) {
             const QRectF cursorRect = get_cursor_sel_rect(index);

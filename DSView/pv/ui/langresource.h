@@ -58,10 +58,11 @@ struct lang_page_item
     bool is_dynamic;
 };
 
-static const struct lang_key_item lang_id_keys[] = 
+static const struct lang_key_item lang_id_keys[] =
 {
     {25, "cn"},
-    {31, "en"}
+    {31, "en"},
+    {7,  "de"}
 };
 
 static const struct lang_page_item lange_page_keys[] = 
@@ -89,7 +90,7 @@ public:
     void release_dynamic();
 
     inline bool is_lang_en(){
-        return _cur_lang == 31;
+        return _cur_lang == 31 || _cur_lang == 7;
     }
    
 private:

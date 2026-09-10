@@ -3,6 +3,7 @@
  * DSView is based on PulseView.
  * 
  * Copyright (C) 2016 DreamSourceLab <support@dreamsourcelab.com>
+ * Copyright (C) 2026 Schildkroet
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -61,7 +62,20 @@ public:
         MATH_SUB,
         MATH_MUL,
         MATH_DIV,
+        // Unary operators below only use the 1st source.
+        MATH_INTEG,     // running integral  (∫ x dt)
+        MATH_DIFF,      // time derivative   (d/dt)
+        MATH_ABS,       // absolute value    (|x|)
+        MATH_SQUARE,    // square            (x²)
+        MATH_SQRT,      // signed sqrt       (√x)
+        MATH_LOWPASS,   // moving-average low-pass
+        MATH_HIGHPASS,  // x - moving-average (high-pass)
     };
+
+    // True for the single-source operators (everything from MATH_INTEG on).
+    static bool is_unary(MathType type) {
+        return type >= MATH_INTEG;
+    }
 
     struct EnvelopeSample
     {
@@ -113,6 +127,10 @@ public:
     MathType get_type();
     uint64_t get_sample_num();
 
+    // Window length (in samples) for the moving-average LP/HP filters.
+    void set_filter_width(int width) { _filter_width = (width < 1) ? 1 : width; }
+    int get_filter_width() { return _filter_width; }
+
     void enable_envelope(bool enable);
 
     uint64_t default_vDialValue();
@@ -138,6 +156,7 @@ private:
     view::DsoSignal *_dsoSig2;
 
     MathType _type;
+    int _filter_width;
     uint64_t _sample_num;
     uint64_t _total_sample_num;
     math_state _math_state;

@@ -4,6 +4,7 @@
  *
  * Copyright (C) 2012 Joel Holdsworth <joel@airwebreathe.org.uk>
  * Copyright (C) 2013 DreamSourceLab <support@dreamsourcelab.com>
+ * Copyright (C) 2026 Schildkroet
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,6 +33,7 @@
 #include <QSizeF>
 #include <QDateTime>
 #include <QSplitter>
+#include <QVBoxLayout>
 
  
 #include "../toolbars/samplingbar.h"
@@ -44,6 +46,7 @@
 #include "../dsvdef.h" 
 #include "../interface/icallbacks.h"
 #include "../ui/uimanager.h"
+#include "wheelaccumulator.h"
 
 class DeviceAgent;
 
@@ -83,8 +86,13 @@ private:
 
 public:
     //static const int SignalHeight;
-	static const int SignalMargin;
+	static const int SignalMargin;         // inter-channel spacing with divider
+	static const int SignalMarginCompact;  // original spacing without divider
 	static const int SignalSnapGridSize;
+
+	// Effective inter-channel margin: the compact spacing is restored when the
+	// logic channel divider line is disabled (see AppConfig::logicChannelDivider).
+	static int get_signal_margin();
 
 	static const QColor CursorAreaColour;
 	static const QSizeF LabelPadding;
@@ -92,6 +100,10 @@ public:
 
     static const int WellSamplesPerPixel = 2048;
     static constexpr double MaxViewRate = 1.0;
+
+    // Bounds for the vertical (trace height) scaling factor.
+    static constexpr double MinTraceHeightFactor = 0.5;
+    static constexpr double MaxTraceHeightFactor = 20.0;
     static const int MaxPixelsPerSample = 100;
 
     static const int StatusHeight = 20;
@@ -168,6 +180,20 @@ public:
 	void zoom(double steps);
     bool zoom(double steps, int offset);
 
+    /**
+     * Scales the vertical size of the traces (logic mode) so signals can
+     * use more of the available window height. Positive steps grow the
+     * traces, negative steps shrink them. The factor is persisted.
+     */
+    void vzoom(double steps);
+
+    /**
+     * Sets the vertical trace-height scaling factor directly (logic mode).
+     * The value is clamped to [MinTraceHeightFactor, MaxTraceHeightFactor]
+     * and persisted. Passing 1.0 resets the y-axis zoom to its default.
+     */
+    void set_trace_height_factor(double factor);
+
 	/**
 	 * Sets the scale and offset.
 	 * @param scale The new view scale in seconds per pixel.
@@ -201,7 +227,29 @@ public:
         return _signalHeight;
     }
 
+    inline double get_trace_height_factor(){
+        return _trace_height_factor;
+    }
+
+    inline bool get_dso_split_channels(){
+        return _dso_split_channels;
+    }
+
+    void set_dso_split_channels(bool split);
+
+    /**
+     * Scale applied to trace-area text so it grows together with the trace
+     * height. Returns the vertical scaling factor in logic mode and 1.0 in
+     * every other mode (where trace height is not scaled).
+     */
+    double get_trace_font_scale();
+
     int headerWidth();
+
+    // Bottom viewport margin reserved for the status/measurement bar. Non-zero
+    // only when the FFT splitter pane is shown, so that fixed pane isn't
+    // cropped underneath the bar.
+    int get_bottom_margin();
 
     inline Ruler* get_ruler(){
         return _ruler;
@@ -358,7 +406,14 @@ private:
     static bool compare_trace_v_offsets( const Trace *a, const Trace *b);
     void get_scroll_layout(int64_t &length, int64_t &offset);	
 	void update_scroll();
-    void update_margins();   
+    void update_margins();
+    // Re-reserves bottom/right space in _statusLayout for the real
+    // scrollbars, using their current (not construction-time) geometry -
+    // the ViewStatus (_viewbottom) widget can grow taller (DSO's 2-row
+    // measurement layout) after construction, so the scrollbar-clearance
+    // margin has to be refreshed alongside it, or the lower measurement
+    // row overlaps the horizontal scrollbar.
+    void update_status_margins();
     void set_scale(double scale);
 
     void clear();
@@ -443,10 +498,13 @@ private:
     pv::toolbars::SamplingBar   *_sampling_bar;
 
     QWidget                 *_viewcenter;
-    ViewStatus              *_viewbottom;
+    // Zero-initialised so get_bottom_margin(), reached via headerWidth()
+    // during construction, sees null (not garbage) before these are assigned.
+    ViewStatus              *_viewbottom = nullptr;
+    QVBoxLayout             *_statusLayout;
     QSplitter               *_vsplitter;
     Viewport                *_time_viewport;
-    Viewport                *_fft_viewport;
+    Viewport                *_fft_viewport = nullptr;
     Viewport                *_active_viewport;
     LissajousFigure         *_lissajous;
     std::list<QWidget *>    _viewport_list;
@@ -468,6 +526,12 @@ private:
     int64_t     _preOffset;
     int         _spanY;
     int         _signalHeight;
+    double      _trace_height_factor;
+
+    // Collects sub-detent wheel steps so high-resolution wheels can still
+    // advance the (discrete) DSO horizontal knob.
+    WheelAccumulator _dso_zoom_accum{1.0};
+    bool        _dso_split_channels;
     bool        _updating_scroll;
 
     // trigger position fix

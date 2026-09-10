@@ -233,6 +233,8 @@ struct session_vdev
     enum DEMO_LOGIC_CHANNEL_INDEX logic_ch_mode_index;
 
     int is_loop;
+
+    const struct DEMO_profile *profile;
 };
 
 #define SESSION_MAX_CHANNEL_COUNT 512
@@ -412,9 +414,27 @@ static const gboolean default_ms_en[] = {
 
 static const struct DEMO_profile supported_Demo[] = {
     /*
-     * Demo
+     * Demo Oscilloscope
      */
-    {"DreamSourceLab", "Demo Device", NULL,
+    {"DreamSourceLab", "Demo Oscilloscope", NULL,
+     {CAPS_MODE_DSO,
+      CAPS_FEATURE_NONE,
+      (1 << DEMO_DSO200x2),
+      SR_Kn(20),
+      SR_Kn(20),
+      0,
+      vdivs10to2000,
+      0,
+      DEMO_DSO200x2,
+      PATTERN_RANDOM,
+      SR_NS(500)}
+    },
+
+    /*
+     * Demo Logic (listed last so it is the default device selected at launch;
+     * see SigSession::set_default_device(), which picks the last device).
+     */
+    {"DreamSourceLab", "Demo Logic", NULL,
      {CAPS_MODE_LOGIC | CAPS_MODE_ANALOG | CAPS_MODE_DSO,
       CAPS_FEATURE_NONE,
       (1 << DEMO_LOGIC100x16) |
@@ -425,7 +445,7 @@ static const struct DEMO_profile supported_Demo[] = {
       0,
       vdivs10to2000,
       0,
-      DEMO_LOGIC100x16, 
+      DEMO_LOGIC100x16,
       PATTERN_RANDOM,
       SR_NS(500)}
     },

@@ -3,6 +3,7 @@
  * DSView is based on PulseView.
  *
  * Copyright (C) 2013 DreamSourceLab <support@dreamsourcelab.com>
+ * Copyright (C) 2026 Schildkroet
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,7 +29,8 @@
 #include "view.h"
 #include "../dsvdef.h"
 #include "../data/dsosnapshot.h"
-#include "../sigsession.h" 
+#include "../data/dsoedgedetect.h"
+#include "../sigsession.h"
 #include "../log.h"
 #include "../appcontrol.h"
 #include "../ui/langresource.h"
@@ -75,6 +77,10 @@ DsoSignal::DsoSignal(data::DsoSnapshot *data,
     _vDialActive = false;
     _mValid = false;
     _level_valid = false;
+    _soft_measure_logged = false;
+    _soft_measure_cache_valid = false;
+    _soft_measure_cache_data = NULL;
+    _soft_measure_cache_sample_count = 0;
     _autoV = false;
     _autoH = false;
     _autoV_over = false;
@@ -197,6 +203,7 @@ bool DsoSignal::go_vDialPre(bool manul)
         }
         session->get_device()->set_config_uint16(SR_CONF_PROBE_OFFSET,
                               _zero_offset, _probe, NULL);
+        _data->set_measure_voltage_factor(_vDial->get_value(), get_index());
 
         _view->vDial_updated();
         _view->set_update(_viewport, true);
@@ -213,7 +220,7 @@ bool DsoSignal::go_vDialPre(bool manul)
 bool DsoSignal::go_vDialNext(bool manul)
 {
     if (_autoV && manul)
-        autoV_end(); 
+        autoV_end();
 
     if (enabled() && !_vDial->isMax())
     {
@@ -232,6 +239,7 @@ bool DsoSignal::go_vDialNext(bool manul)
         }
         session->get_device()->set_config_uint16(SR_CONF_PROBE_OFFSET,
                               _zero_offset, _probe, NULL);
+        _data->set_measure_voltage_factor(_vDial->get_value(), get_index());
 
         _view->vDial_updated();
         _view->set_update(_viewport, true);
@@ -640,6 +648,15 @@ QString DsoSignal::get_measure(enum DSO_MEASURE_TYPE type)
 QRect DsoSignal::get_view_rect()
 {
     assert(_viewport);
+
+    if (_view && _view->get_dso_split_channels()){
+        const int top = get_v_offset() - get_totalHeight() / 2;
+        const int height = max(get_totalHeight() - UpMargin - DownMargin, 1);
+        return QRect(0, top + UpMargin,
+                      _viewport->width() - RightMargin,
+                      height);
+    }
+
     return QRect(0, UpMargin,
                   _viewport->width() - RightMargin,
                   _viewport->height() - UpMargin - DownMargin);
@@ -697,7 +714,12 @@ void DsoSignal::paint_back(QPainter &p, int left, int right, QColor fore, QColor
 
     int i, j;
     const int height = get_view_rect().height();
-    const int width = right - left; 
+    const int width = right - left;
+    // Origin of this channel's own band. In the default (overlaid) mode this
+    // is just UpMargin, same as before; in split mode each channel has its
+    // own row, so the grid must be anchored to that row instead of the
+    // viewport's absolute top.
+    const int top = get_view_rect().top();
 
     fore.setAlpha(View::BackAlpha);
 
@@ -705,7 +727,7 @@ void DsoSignal::paint_back(QPainter &p, int left, int right, QColor fore, QColor
     solidPen.setStyle(Qt::SolidLine);
     p.setPen(solidPen);
     p.setBrush(back.black() > 0x80 ? back.darker() : back.lighter());
-    p.drawRect(left, UpMargin, width, height);
+    p.drawRect(left, top, width, height);
 
     // draw zoom region
     fore.setAlpha(View::ForeAlpha);
@@ -718,20 +740,21 @@ void DsoSignal::paint_back(QPainter &p, int left, int right, QColor fore, QColor
     const double start = _view->x_offset() * samples_per_pixel;
     const double shown_offset = min(start / sample_len, 1.0) * width;
     const double shown_len = max(shown_rate * width, 6.0);
-    const QPointF left_edge[] =  {QPoint(shown_offset + 3, UpMargin/2 - 6),
-                                  QPoint(shown_offset, UpMargin/2 - 6),
-                                  QPoint(shown_offset, UpMargin/2 + 6),
-                                  QPoint(shown_offset + 3, UpMargin/2 + 6)};
-    const QPointF right_edge[] = {QPoint(shown_offset + shown_len - 3, UpMargin/2 - 6),
-                                  QPoint(shown_offset + shown_len , UpMargin/2 - 6),
-                                  QPoint(shown_offset + shown_len , UpMargin/2 + 6),
-                                  QPoint(shown_offset + shown_len - 3, UpMargin/2 + 6)};
-    p.drawLine(left, UpMargin/2, shown_offset, UpMargin/2);
-    p.drawLine(shown_offset + shown_len, UpMargin/2, left + width, UpMargin/2);
+    const double markerY = top - UpMargin / 2;
+    const QPointF left_edge[] =  {QPoint(shown_offset + 3, markerY - 6),
+                                  QPoint(shown_offset, markerY - 6),
+                                  QPoint(shown_offset, markerY + 6),
+                                  QPoint(shown_offset + 3, markerY + 6)};
+    const QPointF right_edge[] = {QPoint(shown_offset + shown_len - 3, markerY - 6),
+                                  QPoint(shown_offset + shown_len , markerY - 6),
+                                  QPoint(shown_offset + shown_len , markerY + 6),
+                                  QPoint(shown_offset + shown_len - 3, markerY + 6)};
+    p.drawLine(left, markerY, shown_offset, markerY);
+    p.drawLine(shown_offset + shown_len, markerY, left + width, markerY);
     p.drawPolyline(left_edge, countof(left_edge));
     p.drawPolyline(right_edge, countof(right_edge));
     p.setBrush(fore);
-    p.drawRect(shown_offset, UpMargin/2 - 3, shown_len, 6);
+    p.drawRect(shown_offset, markerY - 3, shown_len, 6);
 
     // draw divider
     fore.setAlpha(View::BackAlpha);
@@ -740,7 +763,7 @@ void DsoSignal::paint_back(QPainter &p, int left, int right, QColor fore, QColor
     p.setPen(dashPen);
     const double spanY =height * 1.0 / DS_CONF_DSO_VDIVS;
     for (i = 1; i <= DS_CONF_DSO_VDIVS; i++) {
-        const double posY = spanY * i + UpMargin;
+        const double posY = spanY * i + top;
         if (i != DS_CONF_DSO_VDIVS)
             p.drawLine(left, posY, right, posY);
         const double miniSpanY = spanY / 5;
@@ -753,14 +776,20 @@ void DsoSignal::paint_back(QPainter &p, int left, int right, QColor fore, QColor
     for (i = 1; i <= DS_CONF_DSO_HDIVS; i++) {
         const double posX = spanX * i;
         if (i != DS_CONF_DSO_HDIVS)
-            p.drawLine(posX, UpMargin,posX, height + UpMargin);
+            p.drawLine(posX, top, posX, height + top);
         const double miniSpanX = spanX / 5;
         for (j = 1; j < 5; j++) {
-            p.drawLine(posX - miniSpanX * j, height / 2.0f + UpMargin - 5,
-                       posX - miniSpanX * j, height / 2.0f + UpMargin + 5);
+            p.drawLine(posX - miniSpanX * j, height / 2.0f + top - 5,
+                       posX - miniSpanX * j, height / 2.0f + top + 5);
         }
     }
-    _view->set_back(true);
+
+    // In overlaid mode every DSO channel shares the same background, so
+    // painting it once is enough (see Viewport::doPaint()'s back_ready()
+    // short-circuit). In split mode each channel has its own band and must
+    // paint its own background.
+    if (!_view->get_dso_split_channels())
+        _view->set_back(true);
 }
 
 void DsoSignal::paint_mid(QPainter &p, int left, int right, QColor fore, QColor back)
@@ -864,6 +893,44 @@ void DsoSignal::paint_mid(QPainter &p, int left, int right, QColor fore, QColor 
                 _mean = (index == 0) ? status.ch0_acc_mean : status.ch1_acc_mean;
                 _mean = hw_offset - _mean / _data->get_sample_count();
             }
+
+            // The hardware's own cycle/level measurement engine can fail to
+            // evaluate a channel correctly - most commonly because that
+            // channel's trigger is misconfigured (the trigger comparator and
+            // the auto-measurement level detection share the same hardware
+            // path), while the displayed waveform is unaffected since it is
+            // just the raw streamed samples. Fall back to a software
+            // measurement derived from those samples in that case.
+            if (!_level_valid || _period == 0) {
+                if (!_soft_measure_logged) {
+                    // Log the raw hardware fields behind the fallback decision
+                    // (not just the fact of it), so it is possible to tell
+                    // whether the device genuinely found no valid cycle
+                    // (count/levels read 0) or reports invalid despite having
+                    // usable-looking counters.
+                    const uint32_t count = (index == 0) ? status.ch0_cyc_cnt : status.ch1_cyc_cnt;
+                    const uint32_t tlen = (index == 0) ? status.ch0_cyc_tlen : status.ch1_cyc_tlen;
+                    const uint8_t lvl_high = (index == 0) ? status.ch0_high_level : status.ch1_high_level;
+                    const uint8_t lvl_low = (index == 0) ? status.ch0_low_level : status.ch1_low_level;
+                    dsv_info("DsoSignal: channel %d reports no valid hardware "
+                              "cycle measurement (level_valid=%d, cyc_cnt=%u, "
+                              "cyc_tlen=%u, high_level=%u, low_level=%u, "
+                              "max=%u, min=%u), using software fallback. "
+                              "This channel's trigger is probably set wrong "
+                              "(the hardware measurement engine shares the "
+                              "trigger comparator, so a misconfigured trigger "
+                              "can break measurement without affecting the "
+                              "displayed waveform).",
+                              index, _level_valid, count, tlen,
+                              lvl_high, lvl_low, _max, _min);
+                    _soft_measure_logged = true;
+                }
+                compute_soft_measure(hw_offset);
+            }
+            else {
+                // Hardware recovered: log again if it drops out later.
+                _soft_measure_logged = false;
+            }
         }
     }
 }
@@ -875,8 +942,11 @@ void DsoSignal::paint_fore(QPainter &p, int left, int right, QColor fore, QColor
 
     assert(_view); 
 
-    fore.setAlpha(View::BackAlpha);
-    QPen pen(fore);
+    // Use the channel's own colour (not the grid's fore colour) so the zero
+    // line stands out against the grid instead of blending into it.
+    QColor zero_colour = _colour;
+    zero_colour.setAlpha(View::ForeAlpha);
+    QPen pen(zero_colour);
     pen.setStyle(Qt::DotLine);
     p.setPen(pen);
     p.drawLine(left, get_zero_vpos(), right, get_zero_vpos());
@@ -1012,6 +1082,111 @@ void DsoSignal::paint_trace(QPainter &p,
 
         delete[] points;
     }
+}
+
+void DsoSignal::compute_soft_measure(int hw_offset)
+{
+    if (_data == NULL || _data->empty())
+        return;
+
+    const uint64_t total = _data->get_sample_count();
+    if (total < 2)
+        return;
+
+    // paint_mid() calls this on every repaint for as long as the hardware
+    // measurement stays invalid, which - while an acquisition is actively
+    // running - can be many times per second. Skip the O(n) rescan below
+    // unless the underlying dataset actually changed. get_trig_time() is
+    // used rather than just the sample count because the configured capture
+    // depth (and so get_sample_count()) is normally the same on every run,
+    // which would otherwise make this cache never invalidate across repeat
+    // captures.
+    const QDateTime trig_time = session->get_trig_time();
+    if (_soft_measure_cache_valid &&
+        _soft_measure_cache_data == _data &&
+        _soft_measure_cache_sample_count == total &&
+        _soft_measure_cache_trig_time == trig_time) {
+        return;   // _period/_high_time/etc already hold the current result
+    }
+
+    const uint8_t *buf = _data->get_samples(0, 0, get_index());
+    if (buf == NULL)
+        return;
+
+    const double samplerate = _data->samplerate();
+    if (samplerate <= 0)
+        return;
+
+    uint16_t total_channels = g_slist_length(session->get_device()->get_channels());
+    if (total_channels == 1 && _data->is_file())
+        total_channels++;
+    const uint16_t enabled_channels = _data->get_channel_num();
+    if (enabled_channels == 0)
+        return;
+
+    // Nanoseconds per channel sample (matches the hardware measurement path).
+    const double tfactor = ((double)total_channels / enabled_channels)
+                           * SR_GHZ(1) * 1.0 / samplerate;
+
+    // Cap the scan so continuous repaints stay cheap; this still covers many
+    // cycles for a stable measurement.
+    const uint64_t MaxScan = 1000000;
+    const uint64_t n = min<uint64_t>(total, MaxScan);
+
+    // Once we reach here, we are about to (re)compute the result for this
+    // dataset - remember its identity so the next call can skip straight to
+    // the early-return above until the data changes again.
+    _soft_measure_cache_valid = true;
+    _soft_measure_cache_data = _data;
+    _soft_measure_cache_sample_count = total;
+    _soft_measure_cache_trig_time = trig_time;
+
+    // Work in voltage-proportional space (higher value = higher voltage) so
+    // "high time" matches the hardware's positive-duty convention.
+    auto val = [&](uint64_t i) -> double { return (double)hw_offset - buf[i]; };
+
+    int rmin = 255, rmax = 0;
+    for (uint64_t i = 0; i < n; i++) {
+        rmin = min(rmin, (int)buf[i]);
+        rmax = max(rmax, (int)buf[i]);
+    }
+
+    const data::DsoEdgeSet edge_set = data::dso_detect_edges(n, val);
+    const std::vector<uint64_t> &rising = edge_set.rising;
+    const std::vector<uint64_t> &falling = edge_set.falling;
+
+    if (rising.size() < 2)
+        return;   // flat, or not enough cycles
+
+    // Mean period (samples) from consecutive rising edges.
+    double psum = 0;
+    for (size_t k = 1; k < rising.size(); k++)
+        psum += rising[k] - rising[k - 1];
+    const double period_samples = psum / (rising.size() - 1);
+
+    // Mean high-level duration: rising edge to the next falling edge.
+    double hsum = 0;
+    int hn = 0;
+    size_t fi = 0;
+    for (size_t k = 0; k < rising.size(); k++) {
+        while (fi < falling.size() && falling[fi] <= rising[k])
+            fi++;
+        if (fi < falling.size()) {
+            hsum += (double)(falling[fi] - rising[k]);
+            hn++;
+        }
+    }
+    const double high_samples = (hn > 0) ? hsum / hn : 0.0;
+
+    _period      = period_samples * tfactor;
+    _high_time   = high_samples * tfactor;
+    _pcount      = (uint32_t)rising.size();
+    _min         = (uint8_t)rmin;
+    _max         = (uint8_t)rmax;
+    _low         = (uint8_t)rmin;
+    _high        = (uint8_t)rmax;
+    _level_valid = true;
+    _mValid      = true;
 }
 
 void DsoSignal::paint_envelope(QPainter &p,
@@ -1220,6 +1395,9 @@ QRectF DsoSignal::get_rect(DsoSetRegions type, int y, int right)
 {
     (void)right;
 
+    const int SquareWidth = get_squareWidth();
+    const int Margin = get_squareMargin();
+
     if (type == DSO_VDIAL)
         return QRectF(
             get_leftWidth() + SquareWidth*0.5 + Margin,
@@ -1262,25 +1440,15 @@ QRectF DsoSignal::get_rect(DsoSetRegions type, int y, int right)
 void DsoSignal::paint_hover_measure(QPainter &p, QColor fore, QColor back)
 {
     const int hw_offset = get_hw_offset();
-    // Hover measure
-    if (_hover_en && _hover_point != QPointF(-1, -1)) {
-        QString hover_str = get_voltage(hw_offset - _hover_value, 2);
-        const int hover_width = p.boundingRect(0, 0, INT_MAX, INT_MAX,
-            Qt::AlignLeft | Qt::AlignTop, hover_str).width() + 10;
-        const int hover_height = p.boundingRect(0, 0, INT_MAX, INT_MAX,
-            Qt::AlignLeft | Qt::AlignTop, hover_str).height();
-        QRectF hover_rect(_hover_point.x(), _hover_point.y()-hover_height/2, hover_width, hover_height);
-        if (hover_rect.right() > get_view_rect().right())
-            hover_rect.moveRight(_hover_point.x());
-        if (hover_rect.top() < get_view_rect().top())
-            hover_rect.moveTop(_hover_point.y());
-        if (hover_rect.bottom() > get_view_rect().bottom())
-            hover_rect.moveBottom(_hover_point.y());
 
+    // Hover measure. Only the point marker is drawn on the trace here; the
+    // voltage value itself is shown in the consolidated floating panel drawn
+    // by Viewport::paintMeasure (see the DSO_VALUE branch), which is far
+    // easier to read than a number printed on top of the waveform.
+    if (_hover_en && _hover_point != QPointF(-1, -1)) {
         p.setPen(fore);
         p.setBrush(back);
         p.drawRect(_hover_point.x()-1, _hover_point.y()-1, HoverPointSize, HoverPointSize);
-        p.drawText(hover_rect, Qt::AlignCenter | Qt::AlignTop | Qt::TextDontClip, hover_str);
     }
 
     auto &cursor_list = _view->get_cursorList();
