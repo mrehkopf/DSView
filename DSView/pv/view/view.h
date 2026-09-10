@@ -46,6 +46,7 @@
 #include "../dsvdef.h" 
 #include "../interface/icallbacks.h"
 #include "../ui/uimanager.h"
+#include "wheelaccumulator.h"
 
 class DeviceAgent;
 
@@ -526,6 +527,10 @@ private:
     int         _spanY;
     int         _signalHeight;
     double      _trace_height_factor;
+
+    // Collects sub-detent wheel steps so high-resolution wheels can still
+    // advance the (discrete) DSO horizontal knob.
+    WheelAccumulator _dso_zoom_accum{1.0};
     bool        _dso_split_channels;
     bool        _updating_scroll;
 

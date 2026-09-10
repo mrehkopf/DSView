@@ -29,6 +29,7 @@
 #include <QWidget>
 #include "../ui/uimanager.h"
 #include "../dock/keywordlineedit.h"
+#include "wheelaccumulator.h"
 
 namespace pv {
 namespace view {
@@ -101,6 +102,9 @@ private:
     std::list<std::pair<Trace*, int> > _drag_traces;
     Trace *_context_trace;
     bool    _mouse_is_down;
+
+    // Turns the sub-detent deltas of high-resolution wheels into whole steps.
+    WheelAccumulator _wheel_accum;
 };
 
 } // namespace view

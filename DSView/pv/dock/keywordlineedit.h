@@ -28,6 +28,7 @@
 #include <QWidget>
 #include <QDialog>
 #include <QWheelEvent>
+#include "../view/wheelaccumulator.h"
 
 class IKeywordActive{
 public:
@@ -91,6 +92,9 @@ protected:
     int         _max;
     bool        _is_number_mode;
     bool        _is_spin_mode;
+
+    // Turns the sub-detent deltas of high-resolution wheels into whole steps.
+    pv::view::WheelAccumulator _wheel_accum;
 };
 
 //---------PopupLineEditInput
