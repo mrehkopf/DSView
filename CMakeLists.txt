@@ -178,6 +178,24 @@ message(STATUS "	 libraries:" ${ZLIB_LIBRARIES})
 include_directories(${ZLIB_INCLUDE_DIRS})
 
 #===============================================================================
+#= Qt Svg
+#
+# DSView never calls a Qt Svg function - it only needs the qsvg image and icon
+# engine plugins that ship with the module. A plain link would therefore be
+# thrown away again by --as-needed (the default on most Linux distros), and
+# with no DT_NEEDED entry, dpkg-shlibdeps and the AppImage/DLL bundlers cannot
+# tell that libqt6svg6 has to come along. Keep the link explicitly on ELF
+# targets so the runtime dependency is recorded.
+#-------------------------------------------------------------------------------
+macro(ds_link_qt_svg svg_target)
+    if(UNIX AND NOT APPLE)
+        list(APPEND QT_LIBRARIES -Wl,--no-as-needed ${svg_target} -Wl,--as-needed)
+    else()
+        list(APPEND QT_LIBRARIES ${svg_target})
+    endif()
+endmacro()
+
+#===============================================================================
 #= Qt6 or Qt5
 #
 # Prioritize Qt6 for better font rendering on OSX, better Wayland compatibility
@@ -190,9 +208,15 @@ if(Qt6Core_FOUND)
     message(STATUS "	 includes:" ${Qt6Core_INCLUDE_DIRS})
     find_package(Qt6Widgets REQUIRED)
     find_package(Qt6Gui REQUIRED)
+    # The themes and icons are SVG, which Qt can only decode through the qsvg
+    # image/icon engine plugins shipping with the Qt Svg module. Requiring it
+    # here turns a missing module into a configure error instead of a UI whose
+    # checkboxes, combobox arrows and window buttons are silently not painted.
+    find_package(Qt6Svg REQUIRED)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Qt6Widgets_EXECUTABLE_COMPILE_FLAGS}")
-    set(QT_INCLUDE_DIRS ${Qt6Gui_INCLUDE_DIRS} ${Qt6Widgets_INCLUDE_DIRS})
+    set(QT_INCLUDE_DIRS ${Qt6Gui_INCLUDE_DIRS} ${Qt6Widgets_INCLUDE_DIRS} ${Qt6Svg_INCLUDE_DIRS})
     set(QT_LIBRARIES Qt6::Gui Qt6::Widgets)
+    ds_link_qt_svg(Qt6::Svg)
     if(WIN32)
         find_package(Qt6Core5Compat REQUIRED)
         add_definitions(${Qt6Core5Compat_DEFINITIONS})
@@ -209,9 +233,11 @@ if(Qt5Core_FOUND)
     message(STATUS "	 includes:" ${Qt5Core_INCLUDE_DIRS})
     find_package(Qt5Widgets REQUIRED)
     find_package(Qt5Gui REQUIRED)
+    find_package(Qt5Svg REQUIRED) # see the Qt6 branch above
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Qt5Widgets_EXECUTABLE_COMPILE_FLAGS}")
-    set(QT_INCLUDE_DIRS ${Qt5Gui_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS})
+    set(QT_INCLUDE_DIRS ${Qt5Gui_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS} ${Qt5Svg_INCLUDE_DIRS})
     set(QT_LIBRARIES Qt5::Gui Qt5::Widgets)
+    ds_link_qt_svg(Qt5::Svg)
     add_definitions(${Qt5Gui_DEFINITIONS} ${Qt5Widgets_DEFINITIONS})
 endif()
 

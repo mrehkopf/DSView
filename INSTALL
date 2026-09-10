@@ -9,7 +9,7 @@ Requirements
  - g++
  - make
  - cmake >= 2.6
- - Qt >= 5.0
+ - Qt >= 5.0 (Core, Gui, Widgets and Svg)
  - libglib >= 2.32.0
  - zlib
  - libusb-1.0 >= 1.0.16
@@ -29,21 +29,25 @@ Step1: Installing the requirements:
 please check your respective distro's package manager tool if you use other distros
 
 Debian/Ubuntu:
- $ sudo apt install git gcc g++ make cmake qt5-default libglib2.0-dev zlib1g-dev \
+ $ sudo apt install git gcc g++ make cmake qt6-base-dev libqt6svg6-dev libglib2.0-dev zlib1g-dev \
  	libusb-1.0-0-dev libboost-dev libfftw3-dev python3-dev libudev-dev pkg-config
  	 	
    How to install qt on ubuntu?
-   	qt5: qt5-default,qtbase5-dev
-   	qt6: qt6-base-dev,libQt6Svg*,libgl1-mesa-dev*,libxkbcommon-dev,libvulkan-dev
+   	qt5: qtbase5-dev,libqt5svg5-dev
+   	qt6: qt6-base-dev,libqt6svg6-dev,libgl1-mesa-dev*,libxkbcommon-dev,libvulkan-dev
+
+   The Qt Svg module is not optional: the themes draw all checkboxes, combobox
+   arrows and window buttons from SVG files, and without its qsvg plugins those
+   controls are simply not painted (the build and the startup log stay clean).
 
 Fedora (18, 19):
  $ sudo yum install git gcc g++ make cmake libtool pkgconfig glib2-devel \
    zlib-devel libudev-devel libusb1-devel \
-   python3-devel qt-devel boost-devel libfftw3-devel
+   python3-devel qt6-qtbase-devel qt6-qtsvg-devel boost-devel libfftw3-devel
 
 Arch:
  $ pacman -S base-devel git cmake glib2 zlib libusb
-   python boost qt5 fftw
+   python boost qt6-base qt6-svg fftw
    
 Mac:
   install git
