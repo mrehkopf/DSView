@@ -1212,7 +1212,6 @@ namespace pv
 
             _device_selector.clear();
 
-            int max_text_width = 0;
             for (int i = 0; i < dev_count; i++)
             {
                 p = (array + i);

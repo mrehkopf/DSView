@@ -308,7 +308,7 @@ void LogicSignal::paint_type_options(QPainter &p, int right, const QPoint pt, QC
     const double i7 = 7 * sc;
     const double i2 = 2 * sc;
 
-    p.setPen(QPen(fore, max(2.0, 2 * sc), Qt::SolidLine));
+    p.setPen(QPen(option_fore, max(2.0, 2 * sc), Qt::SolidLine));
     p.setBrush(Qt::transparent);
     p.drawLine(QPointF(posTrig_rect.left() + i5, posTrig_rect.bottom() - i5),
                QPointF(posTrig_rect.center().x(), posTrig_rect.bottom() - i5));
