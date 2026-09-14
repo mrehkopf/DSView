@@ -15,10 +15,10 @@
 
 #include <QCheckBox>
 #include <QComboBox>
-#include <QDialog>
 #include <QDoubleSpinBox>
 #include <QVector>
 
+#include "dsdialog.h"
 #include "../logicstackingconfig.h"
 
 namespace pv {
@@ -27,7 +27,7 @@ class SigSession;
 
 namespace dialogs {
 
-class StackingOptions : public QDialog
+class StackingOptions : public DSDialog
 {
     Q_OBJECT
 

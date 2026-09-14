@@ -19,7 +19,9 @@
 #include <QMessageBox>
 #include <QVBoxLayout>
 
+#include "../config/appconfig.h"
 #include "../sigsession.h"
+#include "../ui/dscombobox.h"
 #include "../ui/langresource.h"
 #include "../view/signal.h"
 
@@ -30,22 +32,27 @@ namespace pv {
 namespace dialogs {
 
 StackingOptions::StackingOptions(QWidget *parent, SigSession *session) :
-    QDialog(parent),
+    DSDialog(parent, true),
     _session(session)
 {
-    setWindowTitle(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_LOGIC_STACKING), "Logic Stacking"));
+    setTitle(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_LOGIC_STACKING), "Logic Stacking"));
+
+    // Let all controls, including spin boxes, inherit the configured font.
+    QFont dialog_font = font();
+    dialog_font.setPointSizeF(AppConfig::Instance().appOptions.fontSize);
+    setFont(dialog_font);
 
     _enable = new QCheckBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_ENABLE_TWO_ANALYZER_STACKING), "Enable two-analyzer stacking"), this);
-    _master = new QComboBox(this);
-    _secondary = new QComboBox(this);
-    _sync_channel = new QComboBox(this);
+    _master = new DsComboBox(this);
+    _secondary = new DsComboBox(this);
+    _sync_channel = new DsComboBox(this);
     _show_sync = new QCheckBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SHOW_SECONDARY_SYNC_CHANNEL), "Show secondary sync channel"), this);
     _manual_shift_ns = new QDoubleSpinBox(this);
     _reference_alignment = new QCheckBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_REFERENCE_ALIGNMENT), "Align using reference signal"), this);
     _drift_correction = new QCheckBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_DRIFT_CORRECTION), "Correct clock drift using reference signal"), this);
-    _drift_master_channel = new QComboBox(this);
-    _drift_secondary_channel = new QComboBox(this);
-    _reference_edge_mode = new QComboBox(this);
+    _drift_master_channel = new DsComboBox(this);
+    _drift_secondary_channel = new DsComboBox(this);
+    _reference_edge_mode = new DsComboBox(this);
 
     _manual_shift_ns->setRange(-1000000000.0, 1000000000.0);
     _manual_shift_ns->setDecimals(3);
@@ -84,11 +91,14 @@ StackingOptions::StackingOptions(QWidget *parent, SigSession *session) :
     connect(_reference_alignment, SIGNAL(toggled(bool)), this, SLOT(on_reference_changed()));
     connect(_drift_correction, SIGNAL(toggled(bool)), this, SLOT(on_reference_changed()));
 
-    QVBoxLayout *layout = new QVBoxLayout(this);
-    layout->addWidget(_enable);
-    layout->addLayout(form);
-    layout->addWidget(buttons);
+    QVBoxLayout *content_layout = new QVBoxLayout;
+    content_layout->addWidget(_enable);
+    content_layout->addLayout(form);
+    content_layout->addWidget(buttons);
+    layout()->addLayout(content_layout);
 
+    // Apply the configured dialog font before measuring the channel popups.
+    update_font();
     populate_devices();
     populate_channel_labels();
     load_config();
@@ -267,7 +277,7 @@ void StackingOptions::accept()
         return;
     }
 
-    QDialog::accept();
+    DSDialog::accept();
 }
 
 }
