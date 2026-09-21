@@ -154,7 +154,7 @@ DsoTriggerDock::DsoTriggerDock(QWidget *parent, SigSession *session) :
     gLayout->addWidget(new QLabel(_widget), 11, 0);
     gLayout->addWidget(_holdoff_label, 12, 0);
     gLayout->addWidget(_holdoff_spinBox, 12, 1);
-    gLayout->addWidget(_holdoff_comboBox, 12, 2);
+    gLayout->addWidget(_holdoff_comboBox, 12, 2, 1, 2);
     gLayout->addWidget(_holdoff_slider, 13, 0, 1, 4);
 
     gLayout->addWidget(new QLabel(_widget), 14, 0);
@@ -500,6 +500,27 @@ void DsoTriggerDock::UpdateFont()
     ui::set_form_font(this, font);
     font.setPointSizeF(font.pointSizeF() + 1);
     this->parentWidget()->setFont(font);
+
+    // The unit combo was squeezed to "...". UpdateFont() first runs from the
+    // constructor, before the stylesheet has polished the widget, so measuring
+    // then used the wrong font/padding. Polish first, then let the style size
+    // the box for the widest unit name - that includes the stylesheet's
+    // padding, border and drop-down button exactly.
+    _holdoff_comboBox->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    _holdoff_comboBox->setMinimumContentsLength(3);
+    _holdoff_comboBox->ensurePolished();
+
+    const QFontMetrics fm = _holdoff_comboBox->fontMetrics();
+    int text_w = 0;
+    for (int i = 0; i < _holdoff_comboBox->count(); i++)
+        text_w = std::max(text_w, fm.horizontalAdvance(_holdoff_comboBox->itemText(i)));
+
+    QStyleOptionComboBox opt;
+    opt.initFrom(_holdoff_comboBox);
+    const QSize content(text_w + fm.averageCharWidth(), fm.height());
+    const QSize styled = _holdoff_comboBox->style()->sizeFromContents(
+        QStyle::CT_ComboBox, &opt, content, _holdoff_comboBox);
+    _holdoff_comboBox->setMinimumWidth(styled.width());
 }
 
 } // namespace dock

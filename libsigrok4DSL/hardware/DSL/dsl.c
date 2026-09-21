@@ -2191,9 +2191,14 @@ SR_PRIV unsigned int dsl_get_timeout(const struct sr_dev_inst *sdi)
     timeout = total_size / to_bytes_per_ms(devc);
 
     if (devc->stream)
-        return timeout + timeout / 4; /* Leave a headroom of 25% percent. */
+        timeout += timeout / 4; /* Leave a headroom of 25% percent. */
     else
-        return 20;
+        timeout = 20;
+
+    /* Callers use this as a poll/sleep interval; the integer division above
+     * truncates to 0 for small buffers at high sample rates, which would turn
+     * those waits into busy-loops. */
+    return max(timeout, 1u);
 }
 
 static void finish_acquisition(struct DSL_context *devc)
@@ -2369,6 +2374,8 @@ static void receive_transfer(struct libusb_transfer *transfer)
     case LIBUSB_TRANSFER_TIMED_OUT: /* We may have received some data though. */
         break;
     default:
+        sr_err("%s: transfer failed, libusb status %d after %d bytes", __func__,
+               transfer->status, transfer->actual_length);
         devc->status = DSL_ERROR;
         break;
     }
@@ -2416,6 +2423,14 @@ static void receive_transfer(struct libusb_transfer *transfer)
                 dso.data = cur_buf + (devc->zero ? 0 : 2*devc->mstatus.trig_offset);
             }
             else {
+                sr_warn("%s: invalid DSO packet dropped: %d bytes, pkt_id 0x%04X (expected 0x%04X), "
+                        "vlen %u, divider %u (expected %u), instant %d, zero %d, samplerate %llu, en_ch %d",
+                        __func__, transfer->actual_length,
+                        devc->mstatus.pkt_id, DSO_PKTID, devc->mstatus.vlen, devc->mstatus.sample_divider,
+                        (unsigned)(devc->zero ? 1 : (uint32_t)ceil(channel_modes[devc->ch_mode].max_samplerate * 1.0 /
+                                                                   devc->cur_samplerate / dsl_en_ch_num(sdi))),
+                        devc->instant, devc->zero, (unsigned long long)devc->cur_samplerate,
+                        dsl_en_ch_num(sdi));
                 packet.type = SR_DF_DSO;
                 packet.status = SR_PKT_DATA_ERROR;
             }
@@ -2522,7 +2537,10 @@ static void receive_header(struct libusb_transfer *transfer)
             }
         }
     } else if (!devc->abort) {
-        sr_err("%s: trigger packet data error.", __func__);
+        sr_err("%s: trigger packet data error. transfer status %d, received %d bytes (expected %d), "
+               "check_id 0x%08X (expected 0x%08X)", __func__,
+               transfer->status, transfer->actual_length, dsl_header_size(devc),
+               trigger_pos->check_id, TRIG_CHECKID);
         packet.type = SR_DF_TRIGGER;
         packet.payload = trigger_pos;
         packet.status = SR_PKT_DATA_ERROR;

@@ -249,13 +249,17 @@ public:
     }
 
     // ---- Reference waveforms ------------------------------------------------
-    // A frozen copy of a DSO channel's samples, overlaid on the live view. It
-    // is rendered with the source channel's current vertical scaling (looked
-    // up by index at paint time) so it stays aligned to the grid.
+    // A frozen copy of a DSO channel's samples, overlaid on the live view.
+    // The raw codes only mean something together with the calibration they
+    // were captured at, so that is stored too: at paint time the codes are
+    // converted to millivolts and mapped onto the channel's *current* V/div
+    // and zero position, keeping the reference at its real amplitude.
     struct RefWave {
         int         index;          // source DSO channel index
         std::vector<uint8_t> samples;
         double      samplerate;
+        int         hw_offset;      // code for 0 V at capture time
+        double      mv_per_code;    // mV = (hw_offset - code) * mv_per_code
         QColor      colour;
         QString     name;
     };

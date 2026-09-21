@@ -26,6 +26,7 @@
 
 #include "signal.h"
 #include "dsosignal.h"
+#include "dsldial.h"
 #include "logicsignal.h"
 #include "analogsignal.h"
 #include "spectrumtrace.h"
@@ -601,9 +602,17 @@ void Viewport::paint_ref_waves(QPainter &p)
     if (vscale <= 0)
         return;
 
+    // Below this many pixels per sample the dash pattern gets eaten by the
+    // per-sample vertical zig-zag and the line turns into noise, so dense
+    // data is decimated to one min/max pair per pixel column and drawn solid.
+    const double DashMinPixelsPerSample = 3.0;
+
+    const QFontMetrics fm(p.font());
+    // Labels already drawn per source channel, so several references of the
+    // same channel stack instead of overprinting each other.
+    std::vector<int> label_rows;
+
     for (auto &rw : refs) {
-        // The reference is rendered with its source channel's current vertical
-        // scaling, so it tracks the channel's dial and stays on the grid.
         DsoSignal *sig = NULL;
         for (auto t : traces) {
             if (t->signal_type() == SR_CHANNEL_DSO && t->get_index() == rw.index) {
@@ -615,13 +624,22 @@ void Viewport::paint_ref_waves(QPainter &p)
             continue;
 
         const int64_t n = (int64_t)rw.samples.size();
-        if (n < 2 || rw.samplerate <= 0)
+        if (n < 2 || rw.samplerate <= 0 || rw.mv_per_code <= 0)
             continue;
 
-        const float zeroY = sig->get_zero_vpos();
-        const int hw_offset = sig->get_hw_offset();
-        const float sscale = sig->get_scale();
         const QRect vrect = sig->get_view_rect();
+        dslDial *vdial = sig->get_vDial();
+        if (vdial == NULL || vrect.height() <= 0)
+            continue;
+        const double mv_per_div = (double)vdial->get_value() * vdial->get_factor();
+        if (mv_per_div <= 0)
+            continue;
+
+        // Map the stored codes through their capture-time calibration onto
+        // the channel's current V/div: y = zeroY - mV * pixels_per_mV.
+        const double px_per_code =
+            rw.mv_per_code * vrect.height() / (DS_CONF_DSO_VDIVS * mv_per_div);
+        const float zeroY = sig->get_zero_vpos();
         const float top = vrect.top();
         const float bottom = vrect.bottom();
 
@@ -640,32 +658,91 @@ void Viewport::paint_ref_waves(QPainter &p)
             continue;
 
         const int64_t count = end_sample - start_sample + 1;
+        const bool dense = pixels_per_sample < DashMinPixelsPerSample;
+        // Dense data emits at most one min/max pair per pixel column.
+        const int64_t capacity = dense ? min(2 * count, 2 * (int64_t)width + 16)
+                                       : count;
         // Reuse the scratch buffer across calls/waves instead of a fresh
         // heap array every repaint - resize() only reallocates when growing
         // past the buffer's current capacity.
-        if (_ref_wave_points.size() < count)
-            _ref_wave_points.resize(count);
+        if (_ref_wave_points.size() < capacity)
+            _ref_wave_points.resize(capacity);
         QPointF *points = _ref_wave_points.data();
         QPointF *point = points;
+        const QPointF *const points_end = points + capacity;
         float x = (start_sample / samples_per_pixel - x_offset) + left
                   + trig_hoff * pixels_per_sample;
 
-        for (int64_t s = start_sample; s <= end_sample; s++) {
-            const uint8_t value = rw.samples[s];
-            const float y = min(max(top, zeroY + (value - hw_offset) * sscale), bottom);
-            *point++ = QPointF(x, y);
-            x += pixels_per_sample;
+        const auto code_to_y = [&](uint8_t code) {
+            const float y = zeroY + (code - rw.hw_offset) * px_per_code;
+            return min(max(top, y), bottom);
+        };
+
+        if (!dense) {
+            for (int64_t s = start_sample; s <= end_sample; s++) {
+                *point++ = QPointF(x, code_to_y(rw.samples[s]));
+                x += pixels_per_sample;
+            }
+        } else {
+            int col = 0;
+            bool have_col = false;
+            float ymin = 0, ymax = 0;
+            float last_y = 0;
+            bool have_last = false;
+
+            // Emit the column's extremes, nearest one first, so the polyline
+            // joins neighbouring columns without crossing diagonals.
+            const auto flush = [&]() {
+                if (!have_col || point + 2 > points_end)
+                    return;
+                float a = ymin, b = ymax;
+                if (have_last && fabs(last_y - b) < fabs(last_y - a))
+                    std::swap(a, b);
+                *point++ = QPointF(col, a);
+                if (b != a)
+                    *point++ = QPointF(col, b);
+                last_y = b;
+                have_last = true;
+            };
+
+            for (int64_t s = start_sample; s <= end_sample; s++) {
+                const float y = code_to_y(rw.samples[s]);
+                const int c = (int)floor(x);
+                if (!have_col || c != col) {
+                    flush();
+                    col = c;
+                    ymin = ymax = y;
+                    have_col = true;
+                } else {
+                    ymin = min(ymin, y);
+                    ymax = max(ymax, y);
+                }
+                x += pixels_per_sample;
+            }
+            flush();
         }
 
         QColor c = rw.colour;
-        c.setAlpha(180);
-        QPen pen(c);
-        pen.setStyle(Qt::DashLine);
+        c.setAlpha(130);     // 80% transparent
+        QPen pen(c, AppConfig::Instance().appOptions.dsoSignalLineWidth);
+        if (!dense) {
+            // Qt::DashLine is 4 on / 2 off, which reads as almost solid next
+            // to the live trace. Equal dash and gap instead; the pattern is in
+            // units of the pen width, so it keeps its look at any line width.
+            pen.setDashPattern({5, 5});
+        }
         p.setPen(pen);
         p.drawPolyline(points, point - points);
 
-        // Label the reference near its left end.
-        p.drawText(QPointF(left + 4, top + 12), rw.name);
+        // Label the reference near its left end, one text row per reference
+        // already labelled on this channel.
+        if ((int)label_rows.size() <= rw.index)
+            label_rows.resize(rw.index + 1, 0);
+        const int row = label_rows[rw.index]++;
+        c.setAlpha(230);
+        p.setPen(QPen(c));
+        p.drawText(QPointF(left + 4, top + fm.ascent() + 2 + row * fm.height()),
+                   rw.name);
     }
 }
 
@@ -2086,6 +2163,8 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
         std::vector<MRow> rows;
         bool have_hover_index = false;
         uint64_t hover_sample_index = 0;
+        // Channels whose row the mouse is over; their references get a row too.
+        std::vector<int> hovered_channels;
 
         for(auto s : _view.session().get_signals()) {
             if (s->signal_type() == SR_CHANNEL_DSO) {
@@ -2104,6 +2183,7 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
                     r.val = dsoSig->get_voltage(dsoSig->get_hw_offset() - value, 3);
                     r.colour = dsoSig->get_colour();
                     rows.push_back(r);
+                    hovered_channels.push_back(dsoSig->get_index());
 
                     if (!have_hover_index) {
                         hover_sample_index = index;
@@ -2122,6 +2202,35 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
                     p.drawLine(hpoint.x(), analogSig->get_view_rect().top(),
                                hpoint.x(), analogSig->get_view_rect().bottom());
                 }
+            }
+        }
+
+        // Saved reference waveforms of the hovered channels. The sample under
+        // the mouse is found by inverting paint_ref_waves()' x mapping, and the
+        // code converted with the reference's own capture-time calibration.
+        const double vscale = _view.scale();
+        if (!hovered_channels.empty() && vscale > 0) {
+            for (auto &rw : _view.session().get_ref_waves()) {
+                if (std::find(hovered_channels.begin(), hovered_channels.end(),
+                              rw.index) == hovered_channels.end())
+                    continue;
+                if (rw.samples.empty() || rw.samplerate <= 0)
+                    continue;
+
+                const double samples_per_pixel = rw.samplerate * vscale;
+                const double s = (hoverpoint_x + _view.x_offset()) * samples_per_pixel
+                                 - _view.trig_hoff();
+                const int64_t idx = (int64_t)floor(s + 0.5);
+                if (idx < 0 || idx >= (int64_t)rw.samples.size())
+                    continue;
+
+                const double mv = (rw.hw_offset - rw.samples[idx]) * rw.mv_per_code;
+                MRow r;
+                r.name = rw.name;
+                r.val = fabs(mv) >= 1000 ? QString::number(mv / 1000.0, 'f', 3) + "V"
+                                         : QString::number(mv, 'f', 3) + "mV";
+                r.colour = rw.colour;
+                rows.push_back(r);
             }
         }
 

@@ -394,6 +394,10 @@ namespace pv
 
         void SamplingBar::set_sample_rate(uint64_t sample_rate)
         {
+            /* The list is ascending, so walking it backwards picks the highest
+             * rate that does not overrun the requested one. */
+            int index = -1;
+
             for (int i = _sample_rate.count() - 1; i >= 0; i--)
             {
                 uint64_t cur_index_sample_rate = _sample_rate.itemData(
@@ -401,10 +405,25 @@ namespace pv
                                                      .value<uint64_t>();
                 if (sample_rate >= cur_index_sample_rate)
                 {
-                    _sample_rate.setCurrentIndex(i);
+                    index = i;
                     break;
                 }
             }
+
+            /* Nothing in the list is slow enough - the device cannot fill the
+             * screen at this timebase. Take its slowest rate, which fills the
+             * most of it. Leaving the selection untouched (the original
+             * behaviour) made the rate depend on which timebases had been
+             * visited on the way here rather than on the current one: on a
+             * device whose slowest rate is megahertz-class, there is a wide band
+             * of such timebases, and scrolling into it from 1 ms/div left a
+             * rate ten times higher than scrolling in from 10 ms/div. */
+            if (index < 0 && _sample_rate.count() > 0)
+                index = 0;
+
+            if (index >= 0)
+                _sample_rate.setCurrentIndex(index);
+
             commit_settings();
         }
 

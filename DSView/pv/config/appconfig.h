@@ -96,6 +96,7 @@ struct AppOptions
     bool logicChannelDivider;
     bool logicThickHighLevel;
     bool dsoSplitChannels;
+    float dsoSignalLineWidth;
     std::vector<StringPair> m_protocolFormats;
 };
  
