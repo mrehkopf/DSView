@@ -1986,10 +1986,11 @@ static gpointer usb_event_thread(gpointer data)
 
     struct timeval tv;
     while (!devc->usb_thread_quit) {
-        int completed = 1;
         tv.tv_sec = 0;
         tv.tv_usec = 1000 * dsl_get_timeout(sdi);
-        libusb_handle_events_timeout_completed(sr_ctx->libusb_ctx, &tv, &completed);
+        /* Wait for any USB event. A nonzero completion flag skips the wait
+         * entirely and makes this thread busy-loop while awaiting a trigger. */
+        libusb_handle_events_timeout_completed(sr_ctx->libusb_ctx, &tv, NULL);
     }
 
     sr_dbg("%s: exit usb event handling thread.", __func__);
