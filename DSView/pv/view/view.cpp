@@ -142,7 +142,7 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
     _header = new Header(*this);
     _devmode = new DevMode(this, session);
 
-    setViewportMargins(headerWidth(), RulerHeight, 0, get_bottom_margin());
+    headerWidth();
 
     // windows splitter
     _time_viewport = new Viewport(*this, TIME_VIEW);
@@ -174,13 +174,8 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
     layout->setContentsMargins(0,0,0,0);
     _viewcenter->setLayout(layout);
     layout->addWidget(_vsplitter, 0, 0);
-    _statusLayout = new QVBoxLayout(this);
-    _statusLayout->setSpacing(0);
-    _statusLayout->setContentsMargins(0,0,verticalScrollBar()->geometry().width()+2, horizontalScrollBar()->geometry().height()+1);
     _viewbottom = new ViewStatus(_session, *this);
     _viewbottom->setFixedHeight(StatusHeight);
-    setLayout(_statusLayout);
-    _statusLayout->addWidget(_viewbottom, 0, Qt::AlignBottom);
 
 #ifdef Q_OS_DARWIN
     QWidget *lineSpan = new QWidget(this);
@@ -189,6 +184,8 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
 #endif
 
     setViewport(_viewcenter);
+    headerWidth();
+    update_margins();
 
     _time_viewport->installEventFilter(this);
     _fft_viewport->installEventFilter(this);
@@ -717,13 +714,9 @@ void View::update_scroll()
             total_height += t->get_totalHeight() + 2 * get_signal_margin();
     }
 
-    // Make sure we can scroll the last signal past the status bar
-    total_height += StatusHeight;
-
     // Scroll the time pane against its own visible height (which excludes the
-    // FFT pane when the splitter is showing one).
-    const int avail_height = _fft_viewport->isVisible()
-        ? _time_viewport->height() : areaSize.height();
+    // status strip and, when shown, the FFT pane).
+    const int avail_height = _time_viewport->height();
 
     // Enable vertical scrolling if total height exceeds viewport
     if (total_height > avail_height) {
@@ -892,14 +885,10 @@ void View::signals_changed(const Trace* eventTrace)
             _signalHeight = max((double)min_row_height, _signalHeight * _trace_height_factor);
         }
         else if (_device_agent->get_work_mode() == DSO) {
-            // Size the channels to the pane they actually live in. Using the
-            // full-height header would keep them sized for the whole view even
-            // after the FFT splitter pane has shrunk the time viewport, so the
-            // channels would overflow the time pane and invent vertical scroll
-            // range with nothing to scroll to. When no FFT pane is shown the
-            // time viewport fills the view, so this matches the old behaviour.
+            // The time pane already excludes the status strip and scrollbars,
+            // and shrinks when the FFT pane is shown. Size channels to that
+            // visible space without subtracting scrollbar height again.
             _signalHeight = max((double)HeightUnit, (_time_viewport->height()
-                             - horizontalScrollBar()->height()
                              - 2 * actualMargin * label_size) * 1.0 / total_rows);
         }
         else {
@@ -1023,15 +1012,16 @@ bool View::viewportEvent(QEvent *e)
 	}
 }
 
-int View::get_bottom_margin()
+bool View::event(QEvent *event)
 {
-    // The status/measurement bar floats over the bottom of the viewport. The
-    // scrollable time pane can scroll its content clear of it, but the fixed
-    // FFT splitter pane cannot, so reserve room for the bar only while the FFT
-    // pane is visible - otherwise it would be cropped underneath the bar.
-    if (_viewbottom && _fft_viewport && _fft_viewport->isVisible())
-        return _viewbottom->height();
-    return 0;
+    const bool handled = QScrollArea::event(event);
+    // Overlay scrollbars can appear without resizing the viewport. Refresh
+    // after Qt lays them out, as well as when the style or visibility changes.
+    if (_viewcenter && _viewbottom &&
+        (event->type() == QEvent::LayoutRequest ||
+         event->type() == QEvent::StyleChange || event->type() == QEvent::Show))
+        update_margins();
+    return handled;
 }
 
 int View::headerWidth()
@@ -1049,7 +1039,8 @@ int View::headerWidth()
         }
     }
 
-    setViewportMargins(headerWidth, RulerHeight, 0, get_bottom_margin());
+    const QMargins margins = viewportMargins();
+    setViewportMargins(headerWidth, RulerHeight, margins.right(), margins.bottom());
 
     return headerWidth;
 }
@@ -1063,7 +1054,7 @@ void View::resizeEvent(QResizeEvent*)
     }
 
     reconstruct();
-    setViewportMargins(headerWidth(), RulerHeight, 0, get_bottom_margin());
+    headerWidth();
     update_margins();
     update_scroll();
     signals_changed(NULL);
@@ -1136,7 +1127,7 @@ void View::v_scroll_value_changed(int value)
 
 void View::data_updated()
 {
-    setViewportMargins(headerWidth(), RulerHeight, 0, get_bottom_margin());
+    headerWidth();
     update_margins();
 
 	// Update the scroll bars
@@ -1155,6 +1146,27 @@ void View::data_updated()
 
 void View::update_margins()
 {
+    const QMargins margins = viewportMargins();
+    const QRect available = _viewcenter->geometry().adjusted(
+        -margins.left(), -margins.top(), margins.right(), margins.bottom());
+
+    // Most styles reserve scrollbar space themselves. Overlay styles do not,
+    // so reserve only the part of their actual geometry inside that area.
+    int right = 0;
+    int bottom = 0;
+    if (verticalScrollBar()->isVisible()) {
+        const QWidget *bar = verticalScrollBar()->parentWidget();
+        right = max(0, available.right() - bar->geometry().left() + 1);
+    }
+    if (horizontalScrollBar()->isVisible()) {
+        const QWidget *bar = horizontalScrollBar()->parentWidget();
+        bottom = max(0, available.bottom() - bar->geometry().top() + 1);
+    }
+    const QMargins reserved(margins.left(), RulerHeight, right,
+                            bottom + _viewbottom->height());
+    if (reserved != margins)
+        setViewportMargins(reserved);
+
     int width = get_view_width();
 
     if (width > 0)
@@ -1163,21 +1175,13 @@ void View::update_margins()
         _header->setGeometry(0, _viewcenter->y(), _viewcenter->x(), _viewcenter->height());
         _devmode->setGeometry(0, 0, _viewcenter->x(), _viewcenter->y());
     }
-}
 
-void View::update_status_margins()
-{
-    // The bottom/right margins were only ever computed once, at
-    // construction time, before the scrollbars had a real on-screen
-    // geometry - and never refreshed afterwards. That was mostly hidden in
-    // LOGIC mode (a fixed, short StatusHeight), but became visibly wrong in
-    // DSO mode once _viewbottom grows to DsoStatusHeight for its two-row
-    // measurement layout: the reserved strip stayed sized for the stale
-    // scrollbar height, so the lower measurement row overlapped the real
-    // horizontal scrollbar. Recompute with the scrollbars' current geometry.
-    _statusLayout->setContentsMargins(0, 0,
-        verticalScrollBar()->geometry().width() + 2,
-        horizontalScrollBar()->geometry().height() + 1);
+    // Qt has already accounted for the current style's frame and scrollbars.
+    // Fill the reserved bottom margin, spanning the header and waveform area.
+    const QRect area = _viewcenter->geometry();
+    const int left = area.left() - viewportMargins().left();
+    _viewbottom->setGeometry(left, area.bottom() + 1,
+                            area.right() - left + 1, _viewbottom->height());
 }
 
 void View::header_updated()
@@ -1601,7 +1605,8 @@ void View::reconstruct()
         _viewbottom->setFixedHeight(DsoStatusHeight);
     else
         _viewbottom->setFixedHeight(StatusHeight);
-    update_status_margins();
+    headerWidth();
+    update_margins();
     _viewbottom->reload();
 }
 

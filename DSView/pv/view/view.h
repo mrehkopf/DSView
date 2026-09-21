@@ -246,11 +246,6 @@ public:
 
     int headerWidth();
 
-    // Bottom viewport margin reserved for the status/measurement bar. Non-zero
-    // only when the FFT splitter pane is shown, so that fixed pane isn't
-    // cropped underneath the bar.
-    int get_bottom_margin();
-
     inline Ruler* get_ruler(){
         return _ruler;
     }
@@ -407,17 +402,11 @@ private:
     void get_scroll_layout(int64_t &length, int64_t &offset);	
 	void update_scroll();
     void update_margins();
-    // Re-reserves bottom/right space in _statusLayout for the real
-    // scrollbars, using their current (not construction-time) geometry -
-    // the ViewStatus (_viewbottom) widget can grow taller (DSO's 2-row
-    // measurement layout) after construction, so the scrollbar-clearance
-    // margin has to be refreshed alongside it, or the lower measurement
-    // row overlaps the horizontal scrollbar.
-    void update_status_margins();
     void set_scale(double scale);
 
     void clear();
     void reconstruct();  
+	bool event(QEvent *event) override;
 	bool eventFilter(QObject *object, QEvent *event);
 	bool viewportEvent(QEvent *e);
 	void resizeEvent(QResizeEvent *e);
@@ -497,11 +486,9 @@ private:
 	SigSession                  *_session;
     pv::toolbars::SamplingBar   *_sampling_bar;
 
-    QWidget                 *_viewcenter;
-    // Zero-initialised so get_bottom_margin(), reached via headerWidth()
-    // during construction, sees null (not garbage) before these are assigned.
+    // Geometry updates can arrive while these widgets are being constructed.
+    QWidget                 *_viewcenter = nullptr;
     ViewStatus              *_viewbottom = nullptr;
-    QVBoxLayout             *_statusLayout;
     QSplitter               *_vsplitter;
     Viewport                *_time_viewport;
     Viewport                *_fft_viewport = nullptr;
