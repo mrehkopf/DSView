@@ -284,13 +284,64 @@ void MathTrace::paint_trace(QPainter &p,
         const double *const values = _math_stack->get_math(start);
         assert(values);
 
-        QPointF *points = new QPointF[sample_count];
-        QPointF *point = points;
-
         double top = get_view_rect().top();
         double bottom = get_view_rect().bottom();
         float x = (start / samples_per_pixel - pixels_offset) + left + _view->trig_hoff()/samples_per_pixel;
         double  pixels_per_sample = 1.0/samples_per_pixel;
+
+        // Same per-pixel-column first/min/max/last decimation as
+        // DsoSignal::paint_trace(), so long time/div stays responsive.
+        if (samples_per_pixel > 2.0) {
+            const double x0 = x;
+            const double right = get_view_rect().right();
+            const int64_t columns = (int64_t)ceil(sample_count * pixels_per_sample) + 2;
+            QPointF *points = new QPointF[columns * 4];
+            QPointF *point = points;
+
+            auto to_y = [&](double v) {
+                return min(max(top, zeroY - (v * _scale)), bottom);
+            };
+
+            int64_t sample = 0;
+            while (sample < sample_count) {
+                const int64_t col = (int64_t)floor(sample * pixels_per_sample);
+                const double col_x = x0 + col;
+                if (col_x > right)
+                    break;
+
+                int64_t col_end = (int64_t)ceil((col + 1) * samples_per_pixel);
+                col_end = min(max(col_end, sample + 1), sample_count);
+
+                const double first = values[sample];
+                const double last = values[col_end - 1];
+                double vmin = first, vmax = first;
+                int64_t imin = sample, imax = sample;
+                for (int64_t i = sample + 1; i < col_end; i++) {
+                    const double v = values[i];
+                    if (v < vmin) { vmin = v; imin = i; }
+                    else if (v > vmax) { vmax = v; imax = i; }
+                }
+
+                *point++ = QPointF(col_x, to_y(first));
+                if (imin < imax) {
+                    *point++ = QPointF(col_x, to_y(vmin));
+                    *point++ = QPointF(col_x, to_y(vmax));
+                } else {
+                    *point++ = QPointF(col_x, to_y(vmax));
+                    *point++ = QPointF(col_x, to_y(vmin));
+                }
+                *point++ = QPointF(col_x, to_y(last));
+
+                sample = col_end;
+            }
+
+            p.drawPolyline(points, point - points);
+            delete[] points;
+            return;
+        }
+
+        QPointF *points = new QPointF[sample_count];
+        QPointF *point = points;
 
         for (int64_t index = 0; index < sample_count; index++) {
             const float y = min(max(top, zeroY - (values[index] * _scale)), bottom);

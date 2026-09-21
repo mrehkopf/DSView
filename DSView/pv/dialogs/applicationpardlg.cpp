@@ -314,6 +314,14 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     spinBox_lineWidth->setValue(app.appOptions.logicSignalLineWidth);
     spinBox_lineWidth->setSuffix(" px");
 
+    QDoubleSpinBox *spinBox_dsoLineWidth = new QDoubleSpinBox();
+    spinBox_dsoLineWidth->setDecimals(1);
+    spinBox_dsoLineWidth->setSingleStep(0.5);
+    spinBox_dsoLineWidth->setMinimum(1.0);
+    spinBox_dsoLineWidth->setMaximum(4.0);
+    spinBox_dsoLineWidth->setValue(app.appOptions.dsoSignalLineWidth);
+    spinBox_dsoLineWidth->setSuffix(" px");
+
     // Logic group
     QGroupBox *logicGroup = new QGroupBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_GROUP_LOGIC), "Logic"));
     QGridLayout *logicLay = new QGridLayout();
@@ -461,6 +469,8 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     dsoGroup->setLayout(dsoLay);
     dsoLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_TRIG_DISPLAY_MIDDLE), "Tig pos in middle")), 0, 0, Qt::AlignLeft);
     dsoLay->addWidget(ck_trigInMid, 0, 1, Qt::AlignRight);
+    dsoLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SIGNAL_LINE_WIDTH), "Signal line width")), 1, 0, Qt::AlignLeft);
+    dsoLay->addWidget(spinBox_dsoLineWidth, 1, 1, Qt::AlignRight);
     lay->addWidget(dsoGroup);
 
     //UI
@@ -565,6 +575,10 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
         }
         if (app.appOptions.logicSignalLineWidth != spinBox_lineWidth->value()) {
             app.appOptions.logicSignalLineWidth = spinBox_lineWidth->value();
+            bAppChanged = true;
+        }
+        if (app.appOptions.dsoSignalLineWidth != spinBox_dsoLineWidth->value()) {
+            app.appOptions.dsoSignalLineWidth = spinBox_dsoLineWidth->value();
             bAppChanged = true;
         }
         if (app.appOptions.logicChannelDivider != ck_channelDivider->isChecked()) {

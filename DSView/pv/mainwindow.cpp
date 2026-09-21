@@ -115,6 +115,30 @@ namespace pv
         // Bump this when the built-in dock layout changes so a windowState
         // saved under an older layout is not restored over the new one.
         const int DOCK_LAYOUT_VERSION = 1;
+
+        // Apply a session's per-channel analog settings, but only those the
+        // session actually stores. The same sr_channel objects are shared by
+        // every work mode, so a LOGIC session (which has no vdiv/vfactor/...)
+        // must not zero them: on a device offering both LOGIC and DSO, channels
+        // 0 and 1 then entered DSO mode with vfactor 0 and tripped
+        // dslDial::set_factor()'s assertion.
+        void load_probe_analog_settings(sr_channel *probe, const QJsonObject &obj)
+        {
+            if (obj.contains("vdiv") && obj["vdiv"].toDouble() > 0)
+                probe->vdiv = obj["vdiv"].toDouble();
+            if (obj.contains("coupling"))
+                probe->coupling = obj["coupling"].toDouble();
+            if (obj.contains("vfactor") && obj["vfactor"].toDouble() > 0)
+                probe->vfactor = obj["vfactor"].toDouble();
+            if (obj.contains("trigValue"))
+                probe->trig_value = obj["trigValue"].toDouble();
+            if (obj.contains("mapUnit"))
+                probe->map_unit = g_strdup(obj["mapUnit"].toString().toStdString().c_str());
+            if (obj.contains("mapMin"))
+                probe->map_min = obj["mapMin"].toDouble();
+            if (obj.contains("mapMax"))
+                probe->map_max = obj["mapMax"].toDouble();
+        }
     }
 
     MainWindow::MainWindow(toolbars::TitleBar *title_bar, QWidget *parent)
@@ -1078,13 +1102,7 @@ namespace pv
                     if (QString(probe->name) == obj["name"].toString() &&
                         probe->type == obj["type"].toDouble())
                     {
-                        probe->vdiv = obj["vdiv"].toDouble();
-                        probe->coupling = obj["coupling"].toDouble();
-                        probe->vfactor = obj["vfactor"].toDouble();
-                        probe->trig_value = obj["trigValue"].toDouble();
-                        probe->map_unit = g_strdup(obj["mapUnit"].toString().toStdString().c_str());
-                        probe->map_min = obj["mapMin"].toDouble();
-                        probe->map_max = obj["mapMax"].toDouble();
+                        load_probe_analog_settings(probe, obj);
                         probe->enabled = obj["enabled"].toBool();
                         break;
                     }
@@ -1114,13 +1132,7 @@ namespace pv
                         
                         probe->enabled = obj["enabled"].toBool();
                         probe->name = g_strdup(chan_name.toStdString().c_str());
-                        probe->vdiv = obj["vdiv"].toDouble();
-                        probe->coupling = obj["coupling"].toDouble();
-                        probe->vfactor = obj["vfactor"].toDouble();
-                        probe->trig_value = obj["trigValue"].toDouble();
-                        probe->map_unit = g_strdup(obj["mapUnit"].toString().toStdString().c_str());
-                        probe->map_min = obj["mapMin"].toDouble();
-                        probe->map_max = obj["mapMax"].toDouble();
+                        load_probe_analog_settings(probe, obj);
 
                         if (obj.contains("mapDefault"))
                         {

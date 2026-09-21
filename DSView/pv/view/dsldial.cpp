@@ -182,8 +182,37 @@ uint64_t dslDial::get_value(uint64_t i)
 
 void dslDial::set_value(uint64_t value)
 {
-    assert(_value.contains(value));
-    _sel = _value.indexOf(value, 0);
+    assert(!_value.isEmpty());
+
+    int idx = _value.indexOf(value, 0);
+
+    if (idx < 0) {
+        /*
+         * Snap to the nearest offered step rather than asserting.
+         *
+         * A value that is not on the dial is reachable without any bug: a
+         * saved session restores probe->vdiv verbatim (MainWindow's session
+         * load), so reopening a session taken on a device whose steps differ -
+         * or on the same device after its profile changed - hands us a value
+         * this dial has never offered. Refusing it took the whole application
+         * down; snapping keeps the session loadable and merely rounds the
+         * range to something the device can actually select.
+         */
+        uint64_t best_err = UINT64_MAX;
+        idx = 0;
+
+        for (int i = 0; i < _value.count(); i++) {
+            const uint64_t v = _value.at(i);
+            const uint64_t err = (v > value) ? (v - value) : (value - v);
+
+            if (err < best_err) {
+                best_err = err;
+                idx = i;
+            }
+        }
+    }
+
+    _sel = idx;
 }
 
 void dslDial::set_factor(uint64_t factor)
