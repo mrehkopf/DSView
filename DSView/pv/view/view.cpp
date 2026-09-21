@@ -1613,7 +1613,6 @@ void View::repeat_show()
 void View::show_captured_progress(bool triggered, int progress)
 {
     _viewbottom->set_capture_status(triggered, progress);
-    _viewbottom->update();
 }
 
 bool View::get_dso_trig_moved()
