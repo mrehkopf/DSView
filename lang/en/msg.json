@@ -1,5 +1,9 @@
 [
     {
+        "id": "IDS_MSG_THEME_RESTART",
+        "text": "Restart DSView to apply the window decorations and transparency for this theme."
+    },
+    {
         "id": "IDS_MSG_OK",
         "text": "Ok"
     },

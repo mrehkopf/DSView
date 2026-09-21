@@ -14,6 +14,20 @@ The DSView software is in a usable state and has official tarball releases. Howe
 
 Pre-built binaries are available on the [releases page](https://github.com/Schildkroet/DSView/releases).
 
+# Appearance
+
+Choose **Display → Themes → System** to use the Qt widget style and palette
+configured by your desktop, including Kvantum. On Linux, restart DSView after
+switching between System and a bundled theme to apply window decorations and
+transparency. System mode uses native Linux window decorations and lets the
+style manage window and dialog backgrounds. The waveform canvas keeps an opaque
+background from the system palette for readability.
+
+For Kvantum, install the plugin matching DSView's Qt version (Qt 6 for the default
+build), and select it in your desktop's Qt style settings. You can also launch
+with `QT_STYLE_OVERRIDE=kvantum DSView`. Translucency and blur depend on the active
+Kvantum theme and compositor settings.
+
 # Useful links
 
 - [dreamsourcelab.com](https://www.dreamsourcelab.com)

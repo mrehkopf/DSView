@@ -100,6 +100,10 @@
         "text": "&Lissajous"
     },
     {
+        "id": "IDS_TOOLBAR_DISPLAY_THEMES_SYSTEM",
+        "text": "&System"
+    },
+    {
         "id": "IDS_TOOLBAR_DISPLAY_THEMES_DARK",
         "text": "&Dunkel"
     },

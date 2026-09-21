@@ -1444,22 +1444,27 @@ namespace pv
     {
         AppConfig &app = AppConfig::Instance();
 
+        const bool systemChanged = app.IsSystemStyle() != (style == THEME_STYLE_SYSTEM);
         if (app.frameOptions.style != style)
         {
             app.frameOptions.style = style;
             app.SaveFrame();
         }
 
-        QString qssRes = ":/" + style + ".qss";
-        QFile qss(qssRes);
-        qss.open(QFile::ReadOnly | QFile::Text);
-        qApp->setStyleSheet(qss.readAll());
-        qss.close();
+        app.ApplyTheme();
 
         UiManager::Instance()->Update(UI_UPDATE_ACTION_THEME);
         UiManager::Instance()->Update(UI_UPDATE_ACTION_FONT);
 
         data_updated();
+#ifdef Q_OS_LINUX
+        if (systemChanged){
+            MsgBox::Show(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_THEME_RESTART),
+                "Restart DSView to apply the window decorations and transparency for this theme."));
+        }
+#else
+        (void)systemChanged;
+#endif
     }
 
     void MainWindow::data_updated()

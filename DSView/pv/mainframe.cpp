@@ -96,6 +96,11 @@ MainFrame::MainFrame()
     AppControl::Instance()->SetTopWindow(this);
   
    bool isWin32 = false;
+   bool systemWindow = false;
+#ifdef Q_OS_LINUX
+   systemWindow = AppConfig::Instance().IsSystemStyle();
+#endif
+   setAttribute(Qt::WA_StyledBackground);
 
 #ifdef _WIN32
     setWindowFlags(Qt::FramelessWindowHint);
@@ -103,8 +108,13 @@ MainFrame::MainFrame()
     _taskbarList3 = NULL;
     isWin32 = true;
 #else
-    setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowSystemMenuHint);
-    setAttribute(Qt::WA_TranslucentBackground);
+    if (systemWindow){
+        setWindowFlags(Qt::Window);
+    }
+    else{
+        setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowSystemMenuHint);
+        setAttribute(Qt::WA_TranslucentBackground);
+    }
     _is_win32_parent_window = false;
 #endif
  
@@ -124,6 +134,10 @@ MainFrame::MainFrame()
     setWindowIcon(icon);
     
     _titleBar = new toolbars::TitleBar(true, this, this, false);
+    if (systemWindow){
+        _titleBar->set_native();
+        _titleBar->hide();
+    }
     _mainWindow = new MainWindow(_titleBar, this);
     _mainWindow->setWindowFlags(Qt::Widget);
 
@@ -138,7 +152,7 @@ MainFrame::MainFrame()
     _layout->setContentsMargins(0,0,0,0);
  
 
-    if (!isWin32 || !_is_win32_parent_window)
+    if (!systemWindow && (!isWin32 || !_is_win32_parent_window))
     {
         _top_left = new widgets::Border (TopLeft, this);
         _top_left->setFixedSize(Margin, Margin);
@@ -290,7 +304,7 @@ void MainFrame::OnParentNaitveWindowEvent(int msg)
  
 void MainFrame::resizeEvent(QResizeEvent *event)
 {
-    QFrame::resizeEvent(event);
+    QWidget::resizeEvent(event);
 
     if (_layout == NULL){
         return;
@@ -374,7 +388,7 @@ void MainFrame::showNormal()
     }
 #endif
 
-    QFrame::showNormal();
+    QWidget::showNormal();
 }
 
 void MainFrame::showMaximized()
@@ -388,7 +402,7 @@ void MainFrame::showMaximized()
     }
 #endif
 
-    QFrame::showMaximized(); 
+    QWidget::showMaximized();
 }
 
 void MainFrame::showMinimized()
@@ -400,11 +414,19 @@ void MainFrame::showMinimized()
     }
 #endif
 
-    QFrame::showMinimized();
+    QWidget::showMinimized();
 }
 
 void MainFrame::changeEvent(QEvent *event)
 {
+    if (event->type() == QEvent::PaletteChange){
+        QTimer::singleShot(0, this, [this](){
+            if (AppConfig::Instance().IsSystemStyle()){
+                UiManager::Instance()->Update(UI_UPDATE_ACTION_THEME);
+                update();
+            }
+        });
+    }
     if (event->type() == QEvent::WindowStateChange && _is_resize_ready) {     
         //dsv_info("Window state changed.");
         QWindowStateChangeEvent *stateChangeEvent = static_cast<QWindowStateChangeEvent*>(event);
@@ -413,17 +435,20 @@ void MainFrame::changeEvent(QEvent *event)
             
         }       
     }
-    QFrame::changeEvent(event);
+    QWidget::changeEvent(event);
 }
 
 bool MainFrame::eventFilter(QObject *object, QEvent *event)
 { 
+    if (_top_left == NULL){
+        return QWidget::eventFilter(object, event);
+    }
     const QEvent::Type type = event->type();
     const QMouseEvent *const mouse_event = (QMouseEvent*)event;
 
 #ifdef _WIN32
     if (_parentNativeWidget != NULL){
-        return QFrame::eventFilter(object, event);
+        return QWidget::eventFilter(object, event);
     }
 #endif
   
@@ -431,12 +456,12 @@ bool MainFrame::eventFilter(QObject *object, QEvent *event)
         && type != QEvent::MouseButtonPress 
         && type != QEvent::MouseButtonRelease
         && type != QEvent::Leave){
-        return QFrame::eventFilter(object, event);
+        return QWidget::eventFilter(object, event);
     }
 
     //when window is maximized, or is moving, call return 
     if (IsMaxsized() || IsMoving()){
-       return QFrame::eventFilter(object, event);
+       return QWidget::eventFilter(object, event);
     }
  
     if (!_bDraging && type == QEvent::MouseMove && (!(mouse_event->buttons() | Qt::NoButton))){
@@ -469,7 +494,7 @@ bool MainFrame::eventFilter(QObject *object, QEvent *event)
                 setCursor(Qt::ArrowCursor);
             }
 
-            return QFrame::eventFilter(object, event);
+            return QWidget::eventFilter(object, event);
     }
 
   if (type == QEvent::MouseMove) {
@@ -496,7 +521,7 @@ bool MainFrame::eventFilter(QObject *object, QEvent *event)
 
             // Do nothing this time.
             if (_freezing){
-                return QFrame::eventFilter(object, event);         
+                return QWidget::eventFilter(object, event);
             }
 
             int minW = MainWindow::Min_Width;
@@ -626,7 +651,7 @@ bool MainFrame::eventFilter(QObject *object, QEvent *event)
         setCursor(Qt::ArrowCursor);
     } 
     
-    return QFrame::eventFilter(object, event);
+    return QWidget::eventFilter(object, event);
 }
 
 void MainFrame::saveNormalRegion()
@@ -744,7 +769,7 @@ void MainFrame::ShowFormInit()
     });
 
     if (!_is_win32_parent_window){
-        QFrame::show();
+        QWidget::show();
         return;
     }
 
@@ -806,7 +831,7 @@ void MainFrame::AttachNativeWindow()
     }
 
     //Show the qt window before bind parent, the icon can show at the task bar first time.
-    QFrame::show();
+    QWidget::show();
 
     nativeWindow->SetChildWidget(this);
     nativeWindow->SetNativeEventCallback(this);
@@ -896,7 +921,7 @@ bool MainFrame::IsMaxsized()
     }
 #endif
 
-    return QFrame::isMaximized();
+    return QWidget::isMaximized();
 }
 
 bool MainFrame::IsNormalsized()
@@ -907,7 +932,7 @@ bool MainFrame::IsNormalsized()
     }
 #endif
 
-    if (!QFrame::isMaximized() && !QFrame::isMinimized()){
+    if (!QWidget::isMaximized() && !QWidget::isMinimized()){
         return true;
     }
     return false;
@@ -1133,7 +1158,11 @@ void MainFrame::show_doc()
         tipsLabel.setPixmap(path);
 
         QMessageBox msg;
-        msg.setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint | Qt::WindowSystemMenuHint);
+        // Embedded button row: never create another native message window.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+        msg.setOption(QMessageBox::Option::DontUseNativeDialog);
+#endif
+        msg.setWindowFlags(Qt::Widget);
         msg.setContentsMargins(0, 0, 0, 0);
        
         QPushButton *noMoreButton = msg.addButton(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_NOT_SHOW_AGAIN), "Not Show Again"), QMessageBox::ActionRole);

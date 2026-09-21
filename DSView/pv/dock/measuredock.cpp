@@ -775,6 +775,10 @@ void MeasureDock::set_cursor_btn_color(QPushButton *btn)
 
 void MeasureDock::set_cursor_btn_color(QPushButton *btn, QColor cursorColor, QColor bkColor, bool isCursor)
 {  
+    if (AppConfig::Instance().IsSystemStyle() && !isCursor){
+        btn->setStyleSheet(QString());
+        return;
+    }
     QString border_width = isCursor ? "0px" : "1px";
     QString hoverColor = isCursor ? cursorColor.darker().name() : bkColor.name();
     QString normal = "{background-color:" + cursorColor.name() +

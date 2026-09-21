@@ -100,6 +100,10 @@
         "text": "李萨如图(&A)"
     },  
     {
+        "id": "IDS_TOOLBAR_DISPLAY_THEMES_SYSTEM",
+        "text": "系统(&S)"
+    },
+    {
         "id": "IDS_TOOLBAR_DISPLAY_THEMES_DARK",
         "text": "暗黑(&D)"
     },

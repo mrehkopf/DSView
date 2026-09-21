@@ -72,6 +72,7 @@ signals:
     void sig_dso_split(bool split); //split each DSO channel into its own row
 
 private slots:
+    void on_actionSystem_triggered();
     void on_actionDark_triggered();
     void on_actionLight_triggered();
     void on_actionLatte_triggered();
@@ -119,6 +120,7 @@ private:
     QMenu       *_display_menu;
     QMenu       *_themes;
     QAction     *_action_dispalyOptions;
+    QAction     *_system_style;
     QAction     *_dark_style;
     QAction     *_light_style;
     QAction     *_latte_style;

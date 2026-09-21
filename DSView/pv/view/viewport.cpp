@@ -2603,6 +2603,8 @@ void Viewport::UpdateLanguage()
 
 void Viewport::UpdateTheme()
 {
+    _need_update = true;
+    QWidget::update();
 }
 
 void Viewport::UpdateFont()
