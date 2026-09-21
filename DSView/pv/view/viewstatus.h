@@ -63,6 +63,9 @@ public slots:
     void set_trig_time(QDateTime time);
     void set_rle_depth(uint64_t depth);    
 
+protected:
+    void resizeEvent(QResizeEvent *event) override;
+
 private:
     SigSession *_session;
     View &_view;

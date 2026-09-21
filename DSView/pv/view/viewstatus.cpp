@@ -155,6 +155,11 @@ void ViewStatus::clear()
     update();
 }
 
+void ViewStatus::resizeEvent(QResizeEvent *)
+{
+    reload();
+}
+
 void ViewStatus::reload()
 {
     const int COLUMN = 5;
@@ -163,7 +168,7 @@ void ViewStatus::reload()
 
     if (_session->get_device()->get_work_mode() == DSO)
     {
-        const double width = _view.get_view_width() * 1.0 / COLUMN;
+        const double width = this->width() * 1.0 / COLUMN;
         const int height = (this->height() - 2*MARGIN) / ROW;
 
         for (size_t i  = 0; i < COLUMN*ROW; i++) {
