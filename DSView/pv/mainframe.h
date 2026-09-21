@@ -25,7 +25,7 @@
 
 #include "widgets/border.h"
 
-#include <QFrame>
+#include <QWidget>
 #include <QGridLayout>
 #include <QTimer>
 #include <QRect>
@@ -75,8 +75,10 @@ struct FormInitInfo
     int k;
 };
 
+// A top-level QWidget lets the Qt style manage the window background.
+// Kvantum excludes top-level QFrames from automatic translucency.
 class MainFrame : 
-    public QFrame,
+    public QWidget,
     public ITitleParent,
     public IParentNativeEventCallback
 {

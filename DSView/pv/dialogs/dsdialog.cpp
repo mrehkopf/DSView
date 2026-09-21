@@ -53,7 +53,7 @@ DSDialog::DSDialog(QWidget *parent, bool hasClose):
 
 DSDialog::DSDialog(QWidget *parent, bool hasClose, bool bBaseButton) :
 #ifdef Q_OS_LINUX
-    QDialog(NULL),  //enable the popup dialog draged.
+    QDialog(AppConfig::Instance().IsSystemStyle() ? parent : NULL),
 #else
     QDialog(parent),
 #endif
@@ -72,8 +72,16 @@ DSDialog::DSDialog(QWidget *parent, bool hasClose, bool bBaseButton) :
     m_callback = NULL; 
     _clickYes = false;
     
-    setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint | Qt::WindowSystemMenuHint);
-    setAttribute(Qt::WA_TranslucentBackground);
+#ifdef Q_OS_LINUX
+    if (AppConfig::Instance().IsSystemStyle()){
+        setWindowFlags(Qt::Dialog);
+    }
+    else
+#endif
+    {
+        setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint | Qt::WindowSystemMenuHint);
+        setAttribute(Qt::WA_TranslucentBackground);
+    }
 
     build_base(hasClose); 
 }
@@ -161,15 +169,22 @@ void DSDialog::build_base(bool hasClose)
     _main_layout = new QVBoxLayout(_main_widget);
     _main_widget->setLayout(_main_layout);
 
-    _shadow  = new Shadow(this);
-    _shadow->setBlurRadius(10.0);
-    _shadow->setDistance(3.0);
-    _shadow->setColor(QColor(0, 0, 0, 80));
-    _main_widget->setAutoFillBackground(true); 
-    this->setGraphicsEffect(_shadow);
+    const bool customFrame = windowFlags().testFlag(Qt::FramelessWindowHint);
+    if (customFrame){
+        _shadow  = new Shadow(this);
+        _shadow->setBlurRadius(10.0);
+        _shadow->setDistance(3.0);
+        _shadow->setColor(QColor(0, 0, 0, 80));
+        _main_widget->setAutoFillBackground(true);
+        this->setGraphicsEffect(_shadow);
+    }
 
     _titlebar = new toolbars::TitleBar(false, this, NULL,hasClose);
     _main_layout->addWidget(_titlebar);
+    if (!customFrame){
+        _titlebar->set_native();
+        _titlebar->hide();
+    }
 
     _titleSpaceLine = new QWidget(this);
     _titleSpaceLine->setFixedHeight(15);

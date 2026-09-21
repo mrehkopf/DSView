@@ -83,7 +83,8 @@ void DsComboBox::showPopup()
         popup->setMaximumHeight(750); 
     }
 
-    popup->setStyleSheet("background-color:" + AppConfig::Instance().GetStyleColor().name());
+    popup->setStyleSheet(AppConfig::Instance().IsSystemStyle() ? QString()
+        : "background-color:" + AppConfig::Instance().GetStyleColor().name());
 
 #else
     QComboBox::showPopup();

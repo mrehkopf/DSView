@@ -31,6 +31,7 @@
 #define LAN_EN  31
 #define LAN_DE  7
 
+#define THEME_STYLE_SYSTEM "system"
 #define THEME_STYLE_DARK   "dark"
 #define THEME_STYLE_LIGHT  "light"
 #define THEME_STYLE_LATTE  "latte"
@@ -180,7 +181,9 @@ public:
   // for trace-area text so it honours the user's font-size setting.
   float GetTraceFontSize();
 
+  bool IsSystemStyle() const { return frameOptions.style == THEME_STYLE_SYSTEM; }
   bool IsDarkStyle();
+  void ApplyTheme(bool applyStyleSheet = true);
 
   QColor GetStyleColor();
 

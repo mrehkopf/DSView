@@ -29,7 +29,6 @@
 #include <QScreen>
 #include <QImageReader>
 #include "dsapplication.h"
-#include "mystyle.h" 
 #include "pv/mainframe.h"
 #include "pv/config/appconfig.h"
 #include "DSView/config.h"
@@ -172,7 +171,6 @@ bool bHighScale = true;
 
 	//----------------------init app
     QApplication a(argcFinal, argvFinal);
-    a.setStyle(new MyStyle);
 
     // Set some application metadata
     QApplication::setApplicationVersion(DS_VERSION_STRING);
@@ -204,6 +202,7 @@ bool bHighScale = true;
 	AppControl *control = AppControl::Instance();	
 	AppConfig &app = AppConfig::Instance(); 
 	app.LoadAll(); //load app config
+	app.ApplyTheme(false); // Select the style before creating windows; MainWindow applies the QSS.
 	LangResource::Instance()->Load(app.frameOptions.language);
 
 	if (app.appOptions.ableSaveLog){

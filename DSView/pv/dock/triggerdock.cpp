@@ -1088,7 +1088,7 @@ void TriggerDock::setup_adv_tab()
         QGroupBox *stage_groupBox = new QGroupBox(_stage_tabWidget);
         stage_groupBox->setContentsMargins(5, 15, 5, 5);
         stage_groupBox->setFlat(true);
-        stage_groupBox->setStyleSheet("margin-top: 0px");
+        stage_groupBox->setStyleSheet("QGroupBox { margin-top: 0px; }");
         stage_groupBox->setLayout(stage_layout);
         _stage_groupBox_list.push_back(stage_groupBox);
 
@@ -1098,7 +1098,7 @@ void TriggerDock::setup_adv_tab()
     _serial_groupBox = new QGroupBox(_widget);
     _serial_groupBox->setContentsMargins(5, 15, 5, 5);
     _serial_groupBox->setFlat(true);
-    _serial_groupBox->setStyleSheet("margin-top: 0px");
+    _serial_groupBox->setStyleSheet("QGroupBox { margin-top: 0px; }");
 
     _serial_start_label = new QLabel(_serial_groupBox);
     _serial_start_lineEdit = new PopupLineEdit("X X X X X X X X X X X X X X X X", _serial_groupBox);

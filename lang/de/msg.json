@@ -1,5 +1,9 @@
 [
     {
+        "id": "IDS_MSG_THEME_RESTART",
+        "text": "Starten Sie DSView neu, um die Fensterdekorationen und Transparenz für dieses Design anzuwenden."
+    },
+    {
         "id": "IDS_MSG_OK",
         "text": "Ok"
     },

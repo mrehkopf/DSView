@@ -22,6 +22,10 @@
 #include "appconfig.h"
 #include <QApplication>
 #include <QSettings>
+#include <QFile>
+#include <QStyleFactory>
+#include <QPalette>
+#include "../../mystyle.h"
 #include <QLocale>
 #include <QDir>
 #include <assert.h>
@@ -477,8 +481,43 @@ void AppConfig::GetFontSizeRange(float *minSize, float *maxSize)
 #endif
 }
 
+void AppConfig::ApplyTheme(bool applyStyleSheet)
+{
+    // Capture Qt's configured style before installing our icon-size proxy.
+    // System mode uses the actual style plugin without that proxy or a QSS.
+    static const QString systemStyle = qApp->style()->objectName();
+    static bool usingSystemStyle = true;
+    const bool system = IsSystemStyle();
+
+    QString sheet;
+    if (!system && applyStyleSheet){
+        QFile qss(":/" + frameOptions.style + ".qss");
+        if (qss.open(QFile::ReadOnly | QFile::Text)){
+            sheet = QString::fromUtf8(qss.readAll());
+        }
+    }
+
+    if (system != usingSystemStyle){
+        qApp->setStyleSheet(QString());
+        QStyle *style = system ? QStyleFactory::create(systemStyle) : new MyStyle(systemStyle);
+        if (style){
+            qApp->setStyle(style);
+            usingSystemStyle = system;
+        }
+        else{
+            dsv_warn("Unable to restore Qt style: %s", systemStyle.toUtf8().constData());
+        }
+    }
+    qApp->setStyleSheet(sheet);
+}
+
 bool AppConfig::IsDarkStyle()
 {
+    if (IsSystemStyle()){
+        const QPalette palette = QApplication::palette();
+        return qGray(palette.color(QPalette::Window).rgb())
+             < qGray(palette.color(QPalette::WindowText).rgb());
+    }
     // Frappe is Catppuccin's dark flavor - treat it like Dark for anything
     // that only distinguishes light/dark (icon set selection, background
     // luminosity-dependent painting, etc), rather than the exact color
@@ -491,6 +530,9 @@ bool AppConfig::IsDarkStyle()
 
 QColor AppConfig::GetStyleColor()
 {
+    if (IsSystemStyle()){
+        return QApplication::palette().color(QPalette::Window);
+    }
     if (frameOptions.style == THEME_STYLE_FRAPPE){
         return QColor(0x30, 0x34, 0x46); // Catppuccin Frappe "Base"
     }

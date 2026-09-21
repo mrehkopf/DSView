@@ -39,7 +39,7 @@ namespace dialogs {
 
 DSMessageBox::DSMessageBox(QWidget *parent,const QString title) :
 #ifdef Q_OS_LINUX
-    QDialog(NULL)  //enable the popup dialog draged.
+    QDialog(AppConfig::Instance().IsSystemStyle() ? parent : NULL)
 #else
     QDialog(parent)
 #endif
@@ -54,35 +54,52 @@ DSMessageBox::DSMessageBox(QWidget *parent,const QString title) :
 
     _bClickYes = false;
 
-    setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint | Qt::WindowSystemMenuHint);
-    setAttribute(Qt::WA_TranslucentBackground);
+    bool systemWindow = false;
+#ifdef Q_OS_LINUX
+    systemWindow = AppConfig::Instance().IsSystemStyle();
+#endif
+    if (systemWindow){
+        setWindowFlags(Qt::Dialog);
+    }
+    else{
+        setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint | Qt::WindowSystemMenuHint);
+        setAttribute(Qt::WA_TranslucentBackground);
+    }
 
     _main_widget = new QWidget(this);
     _main_layout = new QVBoxLayout(_main_widget);
     _main_widget->setLayout(_main_layout);  
 
-    _shadow = new Shadow(this);
-    _msg = new QMessageBox(this);
-    _titlebar = new toolbars::TitleBar(false, this, NULL, false);
+    _msg = new QMessageBox(_main_widget);
+    // This message box supplies the contents of our dialog. Without this
+    // option Qt can open a second, native dialog when no QSS is active.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+    _msg->setOption(QMessageBox::Option::DontUseNativeDialog);
+#endif
+    _msg->setWindowFlags(Qt::Widget);
     _layout = new QVBoxLayout(this);
- 
-    _shadow->setBlurRadius(10.0);
-    _shadow->setDistance(3.0);
-    _shadow->setColor(QColor(0, 0, 0, 80));
 
-    _main_widget->setAutoFillBackground(true);
-    this->setGraphicsEffect(_shadow);  
+    const QString windowTitle = title.isEmpty()
+        ? L_S(STR_PAGE_MSG, S_ID(IDS_MSG_MESSAGE), "Message") : title;
+    setWindowTitle(windowTitle);
 
-    _msg->setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint | Qt::WindowSystemMenuHint);   
-
-    if (!title.isEmpty()){
-        _titlebar->setTitle(title);
+    if (systemWindow){
+        // QMessageBox already provides the style's content margins.
+        _layout->setContentsMargins(0, 0, 0, 0);
+        _main_layout->setContentsMargins(0, 0, 0, 0);
     }
     else{
-        _titlebar->setTitle(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_MESSAGE), "Message"));
+        _shadow = new Shadow(this);
+        _shadow->setBlurRadius(10.0);
+        _shadow->setDistance(3.0);
+        _shadow->setColor(QColor(0, 0, 0, 80));
+        _main_widget->setAutoFillBackground(true);
+        this->setGraphicsEffect(_shadow);
+
+        _titlebar = new toolbars::TitleBar(false, this, NULL, false);
+        _titlebar->setTitle(windowTitle);
+        _main_layout->addWidget(_titlebar);
     }
-    
-    _main_layout->addWidget(_titlebar);
     _main_layout->addWidget(_msg);   
     _layout->addWidget(_main_widget);
 

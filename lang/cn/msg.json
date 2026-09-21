@@ -1,5 +1,9 @@
 [
     {
+        "id": "IDS_MSG_THEME_RESTART",
+        "text": "请重启 DSView，以应用此主题的窗口装饰和透明效果。"
+    },
+    {
         "id": "IDS_MSG_OK",
         "text": "确定"
     },
