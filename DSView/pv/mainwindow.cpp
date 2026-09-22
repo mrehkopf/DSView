@@ -270,6 +270,8 @@ namespace pv
         connect(&_event, SIGNAL(receive_data_len(quint64)), this, SLOT(on_receive_data_len(quint64)));
         connect(&_event, SIGNAL(trigger_message(int)), this, SLOT(on_trigger_message(int)));
 
+        connect(_trigger_widget, SIGNAL(trigger_changed()), _view, SLOT(header_updated()));
+
         // view
         connect(_view, SIGNAL(cursor_update()), _measure_widget, SLOT(cursor_update()));
         connect(_view, SIGNAL(cursor_moving()), _measure_widget, SLOT(cursor_moving()));
@@ -1512,6 +1514,7 @@ namespace pv
     void MainWindow::on_signals_changed()
     {
         _view->signals_changed(NULL);
+        _trigger_widget->update_view();
     }
 
     void MainWindow::receive_trigger(quint64 trigger_pos)
@@ -1857,6 +1860,7 @@ namespace pv
             }
             case DSV_MSG_START_COLLECT_WORK:
             {
+                _trigger_widget->update_view();
                 update_toolbar_view_status();
                 _view->on_state_changed(false);
                 _protocol_widget->update_view_status();
@@ -1871,6 +1875,7 @@ namespace pv
             }
             case DSV_MSG_END_COLLECT_WORK:
             {
+                _trigger_widget->update_view();
                 update_toolbar_view_status();
                 _protocol_widget->update_view_status();   
                 break;

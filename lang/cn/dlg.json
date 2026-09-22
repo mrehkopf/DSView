@@ -842,5 +842,109 @@
     {
         "id": "IDS_DLG_VERTICAL_SCROLL_ACTION_VERTICAL_SCROLL",
         "text": "滚动"
+    },
+    {
+        "id": "IDS_DLG_BUS_TITLE",
+        "text": "并行总线"
+    },
+    {
+        "id": "IDS_DLG_BUS_APPLY",
+        "text": "应用"
+    },
+    {
+        "id": "IDS_DLG_BUS_VALUE_HELP",
+        "text": "十六进制值（可选 0x 前缀）。应用时仅替换数据通道的触发条件。"
+    },
+    {
+        "id": "IDS_DLG_BUS_PATTERN0",
+        "text": "模式 0"
+    },
+    {
+        "id": "IDS_DLG_BUS_PATTERN1",
+        "text": "模式 1"
+    },
+    {
+        "id": "IDS_DLG_BUS_NAME",
+        "text": "%1（%2 位）"
+    },
+    {
+        "id": "IDS_DLG_BUS_VALUE",
+        "text": "总线十六进制值"
+    },
+    {
+        "id": "IDS_DLG_BUS_EMPTY",
+        "text": "请在并行解码器中分配至少一个数据通道。"
+    },
+    {
+        "id": "IDS_DLG_BUS_INVALID",
+        "text": "请输入十六进制值，例如 0xA5。"
+    },
+    {
+        "id": "IDS_DLG_BUS_RANGE",
+        "text": "该值超出了此总线的位宽。"
+    },
+    {
+        "id": "IDS_DLG_BUS_UNMAPPED",
+        "text": "未分配的总线位必须为零，与解码器保持一致。"
+    },
+    {
+        "id": "IDS_DLG_BUS_UNAVAILABLE",
+        "text": "已映射的通道被禁用或在当前设备模式下不可用。"
+    },
+    {
+        "id": "IDS_DLG_BUS_CONFLICT",
+        "text": "两个总线位要求同一通道具有不同电平。"
+    },
+    {
+        "id": "IDS_DLG_BUS_SIMPLE",
+        "text": "简单触发 · 十六进制"
+    },
+    {
+        "id": "IDS_DLG_BUS_STAGE",
+        "text": "阶段 %1 · %2 · %3"
+    },
+    {
+        "id": "IDS_DLG_BUS_SELECT_STAGE",
+        "text": "请选择已启用的阶段触发。"
+    },
+    {
+        "id": "IDS_DLG_BUS_CUSTOM",
+        "text": "自定义"
+    },
+    {
+        "id": "IDS_DLG_BUS_CONFIGURE",
+        "text": "请配置并行解码器以输入总线触发值。"
+    },
+    {
+        "id": "IDS_DLG_BUS_ACQUIRING",
+        "text": "采集期间无法编辑总线触发。"
+    },
+    {
+        "id": "IDS_DLG_BUS_TARGET",
+        "text": "总线值适用于简单触发和已启用的阶段模式。"
+    },
+    {
+        "id": "IDS_DLG_BUS_CUSTOM_HELP",
+        "text": "当前位包含边沿或无关值。输入十六进制值以将其替换为电平。"
+    },
+    {
+        "id": "IDS_DLG_BUS_EDGES",
+        "text": "将 %1 个数据通道的边沿条件替换为电平。"
+    },
+    {
+        "id": "IDS_DLG_BUS_CHANGED",
+        "text": "总线映射已更改。请检查解码器通道并重试。"
+    },
+    {
+        "id": "IDS_DLG_BUS_CLEAR",
+        "text": "清除"
+    },
+    {
+        "id": "IDS_DLG_BUS_CLEAR_HELP",
+        "text": "将所选触发模式中此总线的数据通道设为无关。"
+    },
+    {
+        "id": "IDS_DLG_BUS_DONT_CARE",
+        "text": "无关"
     }
 ]

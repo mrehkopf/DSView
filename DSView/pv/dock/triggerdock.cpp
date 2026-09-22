@@ -34,6 +34,8 @@
 #include <QInputMethodEvent>
 #include <QApplication>
 #include <QFontDatabase>
+#include <QSignalBlocker>
+#include <QScopedValueRollback>
 #include <math.h>
 #include <libsigrok.h>
 
@@ -58,12 +60,21 @@
 namespace pv {
 namespace dock {
 
+namespace {
+QString bus_text(const char *key, const char *fallback)
+{
+    return QString::fromUtf8(L_S(STR_PAGE_DLG, key, fallback));
+}
+}
+
 const int TriggerDock::MinTrigPosition = 1;
 
 TriggerDock::TriggerDock(QWidget *parent, SigSession *session) :
     QScrollArea(parent),
     _session(session)
 {
+    _bus_group = nullptr;
+    _applying_bus = false;
     this->setWidgetResizable(true);
 
     _cur_ch_num = 16;
@@ -105,6 +116,9 @@ TriggerDock::TriggerDock(QWidget *parent, SigSession *session) :
     _adv_tabWidget->setTabPosition(QTabWidget::North);
     _adv_tabWidget->setDisabled(true);
     setup_adv_tab();
+    setup_bus_editor();
+
+    connect(_adv_tabWidget, SIGNAL(currentChanged(int)), this, SLOT(update_bus_editor()));
 
     connect(_simple_radioButton, SIGNAL(clicked()), this, SLOT(simple_trigger()));
     connect(_adv_radioButton, SIGNAL(clicked()), this, SLOT(adv_trigger()));
@@ -127,6 +141,7 @@ TriggerDock::TriggerDock(QWidget *parent, SigSession *session) :
     gLayout->setColumnStretch(2, 1);
 
     layout->addLayout(gLayout);
+    layout->addWidget(_bus_group);
     layout->addWidget(_adv_tabWidget);
     layout->addStretch(1);
     _widget->setLayout(layout);
@@ -135,6 +150,7 @@ TriggerDock::TriggerDock(QWidget *parent, SigSession *session) :
     _widget->setObjectName("triggerWidget");
 
     ADD_UI(this);
+    update_view();
 }
 
 TriggerDock::~TriggerDock()
@@ -144,6 +160,17 @@ TriggerDock::~TriggerDock()
 
 void TriggerDock::retranslateUi()
 {
+    if (_bus_group) {
+        _bus_group->setTitle(bus_text("IDS_DLG_BUS_TITLE", "Parallel bus"));
+        _bus_apply->setText(bus_text("IDS_DLG_BUS_APPLY", "Apply"));
+        _bus_clear->setText(bus_text("IDS_DLG_BUS_CLEAR", "Clear"));
+        _bus_clear->setToolTip(bus_text("IDS_DLG_BUS_CLEAR_HELP", "Set this bus's data channels to don't care in the selected trigger pattern."));
+        _bus_value->setToolTip(bus_text("IDS_DLG_BUS_VALUE_HELP", "Hex value (optional 0x prefix). Applying replaces data-channel triggers only."));
+        _bus_value->setAccessibleName(bus_text("IDS_DLG_BUS_VALUE", "Bus hex value"));
+        _bus_pattern_combo->setItemText(0, bus_text("IDS_DLG_BUS_PATTERN0", "Pattern 0"));
+        _bus_pattern_combo->setItemText(1, bus_text("IDS_DLG_BUS_PATTERN1", "Pattern 1"));
+        update_view();
+    }
     _simple_radioButton->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SIMPLE_TRIGGER), "Simple Trigger"));
     _adv_radioButton->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_ADVANCED_TRIGGER), "Advanced Trigger"));
     _position_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_TRIGGER_POSITION), "Trigger Position: "));
@@ -178,6 +205,10 @@ void TriggerDock::retranslateUi()
         _stage_note_label_list.at(i)->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SERIAL_NOTE_LABEL), 
                                              "X: Don't care\n0: Low level\n1: High level\nR: Rising edge\nF: Falling edge\nC: Rising/Falling edge"));
     }
+    for (auto label : _pattern0_label_list)
+        label->setText(bus_text("IDS_DLG_BUS_PATTERN0", "Pattern 0"));
+    for (auto label : _pattern1_label_list)
+        label->setText(bus_text("IDS_DLG_BUS_PATTERN1", "Pattern 1"));
 }
 
 void TriggerDock::reStyle()
@@ -189,6 +220,7 @@ void TriggerDock::simple_trigger()
     _stages_label->setDisabled(true);
     stages_comboBox->setDisabled(true);
     _adv_tabWidget->setDisabled(true);
+    update_bus_editor();
 }
 
 void TriggerDock::adv_trigger()
@@ -207,12 +239,16 @@ void TriggerDock::adv_trigger()
             widget_enable(0);
         }
     }
-    else if (_session->get_device()->is_file() == false){
+    else if (_session->get_device()->is_file()) {
+        widget_enable(0);
+    }
+    else {
         QString strMsg(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_AD_TRIGGER_NEED_HARDWARE),
                                       "Advanced Trigger need DSLogic Hardware Support!"));
         MsgBox::Show(strMsg);
         _simple_radioButton->setChecked(true);
     }
+    update_bus_editor();
 }
 
 void TriggerDock::widget_enable(int index)
@@ -233,6 +269,7 @@ void TriggerDock::widget_enable(int index)
     for (int i = enable_stages; i < TriggerStages; i++) {
           _stage_tabWidget->setTabEnabled(i, false);
     }
+    update_bus_editor();
 }
 
 void TriggerDock::value_changed()
@@ -298,6 +335,8 @@ void TriggerDock::device_updated()
     }
 
     this->setEnabled(_session->is_loop_mode() == false);
+    _acknowledged_simple_trigger.clear();
+    update_view();
 }
 
 bool TriggerDock::commit_trigger()
@@ -408,6 +447,320 @@ bool TriggerDock::commit_trigger()
 
 void TriggerDock::update_view()
 {
+    const int selected = _bus_combo->currentIndex();
+    const void *source = selected >= 0 && selected < _buses.size() ? _buses.at(selected).source : nullptr;
+    _buses = trigger::parallel_decoder_buses(*_session);
+    {
+        const QSignalBlocker blocker(_bus_combo);
+        _bus_combo->clear();
+        int selection = 0;
+        for (int i = 0; i < _buses.size(); ++i) {
+            const auto &bus = _buses.at(i);
+            _bus_combo->addItem(bus_text("IDS_DLG_BUS_NAME", "%1 (%2 bits)").arg(bus.name).arg(bus.mapping.size()));
+            if (bus.source == source)
+                selection = i;
+        }
+        _bus_combo->setCurrentIndex(_buses.isEmpty() ? -1 : selection);
+    }
+    for (auto signal : _session->get_signals()) {
+        auto logic = qobject_cast<view::LogicSignal *>(signal);
+        if (logic)
+            connect(logic, SIGNAL(trigger_changed()), this, SLOT(on_simple_trigger_changed()), Qt::UniqueConnection);
+    }
+    update_bus_editor();
+}
+
+void TriggerDock::setup_bus_editor()
+{
+    _bus_group = new QGroupBox(_widget);
+    _bus_combo = new DsComboBox(_bus_group);
+    _bus_combo->setObjectName("parallelBus");
+    _bus_combo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    _bus_combo->setMinimumContentsLength(12);
+    _bus_pattern_combo = new DsComboBox(_bus_group);
+    _bus_pattern_combo->setObjectName("parallelBusPattern");
+    _bus_pattern_combo->addItems({bus_text("IDS_DLG_BUS_PATTERN0", "Pattern 0"), bus_text("IDS_DLG_BUS_PATTERN1", "Pattern 1")});
+    _bus_value = new QLineEdit(_bus_group);
+    _bus_value->setObjectName("parallelBusValue");
+    _bus_value->setAccessibleName(bus_text("IDS_DLG_BUS_VALUE", "Bus hex value"));
+    _bus_apply = new QPushButton(_bus_group);
+    _bus_apply->setObjectName("parallelBusApply");
+    _bus_clear = new QPushButton(_bus_group);
+    _bus_clear->setObjectName("parallelBusClear");
+    _bus_target = new QLabel(_bus_group);
+    _bus_status = new QLabel(_bus_group);
+    _bus_status->setObjectName("parallelBusStatus");
+    for (auto label : {_bus_target, _bus_status}) {
+        label->setWordWrap(true);
+        label->setTextFormat(Qt::PlainText);
+    }
+
+    auto layout = new QGridLayout(_bus_group);
+    layout->addWidget(_bus_combo, 0, 0, 1, 3);
+    layout->addWidget(_bus_target, 1, 0);
+    layout->addWidget(_bus_pattern_combo, 1, 1, 1, 2, Qt::AlignRight);
+    layout->addWidget(_bus_value, 2, 0);
+    layout->addWidget(_bus_apply, 2, 1);
+    layout->addWidget(_bus_clear, 2, 2);
+    layout->addWidget(_bus_status, 3, 0, 1, 3);
+    layout->setColumnStretch(0, 1);
+
+    connect(_bus_combo, SIGNAL(currentIndexChanged(int)), this, SLOT(update_bus_editor()));
+    connect(_bus_pattern_combo, SIGNAL(currentIndexChanged(int)), this, SLOT(update_bus_editor()));
+    connect(_bus_value, SIGNAL(textChanged(QString)), this, SLOT(update_bus_status()));
+    connect(_bus_value, SIGNAL(returnPressed()), this, SLOT(apply_bus_value()));
+    connect(_bus_apply, SIGNAL(clicked()), this, SLOT(apply_bus_value()));
+    connect(_bus_clear, SIGNAL(clicked()), this, SLOT(clear_bus_value()));
+}
+
+trigger::ChannelPattern TriggerDock::simple_pattern() const
+{
+    trigger::ChannelPattern pattern;
+    for (auto signal : _session->get_signals()) {
+        const auto logic = qobject_cast<view::LogicSignal *>(signal);
+        if (!logic)
+            continue;
+        static const char symbols[] = {'X', 'R', '1', 'F', '0', 'C'};
+        pattern.insert(logic->get_index(), QLatin1Char(symbols[logic->get_trig()]));
+    }
+    return pattern;
+}
+
+trigger::ChannelPattern TriggerDock::bus_target_pattern() const
+{
+    if (_simple_radioButton->isChecked())
+        return simple_pattern();
+    const int stage = _stage_tabWidget->currentIndex();
+    if (stage < 0 || stage >= _value0_lineEdit_list.size())
+        return {};
+    const bool second = _bus_pattern_combo->currentIndex() == 1;
+    const auto &low = second ? _value1_lineEdit_list : _value0_lineEdit_list;
+    const auto &high = second ? _value1_ext32_lineEdit_list : _value0_ext32_lineEdit_list;
+    auto pattern = trigger::decode_stage_pattern(low.at(stage)->text(), 0);
+    if (_cur_ch_num == 32 && stage < high.size()) {
+        const auto upper = trigger::decode_stage_pattern(high.at(stage)->text(), 16);
+        for (auto it = upper.cbegin(); it != upper.cend(); ++it)
+            pattern.insert(it.key(), it.value());
+    }
+    return pattern;
+}
+
+QSet<int> TriggerDock::available_bus_channels() const
+{
+    QSet<int> channels;
+    for (auto signal : _session->get_signals()) {
+        if (signal->signal_type() == SR_CHANNEL_LOGIC && signal->enabled() &&
+            signal->get_index() >= 0 && signal->get_index() < _cur_ch_num)
+            channels.insert(signal->get_index());
+    }
+    return channels;
+}
+
+QString TriggerDock::bus_value_error(trigger::BusValueError error) const
+{
+    using trigger::BusValueError;
+    switch (error) {
+    case BusValueError::None: return {};
+    case BusValueError::EmptyBus: return bus_text("IDS_DLG_BUS_EMPTY", "Assign at least one data channel in the parallel decoder.");
+    case BusValueError::InvalidHex: return bus_text("IDS_DLG_BUS_INVALID", "Enter a hexadecimal value, for example 0xA5.");
+    case BusValueError::OutOfRange: return bus_text("IDS_DLG_BUS_RANGE", "The value is too large for this bus.");
+    case BusValueError::UnmappedBit: return bus_text("IDS_DLG_BUS_UNMAPPED", "Unassigned bus bits must be zero, as in the decoder.");
+    case BusValueError::UnavailableChannel: return bus_text("IDS_DLG_BUS_UNAVAILABLE", "A mapped channel is disabled or unavailable in the current device mode.");
+    case BusValueError::ConflictingBits: return bus_text("IDS_DLG_BUS_CONFLICT", "Two bus bits require different levels on the same channel.");
+    }
+    return {};
+}
+
+void TriggerDock::update_bus_editor()
+{
+    if (!_bus_group || _applying_bus)
+        return;
+
+    const bool simple = _simple_radioButton->isChecked();
+    const int stage = _stage_tabWidget->currentIndex();
+    const bool stage_active = _adv_tabWidget->currentIndex() == 0 &&
+        stage >= 0 && stage <= stages_comboBox->currentIndex();
+    const bool idle = !_session->is_working() && !_session->is_loop_mode();
+    const bool enabled = idle && _session->get_device()->get_work_mode() == LOGIC &&
+        (simple || stage_active);
+    _bus_group->setEnabled(!_buses.isEmpty());
+    _bus_combo->setEnabled(enabled && !_buses.isEmpty());
+    _bus_pattern_combo->setVisible(!simple);
+    _bus_pattern_combo->setEnabled(enabled && !_buses.isEmpty());
+    _bus_value->setEnabled(enabled && !_buses.isEmpty());
+    if (simple) {
+        _bus_target->setText(bus_text("IDS_DLG_BUS_SIMPLE", "Simple trigger · hex"));
+    } else if (stage_active && stage < _inv0_comboBox_list.size()) {
+        const bool second = _bus_pattern_combo->currentIndex() == 1;
+        const auto inv = (second ? _inv1_comboBox_list : _inv0_comboBox_list).at(stage);
+        _bus_target->setText(bus_text("IDS_DLG_BUS_STAGE", "Stage %1 · %2 · %3").arg(stage)
+            .arg(inv->currentText()).arg(_logic_comboBox_list.at(stage)->currentText()));
+    } else {
+        _bus_target->setText(bus_text("IDS_DLG_BUS_SELECT_STAGE", "Select an active stage trigger."));
+    }
+
+    const QSignalBlocker blocker(_bus_value);
+    _bus_value->clear();
+    _bus_value->setPlaceholderText(bus_text("IDS_DLG_BUS_CUSTOM", "Custom"));
+    const int selected = _bus_combo->currentIndex();
+    if (selected >= 0 && selected < _buses.size()) {
+        const auto &mapping = _buses.at(selected).mapping;
+        quint32 value;
+        if (trigger::read_bus_value(mapping, bus_target_pattern(), value))
+            _bus_value->setText(QStringLiteral("0x") + QString::number(value, 16)
+                .toUpper().rightJustified((mapping.size() + 3) / 4, QLatin1Char('0')));
+    }
+    update_bus_status();
+}
+
+void TriggerDock::set_bus_status(const QString &message)
+{
+    _bus_status->setText(message);
+    _bus_status->setVisible(!message.isEmpty());
+}
+
+void TriggerDock::update_bus_status()
+{
+    if (!_bus_group || _applying_bus)
+        return;
+    _bus_apply->setEnabled(false);
+    _bus_clear->setEnabled(false);
+    if (_buses.isEmpty()) {
+        set_bus_status(bus_text("IDS_DLG_BUS_CONFIGURE", "Configure a Parallel decoder to enter a bus trigger value."));
+        return;
+    }
+    if (!_bus_value->isEnabled()) {
+        set_bus_status(_session->is_working() || _session->is_loop_mode() ?
+            bus_text("IDS_DLG_BUS_ACQUIRING", "Bus trigger editing is unavailable during acquisition.") :
+            bus_text("IDS_DLG_BUS_TARGET", "Bus values apply to simple triggers and active stage patterns."));
+        return;
+    }
+    const int selected = _bus_combo->currentIndex();
+    if (selected < 0 || selected >= _buses.size())
+        return;
+    trigger::ChannelPattern assignments;
+    const auto mapping_error = trigger::compile_bus_value(_buses.at(selected).mapping,
+        QStringLiteral("0"), available_bus_channels(), assignments);
+    if (mapping_error != trigger::BusValueError::None) {
+        set_bus_status(bus_value_error(mapping_error));
+        return;
+    }
+    // Clearing depends only on the mapping, never on the text in the value field.
+    _bus_clear->setEnabled(true);
+    const auto current = bus_target_pattern();
+    bool all_dont_care = true;
+    for (auto it = assignments.cbegin(); it != assignments.cend(); ++it)
+        all_dont_care &= current.value(it.key()) == QLatin1Char('X');
+    _bus_value->setPlaceholderText(all_dont_care ?
+        bus_text("IDS_DLG_BUS_DONT_CARE", "Don't care") : bus_text("IDS_DLG_BUS_CUSTOM", "Custom"));
+    const auto error = trigger::compile_bus_value(_buses.at(selected).mapping,
+        _bus_value->text(), available_bus_channels(), assignments);
+    if (error != trigger::BusValueError::None) {
+        if (_bus_value->text().isEmpty())
+            set_bus_status(all_dont_care ? QString() :
+                bus_text("IDS_DLG_BUS_CUSTOM_HELP", "Current bits contain edges or don't-care values. Enter hex to replace them with levels."));
+        else
+            set_bus_status(bus_value_error(error));
+        return;
+    }
+    int replaced_edges = 0;
+    for (auto it = assignments.cbegin(); it != assignments.cend(); ++it) {
+        if (QStringLiteral("RFC").contains(current.value(it.key())))
+            ++replaced_edges;
+    }
+    set_bus_status(replaced_edges ?
+        bus_text("IDS_DLG_BUS_EDGES", "Replaces %1 data-channel edge condition(s) with levels.").arg(replaced_edges) : QString());
+    _bus_apply->setEnabled(true);
+}
+
+void TriggerDock::apply_bus_value()
+{
+    change_bus_pattern(false);
+}
+
+void TriggerDock::clear_bus_value()
+{
+    change_bus_pattern(true);
+}
+
+void TriggerDock::change_bus_pattern(bool clear)
+{
+    // Revalidate at the action boundary, including mappings changed while the editor was open.
+    if (_session->is_working() || _session->is_loop_mode() || !_bus_value->isEnabled())
+        return;
+    const int selected = _bus_combo->currentIndex();
+    if (selected < 0 || selected >= _buses.size())
+        return;
+    const auto bus = _buses.at(selected);
+    const auto current_buses = trigger::parallel_decoder_buses(*_session);
+    bool found = false;
+    for (const auto &current : current_buses)
+        found |= current.source == bus.source && current.mapping == bus.mapping;
+    if (!found) {
+        update_view();
+        _bus_value->clear();
+        _bus_apply->setEnabled(false);
+        _bus_clear->setEnabled(false);
+        set_bus_status(bus_text("IDS_DLG_BUS_CHANGED", "The bus mapping changed. Check the decoder channels and try again."));
+        return;
+    }
+    trigger::ChannelPattern assignments;
+    const auto error = trigger::compile_bus_value(bus.mapping, clear ? QStringLiteral("0") : _bus_value->text(),
+        available_bus_channels(), assignments);
+    if (error != trigger::BusValueError::None) {
+        set_bus_status(bus_value_error(error));
+        _bus_apply->setEnabled(false);
+        if (clear)
+            _bus_clear->setEnabled(false);
+        return;
+    }
+    if (clear) {
+        for (auto it = assignments.begin(); it != assignments.end(); ++it)
+            it.value() = QLatin1Char('X');
+    }
+    {
+        const QScopedValueRollback<bool> applying(_applying_bus, true);
+        if (_simple_radioButton->isChecked()) {
+            const bool acknowledged = !clear || _acknowledged_simple_trigger == simple_pattern();
+            for (auto signal : _session->get_signals()) {
+                auto logic = qobject_cast<view::LogicSignal *>(signal);
+                if (logic && assignments.contains(logic->get_index())) {
+                    logic->set_trig(clear ? view::LogicSignal::NONTRIG :
+                        assignments.value(logic->get_index()) == QLatin1Char('1') ?
+                        view::LogicSignal::HIGTRIG : view::LogicSignal::LOWTRIG);
+                }
+            }
+            // Acknowledge only this exact configuration; subsequent manual edits invalidate it.
+            // Clearing must not acknowledge unrelated trigger conditions for the first time.
+            _acknowledged_simple_trigger = acknowledged ? simple_pattern() : trigger::ChannelPattern();
+        } else {
+            const int stage = _stage_tabWidget->currentIndex();
+            if (_adv_tabWidget->currentIndex() != 0 || stage < 0 ||
+                stage > stages_comboBox->currentIndex())
+                return;
+            const bool second = _bus_pattern_combo->currentIndex() == 1;
+            const auto &low = second ? _value1_lineEdit_list : _value0_lineEdit_list;
+            const auto &high = second ? _value1_ext32_lineEdit_list : _value0_ext32_lineEdit_list;
+            auto field = low.at(stage);
+            field->setText(trigger::patch_stage_pattern(field->text(), 0, assignments));
+            lineEdit_highlight(field);
+            if (_cur_ch_num == 32) {
+                field = high.at(stage);
+                field->setText(trigger::patch_stage_pattern(field->text(), 16, assignments));
+                lineEdit_highlight(field);
+            }
+        }
+    }
+    update_bus_editor();
+    emit trigger_changed();
+}
+
+void TriggerDock::on_simple_trigger_changed()
+{
+    if (_applying_bus)
+        return;
+    _acknowledged_simple_trigger.clear();
+    update_bus_editor();
 }
 
 QJsonObject TriggerDock::get_session()
@@ -464,6 +817,7 @@ QJsonObject TriggerDock::get_session()
 
 void TriggerDock::set_session(QJsonObject ses)
 {
+    _acknowledged_simple_trigger.clear();
     _position_slider->setValue(ses["triggerPos"].toDouble());
     stages_comboBox->setCurrentIndex(ses["triggerStages"].toDouble());
     _adv_tabWidget->setCurrentIndex(ses["triggerTab"].toDouble());
@@ -533,10 +887,12 @@ void TriggerDock::set_session(QJsonObject ses)
             lineEdit_highlight(_serial_edge_ext32_lineEdit);
         }
     }
+    update_view();
 }
 
 void TriggerDock::setup_adv_tab()
 {
+    const QScopedValueRollback<bool> rebuilding(_applying_bus, true);
     int row;
 
     for (int i = _adv_tabWidget->count(); i > 0; i--)
@@ -557,6 +913,8 @@ void TriggerDock::setup_adv_tab()
     _contiguous_label_list.clear();
     _stage_note_label_list.clear();
     _stage_groupBox_list.clear();
+    _pattern0_label_list.clear();
+    _pattern1_label_list.clear();
 
     _value0_ext32_lineEdit_list.clear();
     _value1_ext32_lineEdit_list.clear();
@@ -567,6 +925,7 @@ void TriggerDock::setup_adv_tab()
     _stage_tabWidget = new QTabWidget(_widget);
     _stage_tabWidget->setTabPosition(QTabWidget::East);
     _stage_tabWidget->setUsesScrollButtons(false);
+    connect(_stage_tabWidget, SIGNAL(currentChanged(int)), this, SLOT(update_bus_editor()));
 
     const QString mask = "N N N N N N N N N N N N N N N N";
     QRegularExpression value_rx("[10XRFCxrfc ]+");
@@ -612,6 +971,11 @@ void TriggerDock::setup_adv_tab()
 
         connect(_value0_lineEdit, SIGNAL(editingFinished()), this, SLOT(value_changed()));
         connect(_value1_lineEdit, SIGNAL(editingFinished()), this, SLOT(value_changed()));
+        connect(_value0_lineEdit, SIGNAL(textChanged(QString)), this, SLOT(update_bus_editor()));
+        connect(_value1_lineEdit, SIGNAL(textChanged(QString)), this, SLOT(update_bus_editor()));
+        connect(_inv0_comboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(update_bus_editor()));
+        connect(_inv1_comboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(update_bus_editor()));
+        connect(_logic_comboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(update_bus_editor()));
 
         QCheckBox *_contiguous_checkbox = new QCheckBox(_stage_tabWidget);
         _contiguous_checkbox_list.push_back(_contiguous_checkbox);
@@ -632,7 +996,17 @@ void TriggerDock::setup_adv_tab()
         QGridLayout *stage_glayout = new QGridLayout();
         stage_glayout->setVerticalSpacing(5);
 
-        row = 1;
+        QFont pattern_font;
+        pattern_font.setBold(true);
+        auto pattern0_label = new QLabel(bus_text("IDS_DLG_BUS_PATTERN0", "Pattern 0"), _stage_tabWidget);
+        auto pattern1_label = new QLabel(bus_text("IDS_DLG_BUS_PATTERN1", "Pattern 1"), _stage_tabWidget);
+        pattern0_label->setFont(pattern_font);
+        pattern1_label->setFont(pattern_font);
+        _pattern0_label_list.push_back(pattern0_label);
+        _pattern1_label_list.push_back(pattern1_label);
+
+        row = 0;
+        stage_glayout->addWidget(pattern0_label, row++, 0, 1, 3);
         if (_cur_ch_num == 32) {
             PopupLineEdit *_value0_ext32_lineEdit = new PopupLineEdit("X X X X X X X X X X X X X X X X", _stage_tabWidget);
             _value0_ext32_lineEdit->setFont(font);
@@ -649,6 +1023,8 @@ void TriggerDock::setup_adv_tab()
             _value1_ext32_lineEdit->setInputMask(mask);
             _value1_ext32_lineEdit->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
             _value1_ext32_lineEdit_list.push_back(_value1_ext32_lineEdit);
+            connect(_value0_ext32_lineEdit, SIGNAL(textChanged(QString)), this, SLOT(update_bus_editor()));
+            connect(_value1_ext32_lineEdit, SIGNAL(textChanged(QString)), this, SLOT(update_bus_editor()));
 
             QLabel *value0_ext32_exp_label = new QLabel("31 --------- 24 23 ---------- 16", _stage_tabWidget);
             value0_ext32_exp_label->setFont(font);
@@ -665,6 +1041,7 @@ void TriggerDock::setup_adv_tab()
 
             stage_glayout->addWidget(new QLabel(_stage_tabWidget), row++, 0);
 
+            stage_glayout->addWidget(pattern1_label, row++, 0, 1, 3);
             stage_glayout->addWidget(value1_ext32_exp_label, row++, 0);
             stage_glayout->addWidget(_value1_ext32_lineEdit, row++, 0);
             stage_glayout->addWidget(value1_exp_label, row, 0);
@@ -684,6 +1061,7 @@ void TriggerDock::setup_adv_tab()
 
             stage_glayout->addWidget(new QLabel(_stage_tabWidget), row++, 0);
 
+            stage_glayout->addWidget(pattern1_label, row++, 0, 1, 3);
             stage_glayout->addWidget(value1_exp_label, row, 0);
             stage_glayout->addWidget(inv1_exp_label, row++, 1);
             stage_glayout->addWidget(_value1_lineEdit, row, 0);
@@ -965,7 +1343,8 @@ void TriggerDock::try_commit_trigger()
             }
         }
 
-        if (app.appOptions.warnofMultiTrig && num > 1)
+        if (app.appOptions.warnofMultiTrig && num > 1 &&
+            _acknowledged_simple_trigger != simple_pattern())
         {
             dialogs::DSMessageBox msg(this);
             msg.mBox()->setText(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_TRIGGER), "Trigger"));

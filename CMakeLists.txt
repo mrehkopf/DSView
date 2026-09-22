@@ -301,6 +301,8 @@ set(DSView_SOURCES
     DSView/pv/toolbars/filebar.cpp
     DSView/pv/dock/protocoldock.cpp
     DSView/pv/dock/triggerdock.cpp
+    DSView/pv/trigger/buspattern.cpp
+    DSView/pv/trigger/decoderbus.cpp
     DSView/pv/dock/measuredock.cpp
     DSView/pv/dock/searchdock.cpp
     DSView/pv/toolbars/logobar.cpp

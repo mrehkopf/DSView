@@ -116,6 +116,9 @@ public:
 
     void paint_mid_align_sample(QPainter &p, int left, int right, QColor fore, QColor back, uint64_t end_align_sample);
 
+signals:
+    void trigger_changed();
+
 protected:
     void paint_type_options(QPainter &p, int right, const QPoint pt, QColor fore);
 

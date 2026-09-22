@@ -842,5 +842,109 @@
     {
         "id": "IDS_DLG_VERTICAL_SCROLL_ACTION_VERTICAL_SCROLL",
         "text": "Scroll"
+    },
+    {
+        "id": "IDS_DLG_BUS_TITLE",
+        "text": "Parallel bus"
+    },
+    {
+        "id": "IDS_DLG_BUS_APPLY",
+        "text": "Apply"
+    },
+    {
+        "id": "IDS_DLG_BUS_VALUE_HELP",
+        "text": "Hex value (optional 0x prefix). Applying replaces data-channel triggers only."
+    },
+    {
+        "id": "IDS_DLG_BUS_PATTERN0",
+        "text": "Pattern 0"
+    },
+    {
+        "id": "IDS_DLG_BUS_PATTERN1",
+        "text": "Pattern 1"
+    },
+    {
+        "id": "IDS_DLG_BUS_NAME",
+        "text": "%1 (%2 bits)"
+    },
+    {
+        "id": "IDS_DLG_BUS_VALUE",
+        "text": "Bus hex value"
+    },
+    {
+        "id": "IDS_DLG_BUS_EMPTY",
+        "text": "Assign at least one data channel in the parallel decoder."
+    },
+    {
+        "id": "IDS_DLG_BUS_INVALID",
+        "text": "Enter a hexadecimal value, for example 0xA5."
+    },
+    {
+        "id": "IDS_DLG_BUS_RANGE",
+        "text": "The value is too large for this bus."
+    },
+    {
+        "id": "IDS_DLG_BUS_UNMAPPED",
+        "text": "Unassigned bus bits must be zero, as in the decoder."
+    },
+    {
+        "id": "IDS_DLG_BUS_UNAVAILABLE",
+        "text": "A mapped channel is disabled or unavailable in the current device mode."
+    },
+    {
+        "id": "IDS_DLG_BUS_CONFLICT",
+        "text": "Two bus bits require different levels on the same channel."
+    },
+    {
+        "id": "IDS_DLG_BUS_SIMPLE",
+        "text": "Simple trigger · hex"
+    },
+    {
+        "id": "IDS_DLG_BUS_STAGE",
+        "text": "Stage %1 · %2 · %3"
+    },
+    {
+        "id": "IDS_DLG_BUS_SELECT_STAGE",
+        "text": "Select an active stage trigger."
+    },
+    {
+        "id": "IDS_DLG_BUS_CUSTOM",
+        "text": "Custom"
+    },
+    {
+        "id": "IDS_DLG_BUS_CONFIGURE",
+        "text": "Configure a Parallel decoder to enter a bus trigger value."
+    },
+    {
+        "id": "IDS_DLG_BUS_ACQUIRING",
+        "text": "Bus trigger editing is unavailable during acquisition."
+    },
+    {
+        "id": "IDS_DLG_BUS_TARGET",
+        "text": "Bus values apply to simple triggers and active stage patterns."
+    },
+    {
+        "id": "IDS_DLG_BUS_CUSTOM_HELP",
+        "text": "Current bits contain edges or don't-care values. Enter hex to replace them with levels."
+    },
+    {
+        "id": "IDS_DLG_BUS_EDGES",
+        "text": "Replaces %1 data-channel edge condition(s) with levels."
+    },
+    {
+        "id": "IDS_DLG_BUS_CHANGED",
+        "text": "The bus mapping changed. Check the decoder channels and try again."
+    },
+    {
+        "id": "IDS_DLG_BUS_CLEAR",
+        "text": "Clear"
+    },
+    {
+        "id": "IDS_DLG_BUS_CLEAR_HELP",
+        "text": "Set this bus's data channels to don't care in the selected trigger pattern."
+    },
+    {
+        "id": "IDS_DLG_BUS_DONT_CARE",
+        "text": "Don't care"
     }
 ]

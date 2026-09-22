@@ -88,10 +88,13 @@ void LogicSignal::paint_back(QPainter &p, int left, int right, QColor fore, QCol
 
 void LogicSignal::set_trig(int trig)
 {
+    const LogicSetRegions previous = _trig;
     if (trig > NONTRIG && trig <= EDGTRIG)
         _trig = (LogicSetRegions)trig;
     else
         _trig = NONTRIG;
+    if (_trig != previous)
+        emit trigger_changed();
 }
 
 bool LogicSignal::commit_trig()

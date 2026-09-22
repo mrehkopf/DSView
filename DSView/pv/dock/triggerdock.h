@@ -42,6 +42,7 @@
 #include "../interface/icallbacks.h"
 #include "../ui/uimanager.h"
 #include "keywordlineedit.h"
+#include "../trigger/decoderbus.h"
 
 namespace pv {
 
@@ -69,12 +70,22 @@ public:
 
     void try_commit_trigger();
 
+signals:
+    void trigger_changed();
+
 private:
     void retranslateUi();
     void reStyle();
 
     void setup_adv_tab();
     void lineEdit_highlight(PopupLineEdit *dst);
+    void setup_bus_editor();
+    void set_bus_status(const QString &message);
+    void change_bus_pattern(bool clear);
+    trigger::ChannelPattern simple_pattern() const;
+    trigger::ChannelPattern bus_target_pattern() const;
+    QSet<int> available_bus_channels() const;
+    QString bus_value_error(trigger::BusValueError error) const;
 
       /*
      * commit trigger setting
@@ -96,6 +107,11 @@ private slots:
     void on_hex_checkbox_click(bool ck);
     void on_serial_value_changed(const QString &v);
     void on_serial_hex_changed();
+    void update_bus_editor();
+    void update_bus_status();
+    void apply_bus_value();
+    void clear_bus_value();
+    void on_simple_trigger_changed();
 
 private:
     SigSession *_session;
@@ -105,6 +121,18 @@ private:
 
     QRadioButton *_simple_radioButton;
     QRadioButton *_adv_radioButton;
+
+    QGroupBox *_bus_group;
+    DsComboBox *_bus_combo;
+    DsComboBox *_bus_pattern_combo;
+    QLineEdit *_bus_value;
+    QPushButton *_bus_apply;
+    QPushButton *_bus_clear;
+    QLabel *_bus_target;
+    QLabel *_bus_status;
+    QVector<trigger::DecoderBus> _buses;
+    trigger::ChannelPattern _acknowledged_simple_trigger;
+    bool _applying_bus;
 
     QLabel *_position_label;
     PopupLineEdit *_position_spinBox;
@@ -116,6 +144,8 @@ private:
     QTabWidget *_stage_tabWidget;
 
     QVector <QGroupBox *> _stage_groupBox_list;
+    QVector <QLabel *> _pattern0_label_list;
+    QVector <QLabel *> _pattern1_label_list;
     QVector <QLabel *>    _mu_label_list;
     QVector <DsComboBox *> _logic_comboBox_list;
     QVector <PopupLineEdit *> _value0_lineEdit_list;
