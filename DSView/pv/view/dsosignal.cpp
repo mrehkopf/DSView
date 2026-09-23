@@ -82,6 +82,7 @@ DsoSignal::DsoSignal(data::DsoSnapshot *data,
     _soft_measure_cache_valid = false;
     _soft_measure_cache_data = NULL;
     _soft_measure_cache_sample_count = 0;
+    _soft_measure_cache_seq = 0;
     _autoV = false;
     _autoH = false;
     _autoV_over = false;
@@ -658,9 +659,16 @@ QRect DsoSignal::get_view_rect()
                       height);
     }
 
+    // The measurement bar floats over the bottom of the viewport and paints
+    // over it, so the grid has to stop above it - otherwise the lowest
+    // divisions are simply not visible, and because the volts/div mapping is
+    // derived from this height the waveform is scaled to an area larger than
+    // the one on screen.
+    const int covered = _view ? _view->get_status_overlap() : 0;
+
     return QRect(0, UpMargin,
                   _viewport->width() - RightMargin,
-                  _viewport->height() - UpMargin - DownMargin);
+                  max(_viewport->height() - UpMargin - DownMargin - covered, 1));
 }
 
 void DsoSignal::paint_prepare()
@@ -1080,57 +1088,85 @@ void DsoSignal::paint_trace(QPainter &p,
         float x = (start / samples_per_pixel - pixels_offset) + left + _view->trig_hoff()*pixels_per_sample;
         float y;
 
-        // Several samples per pixel (long time/div): a vertex per sample makes
-        // the antialiased polyline cost scale with the sample count, not the
-        // screen width, and the UI crawls. Collapse each pixel column to its
-        // first/min/max/last samples in sample order - the column's drawn
-        // extent and its joins to the neighbouring columns are unchanged.
+        // Several samples per pixel (long time/div): draw each pixel column as
+        // one vertical bar from its lowest to its highest sample, as a scope
+        // does. A polyline through each column's extremes looks the same but
+        // turns a dense signal into a full-height zig-zag, and stroking that
+        // with a pen wider than 1 px or antialiased cost seconds per frame -
+        // a 10 kHz square wave at 20 ms/div took ~11 s at width 1.5. Bars are
+        // pixel-aligned fills with no stroking, so the cost follows the
+        // screen width whatever the signal.
         if (samples_per_pixel > 2.0) {
             const double x0 = x;
             const int64_t columns = (int64_t)ceil(sample_count * pixels_per_sample) + 2;
-            QPointF *points = new QPointF[columns * 4];
-            QPointF *point = points;
+            QRect *const rects = new QRect[columns];
+            QRect *rect = rects;
 
+            const float line_width = max(1.0f, (float)AppConfig::Instance().appOptions.dsoSignalLineWidth);
+            auto to_y = [&](uint8_t v) {
+                return min(max(top, zeroY + (v - hw_offset) * _scale), bottom);
+            };
+
+            // Step the column itself rather than deriving it from the sample
+            // index: floor(sample * pixels_per_sample) rounds back down onto
+            // the column just finished whenever (col + 1) * samples_per_pixel
+            // is a whole number - common, since samples_per_pixel is
+            // rate * view time / width - and every such column then took a
+            // second pass, overrunning the buffer.
             int64_t sample = 0;
-            while (sample < sample_count) {
-                const int64_t col = (int64_t)floor(sample * pixels_per_sample);
+            bool have_prev = false;
+            uint8_t prev_last = 0;
+            for (int64_t col = 0; col < columns && sample < sample_count; col++) {
                 const double col_x = x0 + col;
                 if (col_x > right)
                     break;
 
-                int64_t col_end = (int64_t)ceil((col + 1) * samples_per_pixel);
-                col_end = min(max(col_end, sample + 1), sample_count);
+                const int64_t col_end = min((int64_t)ceil((col + 1) * samples_per_pixel), sample_count);
+                if (col_end <= sample)
+                    continue;
 
-                const uint8_t first = samples_buffer[sample];
-                const uint8_t last = samples_buffer[col_end - 1];
-                uint8_t vmin = first, vmax = first;
-                int64_t imin = sample, imax = sample;
+                uint8_t vmin = samples_buffer[sample];
+                uint8_t vmax = vmin;
                 for (int64_t i = sample + 1; i < col_end; i++) {
                     const uint8_t v = samples_buffer[i];
-                    if (v < vmin) { vmin = v; imin = i; }
-                    else if (v > vmax) { vmax = v; imax = i; }
+                    vmin = min(vmin, v);
+                    vmax = max(vmax, v);
                 }
 
-                const float px = (float)col_x;
-                auto to_y = [&](uint8_t v) {
-                    return min(max(top, zeroY + (v - hw_offset) * _scale), bottom);
-                };
-
-                *point++ = QPointF(px, to_y(first));
-                if (imin < imax) {
-                    *point++ = QPointF(px, to_y(vmin));
-                    *point++ = QPointF(px, to_y(vmax));
-                } else {
-                    *point++ = QPointF(px, to_y(vmax));
-                    *point++ = QPointF(px, to_y(vmin));
+                // Reach back to where the previous column ended, so a step
+                // between two columns is drawn instead of left as a gap.
+                if (have_prev) {
+                    vmin = min(vmin, prev_last);
+                    vmax = max(vmax, prev_last);
                 }
-                *point++ = QPointF(px, to_y(last));
+                prev_last = samples_buffer[col_end - 1];
+                have_prev = true;
+
+                float y0 = to_y(vmin);
+                float y1 = to_y(vmax);
+                if (y0 > y1)
+                    swap(y0, y1);
+                // A flat stretch is still drawn at the configured line width.
+                if (y1 - y0 < line_width) {
+                    const float mid = (y0 + y1) / 2;
+                    y0 = mid - line_width / 2;
+                    y1 = mid + line_width / 2;
+                }
+
+                const int y_px = (int)floor(y0);
+                *rect++ = QRect((int)floor(col_x), y_px, 1, max(1, (int)ceil(y1) - y_px));
 
                 sample = col_end;
             }
 
-            p.drawPolyline(points, point - points);
-            delete[] points;
+            p.save();
+            p.setRenderHint(QPainter::Antialiasing, false);
+            p.setPen(Qt::NoPen);
+            p.setBrush(trace_colour);
+            p.drawRects(rects, rect - rects);
+            p.restore();
+
+            delete[] rects;
             return;
         }
 
@@ -1141,6 +1177,8 @@ void DsoSignal::paint_trace(QPainter &p,
             value = samples_buffer[sample];
             y = min(max(top, zeroY + (value - hw_offset) * _scale), bottom);
             if (x > right) {
+                if (point == points)
+                    break;      // nothing on screen yet to interpolate from
                 point--;
                 const float lastY = point->y() + (y - point->y()) / (x - point->x()) * (right - point->x());
                 point++;
@@ -1175,10 +1213,12 @@ void DsoSignal::compute_soft_measure(int hw_offset)
     // which would otherwise make this cache never invalidate across repeat
     // captures.
     const QDateTime trig_time = session->get_trig_time();
+    const uint64_t seq = session->get_dso_data_seq();
     if (_soft_measure_cache_valid &&
         _soft_measure_cache_data == _data &&
         _soft_measure_cache_sample_count == total &&
-        _soft_measure_cache_trig_time == trig_time) {
+        _soft_measure_cache_trig_time == trig_time &&
+        _soft_measure_cache_seq == seq) {
         return;   // _period/_high_time/etc already hold the current result
     }
 
@@ -1254,6 +1294,7 @@ void DsoSignal::compute_soft_measure(int hw_offset)
         _soft_measure_cache_data = _data;
         _soft_measure_cache_sample_count = total;
         _soft_measure_cache_trig_time = trig_time;
+        _soft_measure_cache_seq = seq;
         return;
     }
 
@@ -1296,6 +1337,7 @@ void DsoSignal::compute_soft_measure(int hw_offset)
     _soft_measure_cache_data = _data;
     _soft_measure_cache_sample_count = total;
     _soft_measure_cache_trig_time = trig_time;
+    _soft_measure_cache_seq = seq;
 }
 
 void DsoSignal::paint_envelope(QPainter &p,
@@ -1345,7 +1387,11 @@ void DsoSignal::paint_envelope(QPainter &p,
 		*rect++ = QRectF(x, t, 1.0f, h);
 	}
 
-	p.drawRects(rects, e.length);
+    // Antialiasing fractional 1 px rects costs ~2x for no visible gain.
+    p.save();
+    p.setRenderHint(QPainter::Antialiasing, false);
+	p.drawRects(rects, rect - rects);
+    p.restore();
 
 	delete[] rects;
     //delete[] e.samples;

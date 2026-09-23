@@ -244,6 +244,11 @@ void DsoSnapshot::append_data(void *data, uint64_t samples, bool instant)
         _sample_count += samples;
     }
     else {
+        // Clamp rather than rely on the assert below, which aborts the whole
+        // application (or, in an NDEBUG build, lets a packet larger than the
+        // buffer first_payload() sized be copied straight past its end).
+        if (samples > _total_sample_count)
+            samples = _total_sample_count;
         _sample_count = samples;
     }
 

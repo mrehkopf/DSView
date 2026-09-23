@@ -160,6 +160,7 @@ namespace pv
         _decoder_pannel = NULL;
         _is_triged = false;
         _dso_status_valid = false;
+        _dso_data_seq = 0;
         _is_task_end = false;
         _capture_work_time = 0;
 
@@ -1437,6 +1438,7 @@ namespace pv
         }
 
         _dso_packet_count++;
+        _dso_data_seq++;
 
         if (!_is_triged && o.num_samples > 0)
         {

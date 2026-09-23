@@ -305,11 +305,14 @@ private:
     // hardware measurement stays invalid for many consecutive frames).
     // get_trig_time() changes on every new capture even when the configured
     // sample depth (and so get_sample_count()) stays the same between runs,
-    // which a count-only check would miss.
+    // which a count-only check would miss. Within one continuous run neither
+    // changes between frames, so the session's DSO packet sequence number is
+    // part of the key as well.
     bool _soft_measure_cache_valid;
     const pv::data::DsoSnapshot *_soft_measure_cache_data;
     uint64_t _soft_measure_cache_sample_count;
     QDateTime _soft_measure_cache_trig_time;
+    uint64_t _soft_measure_cache_seq;
     uint8_t _high;
     uint8_t _low;
     double _rms;

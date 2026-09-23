@@ -652,8 +652,9 @@ include_directories(
 set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3")
-add_compile_options(-O3)
+set(CMAKE_CXX_FLAGS_RELEASE "-O2")
+set(CMAKE_C_FLAGS_RELEASE "-O2 -DNDEBUG")
+add_compile_options(-O2)
 
 #===============================================================================
 #= Linker Configuration
