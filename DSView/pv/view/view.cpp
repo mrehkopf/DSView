@@ -100,6 +100,7 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
     _y_offset(0),
     _preOffset(0),
 	_updating_scroll(false),
+    _snapping_v_scroll(false),
     _trig_hoff(0),
 	_show_cursors(false),
     _search_hit(false),
@@ -211,6 +212,7 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
 
 	connect(horizontalScrollBar(), SIGNAL(valueChanged(int)), this, SLOT(h_scroll_value_changed(int)));
 	connect(verticalScrollBar(), SIGNAL(valueChanged(int)), this, SLOT(v_scroll_value_changed(int)));
+    connect(verticalScrollBar(), SIGNAL(sliderReleased()), this, SLOT(on_v_scroll_released()));
 
     connect(_time_viewport, SIGNAL(measure_updated()),this, SLOT(on_measure_updated()));
     connect(_time_viewport, SIGNAL(prgRate(int)), this, SIGNAL(prgRate(int)));
@@ -714,6 +716,11 @@ void View::update_scroll()
             total_height += t->get_totalHeight() + 2 * get_signal_margin();
     }
 
+    // Rows start below a leading margin (see signals_changed), so count it
+    // too, or the last trace can never be scrolled fully into view.
+    if (_device_agent->get_work_mode() == LOGIC)
+        total_height += get_signal_margin();
+
     // Scroll the time pane against its own visible height (which excludes the
     // status strip and, when shown, the FFT pane).
     const int avail_height = _time_viewport->height();
@@ -726,6 +733,19 @@ void View::update_scroll()
         verticalScrollBar()->setRange(0, 0);
     }
     _updating_scroll = false;
+}
+
+void View::on_v_scroll_released()
+{
+    if (_device_agent->have_instance() == false
+        || _device_agent->get_work_mode() != LOGIC)
+        return;
+
+    const int value = verticalScrollBar()->value();
+    const int snapped = snap_v_offset(value);
+
+    if (snapped != value)
+        verticalScrollBar()->setValue(snapped);
 }
 
 void View::update_scale_offset()
@@ -883,6 +903,32 @@ void View::signals_changed(const Trace* eventTrace)
             // Apply the user-controlled vertical scaling so logic signals can
             // grow to use the full window height (see View::vzoom).
             _signalHeight = max((double)min_row_height, _signalHeight * _trace_height_factor);
+
+            // Round the row pitch so a whole number of rows tiles the pane
+            // exactly. Otherwise the pane height is an arbitrary multiple of
+            // the pitch and the unscrolled view ends on a trace that is cut
+            // off at the bottom edge. Fewer rows means taller ones, so walk
+            // down from the closest fit until they clear min_row_height - the
+            // nearest pitch is often a shrink the font minimum forbids. Below
+            // two rows the correction would be big enough to fight vzoom, so
+            // leave it alone there.
+            const double pane_height = get_time_pane_height() - actualMargin;
+            const double pitch = _signalHeight + 2 * actualMargin;
+
+            if (pane_height > 0 && pitch > 0)
+            {
+                for (int rows = (int)qRound(pane_height / pitch); rows >= 2; rows--)
+                {
+                    // Whole-pixel pitch: set_totalHeight() truncates to int,
+                    // so a fractional one would not tile exactly anyway.
+                    const double fitted = floor(pane_height / rows) - 2 * actualMargin;
+
+                    if (fitted >= min_row_height){
+                        _signalHeight = fitted;
+                        break;
+                    }
+                }
+            }
         }
         else if (_device_agent->get_work_mode() == DSO) {
             // The time pane already excludes the status strip and scrollbars,
@@ -1103,8 +1149,118 @@ void View::h_scroll_value_changed(int value)
     }
 }
 
+int View::get_status_overlap()
+{
+    // The status bar is not inside the scroll area's viewport, it floats over
+    // the bottom of it and paints an opaque background - get_bottom_margin()
+    // only reserves room for it while the fixed FFT pane is showing, and then
+    // this comes out as zero. Measure the overlap from the live geometry
+    // rather than assuming its height: DSO gives it two measurement rows.
+    if (_viewbottom == NULL || _viewcenter == NULL)
+        return 0;
+
+    return max(_viewcenter->y() + _viewcenter->height() - _viewbottom->y(), 0);
+}
+
+int View::get_time_pane_height()
+{
+    const int height = (_fft_viewport->isVisible()
+        ? _time_viewport->height() : get_view_height()) - get_status_overlap();
+
+    return max(height, 0);
+}
+
+int View::snap_v_offset(int value)
+{
+    const int pane_height = get_time_pane_height();
+
+    if (pane_height <= 0)
+        return value;
+
+    const int margin = get_signal_margin();
+    const int max_value = verticalScrollBar()->maximum();
+
+    std::vector<Trace*> traces;
+    get_traces(TIME_VIEW, traces);
+
+    // Scroll positions at which the pane's bottom edge coincides with the end
+    // of a trace band. 0 is always one of them: the row pitch is fitted to the
+    // pane (see signals_changed) so the unscrolled view ends on a boundary.
+    std::vector<int> stops;
+    stops.push_back(0);
+
+    for (auto t : traces)
+    {
+        if (t->enabled() == false || t->get_totalHeight() == 0)
+            continue;
+
+        const int band_bottom = t->get_v_offset_orig()
+                                + t->get_totalHeight() / 2 + margin;
+
+        stops.push_back(min(max(band_bottom - pane_height, 0), max_value));
+    }
+
+    sort(stops.begin(), stops.end());
+    stops.erase(unique(stops.begin(), stops.end()), stops.end());
+
+    if (stops.size() < 2)
+        return min(max(value, 0), max_value);
+
+    int best = stops.front();
+
+    for (auto stop : stops) {
+        if (qAbs(stop - value) < qAbs(best - value))
+            best = stop;
+    }
+
+    // Always make progress in the direction of travel, otherwise a wheel step
+    // shorter than half a row would snap straight back to where it started.
+    if (best == _y_offset && value != _y_offset)
+    {
+        if (value > _y_offset) {
+            for (auto stop : stops) {
+                if (stop > _y_offset) {
+                    best = stop;
+                    break;
+                }
+            }
+        }
+        else {
+            for (auto it = stops.rbegin(); it != stops.rend(); ++it) {
+                if (*it < _y_offset) {
+                    best = *it;
+                    break;
+                }
+            }
+        }
+    }
+
+    return best;
+}
+
 void View::v_scroll_value_changed(int value)
 {
+    // Keep the bottom of the pane on a trace boundary so the lowest trace is
+    // never shown sliced. Only LOGIC stacks rows this way; DSO sizes its
+    // channels to the pane and ANALOG is left alone. While the slider is held
+    // the snap is deferred to on_v_scroll_released(): moving the slider on
+    // every valueChanged pulls it out from under the pointer, and the drag
+    // then chases it around.
+    if (_snapping_v_scroll == false
+        && verticalScrollBar()->isSliderDown() == false
+        && _device_agent->have_instance()
+        && _device_agent->get_work_mode() == LOGIC)
+    {
+        const int snapped = snap_v_offset(value);
+
+        if (snapped != value) {
+            _snapping_v_scroll = true;
+            verticalScrollBar()->setValue(snapped);
+            _snapping_v_scroll = false;
+            value = snapped;
+        }
+    }
+
     // Track vertical offset
     _y_offset = value;
 

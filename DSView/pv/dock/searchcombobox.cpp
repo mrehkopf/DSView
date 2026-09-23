@@ -25,6 +25,9 @@
 #include <QPoint>
 #include <QLineEdit>
 #include <QScrollBar>
+#include <QGuiApplication>
+#include <QScreen>
+#include <QRect>
 #include "../config/appconfig.h"
 #include "../appcontrol.h"
 #include "../ui/fn.h"
@@ -53,8 +56,13 @@ SearchComboBox::SearchComboBox(QWidget *parent)
     : QDialog(parent)
 { 
     _bShow = false;
+    _bClosing = false;
     _item_click = NULL;
-    setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint | Qt::WindowSystemMenuHint);
+
+    // A Qt::Popup is anchored to its parent window by the platform, so the
+    // requested position is honoured on Wayland as well, where a plain
+    // Qt::Dialog cannot place itself and ends up centered by the compositor.
+    setWindowFlags(Qt::Popup | Qt::FramelessWindowHint);
 }
 
 SearchComboBox::~SearchComboBox(){
@@ -76,8 +84,22 @@ void SearchComboBox::ShowDlg(QWidget *editline)
     int h = 550;
     int eh = 20;
 
-    if (editline != NULL){
-       w = editline->width();
+    QPoint topLeft;
+    QRect avail;
+
+    if (editline != NULL)
+    {
+        w = editline->width();
+        topLeft = editline->mapToGlobal(QPoint(0, 0));
+
+        QScreen *screen = QGuiApplication::screenAt(topLeft);
+        if (screen == NULL){
+            screen = QGuiApplication::primaryScreen();
+        }
+        if (screen != NULL){
+            avail = screen->availableGeometry();
+            h = qMin(h, avail.height());
+        }
     } 
 
     this->setFixedSize(w, h);
@@ -128,19 +150,36 @@ void SearchComboBox::ShowDlg(QWidget *editline)
 
     if (editline != NULL)
     {
-        QPoint p1 = editline->pos();
-        QPoint p2 = editline->mapToGlobal(p1);
-        int x = p2.x() - p1.x();
-        int y = p2.y() - p1.y();
-        this->move(x, y);       
-    } 
+        // Drop down directly below the edit line, flipping above it when there
+        // is not enough room left on the screen.
+        QPoint pos(topLeft.x(), topLeft.y() + editline->height());
 
-    edit->setFocus();
+        if (avail.isNull() == false)
+        {
+            if (pos.y() + h > avail.bottom())
+            {
+                if (topLeft.y() - h >= avail.top()){
+                    pos.setY(topLeft.y() - h);
+                }
+                else{
+                    pos.setY(qMax(avail.top(), avail.bottom() - h));
+                }
+            }
+
+            if (pos.x() + w > avail.right()){
+                pos.setX(qMax(avail.left(), avail.right() - w));
+            }
+        }
+
+        this->move(pos);
+    } 
 
     connect(edit, SIGNAL(textEdited(const QString &)), 
                     this, SLOT(on_keyword_changed(const QString &)));
 
     this->show();
+
+    edit->setFocus();
 }
 
 void SearchComboBox::AddDataItem(QString id, QString name, void *data_handle)
@@ -156,8 +195,7 @@ void SearchComboBox::AddDataItem(QString id, QString name, void *data_handle)
  {
     if (event->type() == QEvent::ActivationChange){
         if (this->isActiveWindow() == false){
-            this->close();
-            this->deleteLater();
+            close_and_release();
             return;
         }
     }
@@ -165,16 +203,64 @@ void SearchComboBox::AddDataItem(QString id, QString name, void *data_handle)
     QWidget::changeEvent(event);
  }
 
+ void SearchComboBox::closeEvent(QCloseEvent *event)
+ {
+    QDialog::closeEvent(event);
+
+    // Covers the closes triggered by Qt itself, not only close_and_release().
+    if (_bClosing == false){
+        _bClosing = true;
+        this->deleteLater();
+    }
+ }
+
+ void SearchComboBox::mousePressEvent(QMouseEvent *event)
+ {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    const QPoint pt = event->position().toPoint();
+#else
+    const QPoint pt = event->pos();
+#endif
+
+    // As a popup this receives the clicks made outside of it as well.
+    if (this->rect().contains(pt) == false){
+        close_and_release();
+        return;
+    }
+
+    QDialog::mousePressEvent(event);
+ }
+
+ void SearchComboBox::keyPressEvent(QKeyEvent *event)
+ {
+    if (event->key() == Qt::Key_Escape){
+        close_and_release();
+        return;
+    }
+
+    QDialog::keyPressEvent(event);
+ }
+
+ void SearchComboBox::close_and_release()
+ {
+    if (_bClosing)
+        return;
+
+    _bClosing = true;
+    this->close();
+    this->deleteLater();
+ }
+
  void SearchComboBox::OnItemClick(void *sender, void *data_handle)
  {
     (void)sender;
 
      if (data_handle != NULL && _item_click){
-         SearchDataItem *item = (SearchDataItem*)data_handle;        
-          this->close();
-          ISearchItemClick *click = _item_click;
-          this->deleteLater();
-         click->OnItemClick(this, item->_data_handle);
+         SearchDataItem *item = (SearchDataItem*)data_handle;
+         ISearchItemClick *click = _item_click;
+         void *handle = item->_data_handle;
+         close_and_release();
+         click->OnItemClick(this, handle);
      }
  }
 

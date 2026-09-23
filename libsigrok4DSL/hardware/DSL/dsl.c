@@ -437,7 +437,7 @@ SR_PRIV int dsl_configure_probes(const struct sr_dev_inst *sdi)
             if (*tc == '1')
                 devc->trigger_value[stage] |= probe_bit;
             stage++;
-            if (stage > NUM_TRIGGER_STAGES)
+            if (stage >= NUM_TRIGGER_STAGES)
                 return SR_ERR;
         }
     }

@@ -202,6 +202,13 @@ public:
         return _trig_time;
     }
 
+    // Bumped on every DSO packet and never reset, so it tells apart the
+    // successive frames of one continuous run - which share a trigger time,
+    // a sample count and the snapshot object.
+    inline uint64_t get_dso_data_seq(){
+        return _dso_data_seq;
+    }
+
     inline bool is_triged(){
         return _is_triged;
     }
@@ -664,6 +671,7 @@ private:
 
     bool        _is_action;
     std::atomic<uint64_t>  _dso_packet_count;
+    std::atomic<uint64_t>  _dso_data_seq;
     bool        _is_task_end;
  
 

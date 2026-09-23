@@ -2107,7 +2107,11 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
             const double pad = 5.0 * sc;
             const double row_h = 20.0 * sc;
             const double width = _view.get_view_width() - _view.verticalScrollBar()->geometry().width();
-            const double height = _view.get_view_height() - _view.horizontalScrollBar()->geometry().height() - View::StatusHeight;
+            // Drawn in viewport coordinates, so clamp against this widget's
+            // own height less whatever the status bar covers. The old
+            // View::StatusHeight constant is the LOGIC height - in DSO the
+            // bar is 55px and the popup ended up behind it.
+            const double height = this->height() - _view.get_status_overlap();
             const double left = hoverpoint_x;
             const double top = hoverpoint_y;
             const double right = left + typical_width;
@@ -2279,8 +2283,7 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
 
             const double width = _view.get_view_width()
                 - _view.verticalScrollBar()->geometry().width();
-            const double vheight = _view.get_view_height()
-                - _view.horizontalScrollBar()->geometry().height() - View::StatusHeight;
+            const double vheight = this->height() - _view.get_status_overlap();
 
             // Offset from the cursor, flipping to stay inside the view.
             double bx = hoverpoint_x + MousePointerClearance;

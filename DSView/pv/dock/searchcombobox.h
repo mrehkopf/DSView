@@ -26,6 +26,8 @@
 #include <QDialog>
 #include <QWidget> 
 #include <QMouseEvent>
+#include <QKeyEvent>
+#include <QCloseEvent>
 #include <QPushButton>
 #include <QString>
 #include <vector>
@@ -82,6 +84,9 @@ public:
 
 protected: 
     void changeEvent(QEvent *event);
+    void closeEvent(QCloseEvent *event);
+    void mousePressEvent(QMouseEvent *event);
+    void keyPressEvent(QKeyEvent *event);
 
 private slots:
     void on_keyword_changed(const QString &value);
@@ -90,8 +95,11 @@ private:
     //ISearchItemClick
     void OnItemClick(void *sender, void *data_handle);
 
+    void close_and_release();
+
 private: 
     bool    _bShow;
+    bool    _bClosing;
     std::vector<SearchDataItem*> _items;
     ISearchItemClick *_item_click;
     QScrollArea *_scroll;

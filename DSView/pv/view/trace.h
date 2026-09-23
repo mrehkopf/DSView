@@ -114,6 +114,14 @@ public:
     }
 
 	/**
+	 * Gets the vertical layout offset of this signal before the vertical
+	 * scroll displacement is applied, i.e. in content coordinates.
+	 */
+	inline int get_v_offset_orig(){
+        return _v_offset_orig;
+    }
+
+	/**
 	 * Sets the vertical layout offset of this signal.
 	 */
 	inline void set_v_offset(int v_offset){
