@@ -55,6 +55,10 @@ public:
     // were tuned against - used to scale the boxes with AppConfig's font
     // size setting, not just the (independent) trace height factor.
     static constexpr double BaseFontSize = 9.0;
+    // Zoomed in to at least this many px between samples, waveforms mark
+    // each sample point with a dot of diameter line width + SampleDotGrow.
+    static const int SampleDotMinSpacing = 10;
+    static constexpr double SampleDotGrow = 3.0;
     static const int SquareWidth = 20;
     static const int COLOR = 1;
     static const int NAME = 2;
