@@ -253,9 +253,14 @@ SR_PRIV int sr_session_stop(void)
 		return SR_ERR_BUG;
 	}
 
+    /* Record the request even before sr_session_run() has set running: the
+     * collect thread spends the time in dev_acquisition_start() first, and a
+     * stop dropped there left the session running with nothing to end it -
+     * ds_stop_collect() then blocked in g_thread_join() forever. The run loop
+     * acts on the flag at its first iteration; the session is recreated for
+     * every collection, so it cannot leak into the next one. */
     g_mutex_lock(&session->stop_mutex);
-    if (session->running)
-        session->abort_session = TRUE;  
+    session->abort_session = TRUE;
     g_mutex_unlock(&session->stop_mutex);
 
 	return SR_OK;
