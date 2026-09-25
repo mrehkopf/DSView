@@ -30,6 +30,23 @@ SR_PRIV int command_ctl_wr(libusb_device_handle *devhdl, struct ctl_wr_cmd cmd)
 
     assert(devhdl);
 
+    /* These carry no address, and the callers never set one: they reuse a
+     * ctl_wr_cmd whose offset is whatever the previous command left in it.
+     * Real hardware ignores it, but a device that routes them wrongly then
+     * acts on a random address - MSO-E8 firmware wrote INTRDY's data byte into
+     * its EEPROM that way. Send a defined zero instead. */
+    switch (cmd.header.dest) {
+    case DSL_CTL_PROG_B:
+    case DSL_CTL_SYS:
+    case DSL_CTL_LED:
+    case DSL_CTL_INTRDY:
+    case DSL_CTL_WORDWIDE:
+        cmd.header.offset = 0;
+        break;
+    default:
+        break;
+    }
+
     /* Send the control command. */
     ret = libusb_control_transfer(devhdl, LIBUSB_REQUEST_TYPE_VENDOR |
             LIBUSB_ENDPOINT_OUT, CMD_CTL_WR, 0x0000, 0x0000,

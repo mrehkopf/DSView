@@ -349,6 +349,13 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Only CMakeLists.txt is needed, to read the app version for the title.
+      - name: Checkout CMakeLists.txt
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: CMakeLists.txt
+          sparse-checkout-cone-mode: false
+
       - name: Download artifacts
         uses: actions/download-artifact@v7
         with:
@@ -359,10 +366,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          major="$(sed -nE 's/^set\(DS_VERSION_MAJOR ([0-9]+)\)/\1/p' CMakeLists.txt)"
+          minor="$(sed -nE 's/^set\(DS_VERSION_MINOR ([0-9]+)\)/\1/p' CMakeLists.txt)"
+          micro="$(sed -nE 's/^set\(DS_VERSION_MICRO ([0-9]+)\)/\1/p' CMakeLists.txt)"
+          version="${major}.${minor}.${micro}-dev"
           gh release delete latest --yes --cleanup-tag --repo "${GITHUB_REPOSITORY}" || true
           gh release create latest artifacts/* \
             --repo "${GITHUB_REPOSITORY}" \
-            --title "Latest build" \
+            --title "Latest build ${version}" \
             --notes "Automated build from commit ${GITHUB_SHA}" \
             --prerelease \
             --target "${GITHUB_SHA}"
