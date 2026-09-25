@@ -1172,6 +1172,7 @@ void DsoSignal::paint_trace(QPainter &p,
 
         QPointF *points = new QPointF[sample_count];
         QPointF *point = points;
+        bool clipped = false;
 
         for (int64_t sample = 0; sample < sample_count; sample++) {
             value = samples_buffer[sample];
@@ -1183,6 +1184,7 @@ void DsoSignal::paint_trace(QPainter &p,
                 const float lastY = point->y() + (y - point->y()) / (x - point->x()) * (right - point->x());
                 point++;
                 *point++ = QPointF(right, lastY);
+                clipped = true;
                 break;
             }
             *point++ = QPointF(x, y);
@@ -1190,6 +1192,22 @@ void DsoSignal::paint_trace(QPainter &p,
         }
 
         p.drawPolyline(points, point - points);
+
+        // Zoomed in far enough that samples are clearly apart: mark each
+        // one. The last point is only an interpolated clip at the right edge
+        // when the loop broke there, so it gets no dot.
+        if (pixels_per_sample >= SampleDotMinSpacing) {
+            const QPointF *dots_end = point;
+            if (clipped)
+                dots_end--;
+            const double dot = std::max(4.0, AppConfig::Instance().appOptions.dsoSignalLineWidth + SampleDotGrow);
+            p.save();
+            p.setPen(Qt::NoPen);
+            p.setBrush(trace_colour);
+            for (const QPointF *d = points; d != dots_end; d++)
+                p.drawEllipse(*d, dot / 2, dot / 2);
+            p.restore();
+        }
 
         delete[] points;
     }

@@ -30,7 +30,7 @@
 #include <QDir>
 #include <QTextStream>
 #include <QScrollBar>
-  
+
 #include "../config/appconfig.h"
 #include "../dsvdef.h"
 #include "../utility/encoding.h"
@@ -42,8 +42,8 @@ namespace dialogs {
 About::About(QWidget *parent) :
     DSDialog(parent, true)
 {
-    setFixedHeight(600);
-    setFixedWidth(800);
+    setFixedHeight(800);
+    setFixedWidth(700);
 
     #if defined(__x86_64__) || defined(_M_X64)
         QString arch = "x64";
@@ -69,10 +69,13 @@ About::About(QWidget *parent) :
     QString url = tr("Website: <a href=\"%1\" style=\"color:#C0C0C0\">%1</a><br />"
                      "Github: <a href=\"%2\" style=\"color:#C0C0C0\">%2</a><br />"
                      "Copyright: <label href=\"#\" style=\"color:#C0C0C0\">%3</label><br />"
+                     "<br />"
+                     "Fork: <a href=\"%4\" style=\"color:#C0C0C0\">%4</a><br />"
                      "<br /><br />")
                   .arg(site_url)
                   .arg("https://github.com/DreamSourceLab/DSView")
-                  .arg(tr("© DreamSourceLab. All rights reserved."));
+                  .arg(tr("© DreamSourceLab. All rights reserved."))
+                  .arg("https://github.com/mrehkopf/DSView");
 
     QString thanks = tr("<font size=16>Special Thanks</font><br />"
                         "<a href=\"%1\" style=\"color:#C0C0C0\">All backers on kickstarter</a><br />"
@@ -81,27 +84,6 @@ About::About(QWidget *parent) :
                         "<br /><br />")
                         .arg("https://www.kickstarter.com/projects/dreamsourcelab/dslogic-multifunction-instruments-for-everyone")
                         .arg("http://sigrok.org/");
-
-    QString changlogs = tr("<font size=16>Changelogs</font><br />");
-
-    QDir dir(GetAppDataDir());
-    AppConfig &app = AppConfig::Instance(); 
-    int lan = app.frameOptions.language;
-
-    QString filename = dir.absolutePath() + "/NEWS" + QString::number(lan);
-    QFile news(filename);
-    if (news.open(QIODevice::ReadOnly)) {
-   
-        QTextStream stream(&news);
-        encoding::set_utf8(stream);
-
-        QString line;
-        while (!stream.atEnd()){
-            line = stream.readLine();
-            changlogs += line + "<br />";
-        }
-    }
-    news.close();    
 
     QPixmap pix(":/icons/dsl_logo.svg");
     QImage logo = pix.toImage();
@@ -112,7 +94,13 @@ About::About(QWidget *parent) :
     QTextCursor cur = about->textCursor();
     cur.insertImage(logo);
     cur.insertHtml("<br /><br /><br />");
-    cur.insertHtml(version+url+thanks+changlogs);
+    cur.insertHtml(version+url+thanks);
+
+    // insertHtml() creates its own blocks, so center the whole document afterwards
+    QTextBlockFormat center;
+    center.setAlignment(Qt::AlignHCenter);
+    cur.select(QTextCursor::Document);
+    cur.mergeBlockFormat(center);
     about->moveCursor(QTextCursor::Start);
 
     QVBoxLayout *xlayout = new QVBoxLayout();

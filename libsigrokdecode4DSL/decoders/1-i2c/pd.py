@@ -26,6 +26,7 @@
 ## 2022/07/05 DreamSourceLab : Support for different data output formats
 ##
 
+import math
 import sigrokdecode as srd
 
 '''
@@ -83,6 +84,8 @@ class Decoder(srd.Decoder):
     options = (
         {'id': 'address_format', 'desc': 'Displayed slave address format',
             'default': 'unshifted', 'values': ('shifted', 'unshifted'), 'idn':'dec_1i2c_opt_addr'},
+        {'id': 'glitch_filter', 'desc': 'Glitch filter (ns)',
+            'default': 0, 'idn':'dec_1i2c_opt_gf'},
     )
     annotations = (
         ('7', 'start', 'Start condition'),
@@ -123,6 +126,7 @@ class Decoder(srd.Decoder):
         self.pdu_start = None
         self.pdu_bits = 0
         self.bits = []
+        self.glitch_samples = 0
 
     def metadata(self, key, value):
         if key == srd.SRD_CONF_SAMPLERATE:
@@ -156,6 +160,22 @@ class Decoder(srd.Decoder):
         self.is_repeat_start = 1
         self.wr = -1
         self.bits = []
+
+    def is_glitch(self, pin):
+        # The edge on 'pin' that just matched is a glitch if the line flips
+        # back within the filter time. This has to look ahead: rejecting only
+        # edges that follow the previous one too closely would still act on
+        # a spike's first edge (e.g. sample a bit on a short SCL pulse).
+        # The look-ahead ignores the other line, which is fine as long as the
+        # filter stays below the I2C setup/hold times (>= 260 ns up to Fm+).
+        if self.glitch_samples == 0:
+            return False
+        ss = self.samplenum
+        self.wait([{pin: 'e'}, {'skip': self.glitch_samples}])
+        glitch = bool(self.matched & (0b1 << 0))
+        # Handlers take their timestamps from samplenum - keep the edge's.
+        self.samplenum = ss
+        return glitch
 
     # Gather 8 bits of data plus the ACK/NACK bit.
     def handle_address_or_data(self, scl, sda):
@@ -253,12 +273,17 @@ class Decoder(srd.Decoder):
         self.bits = []
 
     def decode(self):
+        if self.samplerate and self.options['glitch_filter'] > 0:
+            self.glitch_samples = max(1, math.ceil(
+                self.options['glitch_filter'] * self.samplerate / 1e9))
+
         while True:
             # State machine.
             if self.state == 'FIND START':
                 # Wait for a START condition (S): SCL = high, SDA = falling.
                 self.wait({0: 'h', 1: 'f'})
-                self.handle_start()
+                if not self.is_glitch(1):
+                    self.handle_start()
             elif self.state == 'FIND ADDRESS':
                 # Wait for any of the following conditions (or combinations):
                 #  a) Data sampling of receiver: SCL = rising, and/or
@@ -268,11 +293,14 @@ class Decoder(srd.Decoder):
 
                 # Check which of the condition(s) matched and handle them.
                 if (self.matched & (0b1 << 0)):
-                    self.handle_address_or_data(scl, sda)
+                    if not self.is_glitch(0):
+                        self.handle_address_or_data(scl, sda)
                 elif (self.matched & (0b1 << 1)):
-                    self.handle_start()
+                    if not self.is_glitch(1):
+                        self.handle_start()
                 elif (self.matched & (0b1 << 2)):
-                    self.handle_stop()
+                    if not self.is_glitch(1):
+                        self.handle_stop()
             elif self.state == 'FIND DATA':
                 # Wait for any of the following conditions (or combinations):
                 #  a) Data sampling of receiver: SCL = rising, and/or
@@ -282,18 +310,23 @@ class Decoder(srd.Decoder):
 
                 # Check which of the condition(s) matched and handle them.
                 if (self.matched & (0b1 << 0)):
-                    self.handle_address_or_data(scl, sda)
+                    if not self.is_glitch(0):
+                        self.handle_address_or_data(scl, sda)
                 elif (self.matched & (0b1 << 1)):
-                    self.handle_start()
+                    if not self.is_glitch(1):
+                        self.handle_start()
                 elif (self.matched & (0b1 << 2)):
-                    self.handle_stop()
+                    if not self.is_glitch(1):
+                        self.handle_stop()
             elif self.state == 'FIND ACK':
                 # Wait for any of the following conditions (or combinations):
                 #  a) a data/ack bit: SCL = rising.
                 #  b) STOP condition (P): SCL = high, SDA = rising
                 (scl, sda) = self.wait([{0: 'r'}, {0: 'h', 1: 'r'}])
                 if (self.matched & (0b1 << 0)):
-                    self.get_ack(scl, sda)
+                    if not self.is_glitch(0):
+                        self.get_ack(scl, sda)
                 elif (self.matched & (0b1 << 1)):
-                    self.handle_stop()
+                    if not self.is_glitch(1):
+                        self.handle_stop()
 
