@@ -43,7 +43,7 @@ registers = {
     0x0F: ['Display test', lambda v: 'on' if v else 'off']
 }
 
-ann_reg, ann_digit, ann_warning = range(3)
+ann_reg, ann_digit, ann_warning, ann_chip = range(4)
 
 class Decoder(srd.Decoder):
     api_version = 3
@@ -55,12 +55,17 @@ class Decoder(srd.Decoder):
     inputs = ['spi']
     outputs = []
     tags = ['Display']
+    options = (
+        {'id': 'numofdrivers', 'desc': 'Number of daisy-chained chips', 'default': 1},
+    )
     annotations = (
         ('register', 'Registers written to the device'),
         ('digit', 'Digits displayed on the device'),
         ('warnings', 'Human-readable warnings'),
+        ('chip', 'Index of chip in daisy chain'),
     )
     annotation_rows = (
+        ('chip_nr', 'Chip number', (ann_chip,)),
         ('commands', 'Commands', (ann_reg, ann_digit)),
         ('warnings', 'Warnings', (ann_warning,)),
     )
@@ -75,6 +80,10 @@ class Decoder(srd.Decoder):
         self.out_ann = self.register(srd.OUTPUT_ANN)
         self.pos = 0
         self.cs_start = 0
+        self.num_of_drivers = max(1, self.options['numofdrivers'])
+
+    def putchip(self, ss, es, chip):
+        self.put(ss, es, self.out_ann, [ann_chip, ['Chip %d' % chip]])
 
     def putreg(self, ss, es, reg, value):
         self.put(ss, es, self.out_ann, [ann_reg, ['%s: %s' % (reg, value)]])
@@ -95,10 +104,15 @@ class Decoder(srd.Decoder):
             if not self.cs_asserted:
                 return
 
-            if self.pos == 0:
+            # Each chip in the chain takes a register/data byte pair.
+            if self.pos >= 2 * self.num_of_drivers:
+                pass
+            elif self.pos % 2 == 0:
                 self.addr = mosi
                 self.addr_start = ss
-            elif self.pos == 1:
+            else:
+                if self.num_of_drivers > 1:
+                    self.putchip(self.addr_start, es, (self.pos // 2) + 1)
                 if self.addr >= 1 and self.addr <= 8:
                     self.putdigit(self.addr_start, es, self.addr, mosi)
                 elif self.addr in registers:
@@ -114,9 +128,9 @@ class Decoder(srd.Decoder):
                 self.pos = 0
                 self.cs_start = ss
             else:
-                if self.pos == 1:
+                if 0 < self.pos < 2 * self.num_of_drivers:
                     # Don't warn if pos=0 so that CS# glitches don't appear
                     # as spurious warnings.
                     self.putwarn(self.cs_start, es, 'Short write')
-                elif self.pos > 2:
+                elif self.pos > 2 * self.num_of_drivers:
                     self.putwarn(self.cs_start, es, 'Overlong write')
