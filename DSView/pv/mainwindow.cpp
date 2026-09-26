@@ -21,6 +21,8 @@
  */
 
 #include <QAction>
+#include <QTabBar>
+#include <QChildEvent>
 #include <QButtonGroup>
 #include <QFileDialog>
 #include <QMessageBox>
@@ -1342,6 +1344,36 @@ namespace pv
         return true;
     }
 
+    void MainWindow::set_dock_tab_font(QTabBar *bar)
+    {
+        // Same size as the dock titles (see the docks' UpdateFont()).
+        QFont font = this->font();
+        font.setPointSizeF(AppConfig::Instance().appOptions.fontSize + 1);
+        bar->setFont(font);
+    }
+
+    void MainWindow::update_dock_tab_font()
+    {
+        // The tab bars of tabified docks belong to QMainWindow, not to a dock,
+        // so no dock's UpdateFont() reaches them.
+        for (auto bar : findChildren<QTabBar*>(QString(), Qt::FindDirectChildrenOnly))
+            set_dock_tab_font(bar);
+    }
+
+    bool MainWindow::event(QEvent *event)
+    {
+        // QMainWindow creates dock tab bars lazily and recreates them on
+        // restoreState(), so style each one as it appears.
+        if (event->type() == QEvent::ChildPolished)
+        {
+            QTabBar *bar = qobject_cast<QTabBar*>(static_cast<QChildEvent*>(event)->child());
+            if (bar != NULL)
+                set_dock_tab_font(bar);
+        }
+
+        return QMainWindow::event(event);
+    }
+
     void MainWindow::restore_dock()
     { 
         // default dockwidget size
@@ -1580,6 +1612,7 @@ namespace pv
 
         UiManager::Instance()->Update(UI_UPDATE_ACTION_THEME);
         UiManager::Instance()->Update(UI_UPDATE_ACTION_FONT);
+        update_dock_tab_font();
 
         data_updated();
 #ifdef Q_OS_LINUX
@@ -2310,6 +2343,7 @@ namespace pv
             case DSV_MSG_FONT_OPTIONS_CHANGED:
             {
                 UiManager::Instance()->Update(UI_UPDATE_ACTION_FONT);          
+                update_dock_tab_font();
                 break;
             }
             case DSV_MSG_DATA_POOL_CHANGED:

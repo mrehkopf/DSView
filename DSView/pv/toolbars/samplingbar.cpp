@@ -27,6 +27,7 @@
 #include <QStyle>
 #include <QSizePolicy>
 #include <QTimer>
+#include <QStyleOptionComboBox>
 #include <math.h>
 #include <libusb-1.0/libusb.h>
 #include "../dialogs/deviceoptions.h"
@@ -97,6 +98,9 @@ namespace pv
             _sample_rate.setSizeAdjustPolicy(DsComboBox::AdjustToContents);
             _sample_count.setSizeAdjustPolicy(DsComboBox::AdjustToContents);
             _device_selector.setMaximumWidth(ComboBoxMaxWidth);
+            // The theme style sheet sets a min-width on combo boxes when the box
+            // is polished, which would override the fixed width set below.
+            _sample_rate.installEventFilter(this);
 
             //tr
             _run_stop_button.setObjectName("run_stop_button");
@@ -480,8 +484,7 @@ namespace pv
                 g_variant_unref(gvar_list);
             }
 
-            _sample_rate.setMinimumWidth(_sample_rate.sizeHint().width() + 15);
-            _sample_rate.view()->setMinimumWidth(_sample_rate.sizeHint().width() + 30);
+            update_sample_rate_width();
 
             _sample_at->setText(_device_agent->is_external_clock() ? " @ ext." : " @ ");
 
@@ -1421,7 +1424,37 @@ namespace pv
             font.setPointSizeF(AppConfig::Instance().appOptions.fontSize);
             ui::set_toolbar_font(this, font);
 
+            update_sample_rate_width();
             update_view_status();
+        }
+
+        void SamplingBar::update_sample_rate_width()
+        {
+            // Width only depends on the font, not on the current rate list, so
+            // the box keeps its size when the list is rebuilt (e.g. after the
+            // device options dialog).
+            QFontMetrics fm(_sample_rate.font());
+            int text_width = fm.horizontalAdvance("000 MHz");
+
+            for (int i = 0; i < _sample_rate.count(); i++)
+                text_width = std::max(text_width, fm.horizontalAdvance(_sample_rate.itemText(i)));
+
+            QStyleOptionComboBox opt;
+            opt.initFrom(&_sample_rate);
+            int width = _sample_rate.style()->sizeFromContents(QStyle::CT_ComboBox, &opt,
+                            QSize(text_width, fm.height()), &_sample_rate).width() + 15;
+
+            _sample_rate.setFixedWidth(width);
+            _sample_rate.view()->setMinimumWidth(width + 15);
+        }
+
+        bool SamplingBar::eventFilter(QObject *obj, QEvent *event)
+        {
+            if (obj == &_sample_rate
+                    && (event->type() == QEvent::Polish || event->type() == QEvent::StyleChange))
+                update_sample_rate_width();
+
+            return QToolBar::eventFilter(obj, event);
         }
 
         void SamplingBar::set_sample_count_index(int index)

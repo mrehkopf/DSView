@@ -26,6 +26,7 @@
 #include <QGuiApplication>
 #include <QScreen>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QLayoutItem>
 #include <assert.h>
 
@@ -111,8 +112,7 @@ DeviceOptions::DeviceOptions(QWidget *parent) :
     // scroll panel
     _scroll_panel  = new QWidget();
     QVBoxLayout *scroll_lay = new QVBoxLayout();
-    scroll_lay->setContentsMargins(0, 0, 8, 0);
-    scroll_lay->setAlignment(Qt::AlignLeft);
+    scroll_lay->setContentsMargins(0, 0, 0, 0);
     scroll_lay->setDirection(QBoxLayout::TopToBottom);
     _scroll_panel->setLayout(scroll_lay);
     this->layout()->addWidget(_scroll_panel);
@@ -145,7 +145,7 @@ DeviceOptions::DeviceOptions(QWidget *parent) :
 
     QWidget *minWid = new QWidget();
     minWid->setFixedHeight(1);
-    minWid->setMinimumWidth(230);
+    minWid->setMinimumWidth(300);
     _container_lay->addWidget(minWid);
 
     // chnnels group box
@@ -430,9 +430,12 @@ void DeviceOptions::logic_probes(QVBoxLayout &layout)
     enable_all_probes->setFont(font);
     disable_all_probes->setFont(font);
 
-    int bt_width = enable_all_probes->fontMetrics().horizontalAdvance(enable_all_probes->text()) + 20;
-    enable_all_probes->setMaximumWidth(bt_width);
-    disable_all_probes->setMaximumWidth(bt_width);
+    // Same width for both, wide enough for the longer (translated) label.
+    int bt_width = std::max(enable_all_probes->sizeHint().width(),
+                            disable_all_probes->sizeHint().width());
+    enable_all_probes->setFixedWidth(bt_width);
+    disable_all_probes->setFixedWidth(bt_width);
+    line_lay->setAlignment(Qt::AlignLeft);
 
     this->update_font(); 
 
@@ -898,13 +901,6 @@ void DeviceOptions::try_resize_scroll()
 
     // content area height
     int contentHeight = _groupHeight1 + _groupHeight2 + 20; // +space
-    //dialog height
-    int dlgHeight = contentHeight + 100; // +bottom buttton
-
-#ifdef Q_OS_DARWIN
-    dlgHeight += 20;
-#endif
-
     float sk = QGuiApplication::primaryScreen()->logicalDotsPerInch() / 96;
 
     int srcHeight = 800;
@@ -935,42 +931,56 @@ void DeviceOptions::try_resize_scroll()
     }
 #endif
 
-    if (w == 0)
-    {
-        w = this->sizeHint().width();
-        _width = w;
-    }
-
     QScrollArea *scroll = _scroll;
     if (scroll == NULL)
     {
         scroll = new QScrollArea(_scroll_panel);
         scroll->setWidget(_container_panel);
+        scroll->setWidgetResizable(true);
         scroll->setStyleSheet("QScrollArea{border:none;}");
+        scroll->setFrameShape(QFrame::NoFrame);
         scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        _scroll_panel->layout()->addWidget(scroll);
         _scroll = scroll;
     }
 
+    // Only set minimum widths and let the layouts stretch the content to the
+    // full dialog width, so its right edge lines up with the OK button.
+    // Never shrink below an earlier width, the dialog should not jump around
+    // when switching modes.
+    w = std::max(w, _container_panel->sizeHint().width());
+    _width = w;
+    contentHeight = std::max(contentHeight, _container_lay->sizeHint().height());
+    _container_panel->setMinimumWidth(w);
     _container_panel->setFixedHeight(contentHeight);
-    int sclw = w - 23;
 
-#ifdef Q_OS_DARWIN
-    sclw -= 20;
-#endif
+    auto set_scroll_size = [&](int sclw, int scrollh){
+        _scroll->setMinimumWidth(sclw);
+        _scroll->setMaximumWidth(QWIDGETSIZE_MAX);
+        _scroll->setFixedHeight(scrollh);
+        _scroll_panel->setMinimumWidth(sclw);
+        _scroll_panel->setMaximumWidth(QWIDGETSIZE_MAX);
+        _scroll_panel->setFixedHeight(scrollh);
+    };
 
-    if (sk * dlgHeight > srcHeight)
+    this->setMinimumSize(0, 0);
+    this->setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+
+    // Measure the dialog with all content visible; the layout accounts for
+    // title bar, spacing and the OK button box.
+    set_scroll_size(w, contentHeight);
+    QSize hint = this->sizeHint();
+
+    if (sk * hint.height() > srcHeight)
     {
-        int exth = 120;
-        this->setFixedSize(w + 12, srcHeight);
-        _scroll_panel->setFixedSize(w, srcHeight - exth);
-        _scroll->setFixedSize(sclw, srcHeight - exth);
+        // Too tall for the screen: shrink the scroll area and make room
+        // for the vertical scroll bar.
+        int scrollh = srcHeight - (hint.height() - contentHeight);
+        set_scroll_size(w + _scroll->verticalScrollBar()->sizeHint().width(), scrollh);
+        hint = QSize(this->sizeHint().width(), srcHeight);
     }
-    else
-    { 
-        this->setFixedSize(w + 12, dlgHeight);
-        _scroll_panel->setFixedSize(w, contentHeight);
-        _scroll->setFixedSize(sclw, contentHeight);
-    }
+
+    this->setFixedSize(hint);
 }
 
 void DeviceOptions::keyPressEvent(QKeyEvent *event) 
