@@ -113,6 +113,7 @@ namespace pv
             double commit_hori_res();
 
             void update_sample_rate_selector();
+            void update_sample_rate_width();
            
             void update_sample_rate_selector_value();
             void update_sample_count_selector();
@@ -129,6 +130,8 @@ namespace pv
             void UpdateLanguage() override;
             void UpdateTheme() override;
             void UpdateFont() override;
+
+            bool eventFilter(QObject *obj, QEvent *event) override;
 
             void set_sample_count_index(int index);
 

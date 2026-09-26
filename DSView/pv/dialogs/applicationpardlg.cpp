@@ -465,7 +465,8 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     QGroupBox *dsoGroup = new QGroupBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_GROUP_DSO), "Scope"));
     QGridLayout *dsoLay = new QGridLayout();
     dsoLay->setContentsMargins(10,15,15,10);
-    dsoLay->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    dsoLay->setAlignment(Qt::AlignTop);
+    dsoLay->setColumnStretch(0, 1);
     dsoGroup->setLayout(dsoLay);
     dsoLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_TRIG_DISPLAY_MIDDLE), "Tig pos in middle")), 0, 0, Qt::AlignLeft);
     dsoLay->addWidget(ck_trigInMid, 0, 1, Qt::AlignRight);
@@ -477,7 +478,8 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     QGroupBox *uiGroup = new QGroupBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_GROUP_UI), "UI"));
     QGridLayout *uiLay = new QGridLayout();
     uiLay->setContentsMargins(10,15,15,10);
-    uiLay->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    uiLay->setAlignment(Qt::AlignTop);
+    uiLay->setColumnStretch(0, 1);
     uiGroup->setLayout(uiLay);
     uiLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DISPLAY_PROFILE_IN_BAR), "Profile in bar")), 0, 0, Qt::AlignLeft);
     uiLay->addWidget(ck_profileBar, 0, 1, Qt::AlignRight);
