@@ -433,12 +433,15 @@ SR_PRIV int dsl_configure_probes(const struct sr_dev_inst *sdi)
 
         stage = 0;
         for (tc = probe->trigger; *tc; tc++) {
+            /* Check before writing: a check after stage++ either lets one
+             * stage too many overflow the tables (>) or rejects a trigger
+             * using exactly all of them (>=). */
+            if (stage >= NUM_TRIGGER_STAGES)
+                return SR_ERR;
             devc->trigger_mask[stage] |= probe_bit;
             if (*tc == '1')
                 devc->trigger_value[stage] |= probe_bit;
             stage++;
-            if (stage >= NUM_TRIGGER_STAGES)
-                return SR_ERR;
         }
     }
 
