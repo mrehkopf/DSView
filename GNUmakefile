@@ -20,19 +20,31 @@
 ##
 
 ##
-## Parallel-by-default wrapper around the CMake-generated Makefile.
+## Convenience wrapper so a bare `make` in the source root works, while
+## generated files stay in ./build. The executable goes to build.dir/.
 ##
-## CMake emits a Makefile that builds serially unless -j is given. GNU make
-## reads GNUmakefile in preference to Makefile, so a bare `make` lands here,
-## which picks a job count and then includes the generated Makefile verbatim
-## -- every target it defines still works exactly as before.
+##   make             configure ./build if needed, then build (in parallel)
+##   make install     build if needed, then install (`sudo make install`)
+##   make deb         build a .deb package in ./build
+##   make clean       remove compiled objects, keep the configuration
+##   make distclean   remove ./build entirely
 ##
-## A -j on the command line overrides the default chosen here.
+##   make JOBS=8                      override the job count
+##   make CMAKE_ARGS="-G Ninja"       extra arguments for the first configure
 ##
+## Under sudo, configuring and compiling run as the invoking user ($SUDO_USER);
+## only the copy into the system runs as root, and the install manifest it
+## writes is handed back afterwards. So `sudo make install` never leaves
+## root-owned files in ./build.
+##
+
+BUILD_DIR  ?= build
+BUILD_TYPE ?= Release
+CMAKE_ARGS ?=
 
 # Leave two cores to the rest of the system, but never drop below one job.
 # getconf is POSIX; sysctl covers macOS, and the trailing 1 covers both failing.
-BUILD_JOBS := $(shell \
+JOBS ?= $(shell \
 	cores=$$(getconf _NPROCESSORS_ONLN 2>/dev/null \
 		|| sysctl -n hw.ncpu 2>/dev/null \
 		|| echo 1); \
@@ -40,12 +52,40 @@ BUILD_JOBS := $(shell \
 	[ "$$jobs" -ge 1 ] 2>/dev/null || jobs=1; \
 	echo $$jobs)
 
-MAKEFLAGS += -j$(BUILD_JOBS)
+# cmake drives its own (possibly make-based) build; don't leak our flags into it.
+SUBCMAKE = env -u MAKEFLAGS -u MAKELEVEL -u MFLAGS cmake
 
-ifeq (,$(wildcard $(CURDIR)/Makefile))
-    $(error No generated Makefile in $(CURDIR). Configure the tree first, e.g. \
-        `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release` and build with \
-        `cmake --build build -j$(BUILD_JOBS)`)
+# Root via sudo: drop back to the calling user for everything but the install.
+AS_USER :=
+ifeq ($(shell id -u),0)
+ifneq ($(filter-out root,$(SUDO_USER)),)
+AS_USER := sudo -u $(SUDO_USER)
+endif
 endif
 
-include $(CURDIR)/Makefile
+.PHONY: all build configure install deb clean distclean
+
+all: build
+
+$(BUILD_DIR)/CMakeCache.txt:
+	$(AS_USER) $(SUBCMAKE) -S . -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) $(CMAKE_ARGS)
+
+configure: $(BUILD_DIR)/CMakeCache.txt
+
+build: configure
+	$(AS_USER) $(SUBCMAKE) --build $(BUILD_DIR) --parallel $(JOBS)
+
+install: build
+	$(SUBCMAKE) --install $(BUILD_DIR)
+ifneq ($(AS_USER),)
+	chown $(SUDO_UID):$(SUDO_GID) $(BUILD_DIR)/install_manifest*.txt
+endif
+
+deb: build
+	cd $(BUILD_DIR) && $(AS_USER) cpack -G DEB
+
+clean:
+	@test ! -f $(BUILD_DIR)/CMakeCache.txt || $(AS_USER) $(SUBCMAKE) --build $(BUILD_DIR) --target clean
+
+distclean:
+	rm -rf $(BUILD_DIR)
