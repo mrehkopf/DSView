@@ -21,6 +21,18 @@
 
 cmake_minimum_required(VERSION 3.10)
 
+# Keep the source tree clean: all generated files (moc_*, qrc_*, config.h,
+# Makefiles) belong in a separate build directory. The executable still
+# goes to build.dir/ (see EXECUTABLE_OUTPUT_PATH below).
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
+    message(FATAL_ERROR
+        "In-source builds are not allowed. Build in ./build instead:\n"
+        "  cmake -S . -B build -DCMAKE_BUILD_TYPE=Release\n"
+        "  cmake --build build\n"
+        "(or just run `make`). CMake has already created CMakeCache.txt and "
+        "CMakeFiles/ here - delete them: rm -rf CMakeCache.txt CMakeFiles")
+endif()
+
 project(DSView)
 
 #===============================================================================
