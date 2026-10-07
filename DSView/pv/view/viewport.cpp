@@ -63,6 +63,8 @@ Viewport::Viewport(View &parent, View_type type) :
     _view(parent),
     _type(type),
     _need_update(false),
+    _persist_sig(0),
+    _persist_pending_ms(0),
     _sample_received(0),
     _action_type(NO_ACTION),
     _measure_type(NO_MEASURE),
@@ -346,6 +348,39 @@ void Viewport::paintYScaleBadge(QPainter &p, QColor fore, QColor back)
     _yscale_badge_rect = badge;
 }
 
+// Hash of everything that decides where a DSO frame lands in the viewport. A
+// change means the persistence ghosts no longer line up and must be dropped.
+quint64 Viewport::dso_persist_signature() const
+{
+    quint64 h = 1469598103934665603ULL;
+    auto mix = [&h](quint64 v) { h = (h ^ v) * 1099511628211ULL; };
+
+    double scale = _view.scale();
+    quint64 scale_bits;
+    memcpy(&scale_bits, &scale, sizeof(scale_bits));
+    mix(scale_bits);
+    mix((quint64)_view.x_offset());
+    mix((quint64)_view.y_offset());
+    mix((quint64)_view.get_signalHeight());
+    mix((quint64)width() << 32 | (quint64)height());
+
+    std::vector<Trace*> traces;
+    _view.get_traces(_type, traces);
+    for (auto t : traces) {
+        mix(t->enabled());
+        mix(t->signal_type());
+        if (t->signal_type() == SR_CHANNEL_DSO) {
+            DsoSignal *dso = static_cast<DsoSignal*>(t);
+            mix(dso->get_vDialValue());
+            mix((quint64)dso->get_zero_vpos());
+            mix((quint64)dso->get_hw_offset());
+            mix((quint64)t->get_view_rect().top());
+            mix((quint64)t->get_view_rect().height());
+        }
+    }
+    return h;
+}
+
 void Viewport::paintSignals(QPainter &p, QColor fore, QColor back)
 {
     std::vector<Trace*> traces;
@@ -393,6 +428,39 @@ void Viewport::paintSignals(QPainter &p, QColor fore, QColor back)
             _curSignalHeight = _view.get_signalHeight();
             _curYOffset = _view.y_offset();
 
+            // Persistence: the frame being replaced becomes a fading ghost.
+            // Ghosts are dropped whenever the view or channel scaling changed.
+            const int persist_ms = AppConfig::Instance().appOptions.dsoPersistenceMs;
+            const quint64 persist_sig = dso_persist_signature();
+            if (persist_ms > 0 && _view.session().get_device()->get_work_mode() == DSO) {
+                if (persist_sig != _persist_sig || _persist_pixmap.size() != pixmap_size ||
+                    _persist_pixmap.devicePixelRatio() != dpr || _pixmap.isNull()) {
+                    _persist_pixmap = QPixmap(pixmap_size);
+                    _persist_pixmap.setDevicePixelRatio(dpr);
+                    _persist_pixmap.fill(Qt::transparent);
+                    _persist_pending_ms = 0;
+                }
+                else {
+                    // Fade in coarse steps: 8-bit alpha stalls on tiny per-frame factors.
+                    _persist_pending_ms += _persist_clock.isValid() ? _persist_clock.elapsed() : 0;
+                    const double factor = exp(-(double)_persist_pending_ms / persist_ms);
+                    QPainter gp(&_persist_pixmap);
+                    if (factor <= 0.92) {
+                        gp.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+                        gp.fillRect(_persist_pixmap.rect(), QColor(0, 0, 0, qRound(factor * 255)));
+                        gp.setCompositionMode(QPainter::CompositionMode_SourceOver);
+                        _persist_pending_ms = 0;
+                    }
+                    gp.drawPixmap(0, 0, _pixmap);
+                }
+                _persist_sig = persist_sig;
+                _persist_clock.restart();
+            }
+            else if (!_persist_pixmap.isNull()) {
+                _persist_pixmap = QPixmap();
+                _persist_clock.invalidate();
+            }
+
             _pixmap = QPixmap(pixmap_size);
             _pixmap.setDevicePixelRatio(dpr);
             _pixmap.fill(Qt::transparent);
@@ -424,6 +492,8 @@ void Viewport::paintSignals(QPainter &p, QColor fore, QColor back)
             }
             _need_update = false;
         }
+        if (!_persist_pixmap.isNull() && AppConfig::Instance().appOptions.dsoPersistenceMs > 0)
+            p.drawPixmap(0, 0, _persist_pixmap);
         p.drawPixmap(0, 0, _pixmap);
     }
 

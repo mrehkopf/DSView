@@ -97,6 +97,7 @@ struct AppOptions
     bool logicThickHighLevel;
     bool dsoSplitChannels;
     float dsoSignalLineWidth;
+    int dsoPersistenceMs; // 0 = off; fade-out time of previous scope frames
     std::vector<StringPair> m_protocolFormats;
 };
  
