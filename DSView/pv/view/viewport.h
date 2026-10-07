@@ -151,6 +151,7 @@ private:
     void resizeEvent(QResizeEvent *e) override;
     bool gestureEvent(QNativeGestureEvent *event);
 
+    quint64 dso_persist_signature() const;
     void paintSignals(QPainter& p, QColor fore, QColor back);
     void paintProgress(QPainter& p, QColor fore, QColor back);
     void paintMeasure(QPainter &p, QColor fore, QColor back);
@@ -190,6 +191,10 @@ private:
     View_type   _type;
     bool        _need_update;
     QPixmap     _pixmap;
+    QPixmap     _persist_pixmap;    // faded previous DSO frames (persistence)
+    quint64     _persist_sig;       // view/channel state the ghosts belong to
+    QElapsedTimer _persist_clock;
+    qint64      _persist_pending_ms;
     QMenu       *_cmenu;
 
     // Reusable scratch buffer for paint_ref_waves(), so it does not have to

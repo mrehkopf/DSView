@@ -322,6 +322,13 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     spinBox_dsoLineWidth->setValue(app.appOptions.dsoSignalLineWidth);
     spinBox_dsoLineWidth->setSuffix(" px");
 
+    QSpinBox *spinBox_dsoPersistence = new XSpinBox();
+    spinBox_dsoPersistence->setRange(0, 10000);
+    spinBox_dsoPersistence->setSingleStep(100);
+    spinBox_dsoPersistence->setSpecialValueText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_OFF), "Off"));
+    spinBox_dsoPersistence->setValue(app.appOptions.dsoPersistenceMs);
+    spinBox_dsoPersistence->setSuffix(" ms");
+
     // Logic group
     QGroupBox *logicGroup = new QGroupBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_GROUP_LOGIC), "Logic"));
     QGridLayout *logicLay = new QGridLayout();
@@ -472,6 +479,8 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     dsoLay->addWidget(ck_trigInMid, 0, 1, Qt::AlignRight);
     dsoLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SIGNAL_LINE_WIDTH), "Signal line width")), 1, 0, Qt::AlignLeft);
     dsoLay->addWidget(spinBox_dsoLineWidth, 1, 1, Qt::AlignRight);
+    dsoLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DSO_PERSISTENCE), "Persistence (fade-out time)")), 2, 0, Qt::AlignLeft);
+    dsoLay->addWidget(spinBox_dsoPersistence, 2, 1, Qt::AlignRight);
     lay->addWidget(dsoGroup);
 
     //UI
@@ -581,6 +590,10 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
         }
         if (app.appOptions.dsoSignalLineWidth != spinBox_dsoLineWidth->value()) {
             app.appOptions.dsoSignalLineWidth = spinBox_dsoLineWidth->value();
+            bAppChanged = true;
+        }
+        if (app.appOptions.dsoPersistenceMs != spinBox_dsoPersistence->value()) {
+            app.appOptions.dsoPersistenceMs = spinBox_dsoPersistence->value();
             bAppChanged = true;
         }
         if (app.appOptions.logicChannelDivider != ck_channelDivider->isChecked()) {
