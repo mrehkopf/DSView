@@ -193,6 +193,8 @@ private:
     QPixmap     _pixmap;
     QPixmap     _persist_pixmap;    // faded previous DSO frames (persistence)
     quint64     _persist_sig;       // view/channel state the ghosts belong to
+    double      _persist_scale = 1.0;   // horizontal mapping the ghosts were drawn with
+    qint64      _persist_x_offset = 0;
     QElapsedTimer _persist_clock;
     qint64      _persist_pending_ms;
     QMenu       *_cmenu;
