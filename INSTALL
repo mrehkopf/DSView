@@ -64,6 +64,10 @@ Step 3: Build and install
  $ cmake --build build -j"$(nproc)"
  $ sudo cmake --install build
 
+In-source builds (`cmake .`) are rejected. A bare `make` in the source root
+runs the same steps in ./build (see GNUmakefile; `make install`, `make deb`).
+The executable is written to build.dir/DSView.
+
 On Linux, installing places DSView in <prefix>/bin (default prefix: /usr/local),
 and the firmware, demo files and translations in <prefix>/share/DSView. The
 protocol decoders go to <prefix>/share/libsigrokdecode4DSL. It also installs a
