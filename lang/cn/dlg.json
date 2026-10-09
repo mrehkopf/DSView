@@ -1022,5 +1022,13 @@
     {
         "id": "IDS_DLG_STACKING_REFERENCE_BOTH",
         "text": "两者"
+    },
+    {
+        "id": "IDS_DLG_DSO_PERSISTENCE",
+        "text": "余辉（衰减时间）"
+    },
+    {
+        "id": "IDS_DLG_OFF",
+        "text": "关"
     }
 ]

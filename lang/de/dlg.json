@@ -1130,5 +1130,13 @@
     {
         "id": "IDS_DLG_REF_STORED",
         "text": "Gespeicherte Referenzen"
+    },
+    {
+        "id": "IDS_DLG_DSO_PERSISTENCE",
+        "text": "Nachleuchten (Ausblendzeit)"
+    },
+    {
+        "id": "IDS_DLG_OFF",
+        "text": "Aus"
     }
 ]
