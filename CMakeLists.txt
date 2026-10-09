@@ -411,8 +411,6 @@ set(DSView_SOURCES
 
 set(DSView_HEADERS
     DSView/mystyle.h
-    DSView/pv/log.h
-    DSView/pv/sigsession.h
     DSView/pv/mainwindow.h
     DSView/pv/dialogs/deviceoptions.h
     DSView/pv/dialogs/stackingoptions.h
@@ -486,26 +484,12 @@ set(DSView_HEADERS
     DSView/pv/view/decodetrace.h
     DSView/pv/widgets/decodergroupbox.h
     DSView/pv/widgets/decodermenu.h
-    DSView/pv/config/appconfig.h
-    DSView/pv/appcontrol.h
     DSView/pv/dstimer.h
     DSView/pv/eventobject.h
-    DSView/pv/ZipMaker.h
-    DSView/pv/data/decode/annotationrestable.h
-    DSView/pv/data/decode/decoderstatus.h
     DSView/pv/dock/protocolitemlayer.h
-    DSView/pv/ui/msgbox.h
-    DSView/pv/ui/dscombobox.h
-    DSView/pv/dsvdef.h
-    DSView/pv/dialogs/applicationpardlg.h
     DSView/pv/dock/keywordlineedit.h
     DSView/pv/dock/searchcombobox.h
     DSView/pv/dialogs/decoderoptionsdlg.h
-    DSView/pv/utility/encoding.h
-    DSView/pv/utility/path.h
-    DSView/pv/utility/array.h
-    DSView/pv/deviceagent.h
-    DSView/pv/ui/fn.h
     DSView/pv/ui/xtoolbutton.h
 )
 

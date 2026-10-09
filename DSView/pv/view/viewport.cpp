@@ -355,11 +355,7 @@ quint64 Viewport::dso_persist_signature() const
     quint64 h = 1469598103934665603ULL;
     auto mix = [&h](quint64 v) { h = (h ^ v) * 1099511628211ULL; };
 
-    double scale = _view.scale();
-    quint64 scale_bits;
-    memcpy(&scale_bits, &scale, sizeof(scale_bits));
-    mix(scale_bits);
-    mix((quint64)_view.x_offset());
+    // Horizontal scale/offset are excluded: ghosts get remapped on zoom/pan.
     mix((quint64)_view.y_offset());
     mix((quint64)_view.get_signalHeight());
     mix((quint64)width() << 32 | (quint64)height());
@@ -433,6 +429,24 @@ void Viewport::paintSignals(QPainter &p, QColor fore, QColor back)
             const int persist_ms = AppConfig::Instance().appOptions.dsoPersistenceMs;
             const quint64 persist_sig = dso_persist_signature();
             if (persist_ms > 0 && _view.session().get_device()->get_work_mode() == DSO) {
+                if (persist_sig == _persist_sig && _persist_pixmap.size() == pixmap_size &&
+                    (_persist_scale != _view.scale() || _persist_x_offset != _view.x_offset())) {
+                    // Horizontal zoom/pan: remap the ghosts instead of dropping them.
+                    // Pixel x maps to (x + x_offset) * scale in sample units.
+                    const double k = _persist_scale / _view.scale();
+                    const double dx = ((double)_persist_x_offset * _persist_scale) / _view.scale()
+                                      - (double)_view.x_offset();
+                    QPixmap moved(pixmap_size);
+                    moved.setDevicePixelRatio(dpr);
+                    moved.fill(Qt::transparent);
+                    QPainter mp(&moved);
+                    mp.setRenderHint(QPainter::SmoothPixmapTransform, true);
+                    mp.translate(dx, 0);
+                    mp.scale(k, 1.0);
+                    mp.drawPixmap(0, 0, _persist_pixmap);
+                    mp.end();
+                    _persist_pixmap = moved;
+                }
                 if (persist_sig != _persist_sig || _persist_pixmap.size() != pixmap_size ||
                     _persist_pixmap.devicePixelRatio() != dpr || _pixmap.isNull()) {
                     _persist_pixmap = QPixmap(pixmap_size);
@@ -454,6 +468,8 @@ void Viewport::paintSignals(QPainter &p, QColor fore, QColor back)
                     gp.drawPixmap(0, 0, _pixmap);
                 }
                 _persist_sig = persist_sig;
+                _persist_scale = _view.scale();
+                _persist_x_offset = _view.x_offset();
                 _persist_clock.restart();
             }
             else if (!_persist_pixmap.isNull()) {
