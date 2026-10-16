@@ -150,6 +150,7 @@ class Decoder(srd.Decoder):
         self.samplenum_target = None
         self.samplenum_edge = None
         self.samplenum_lastedge = 0
+        self.samplenum_sop = None
         self.edgepins = None
         self.consecutive_ones = 0
         self.bits = None
@@ -206,12 +207,31 @@ class Decoder(srd.Decoder):
             return
         self.consecutive_ones = 0
         self.bits = ''
+        self.samplenum_sop = self.samplenum
+        if self.signalling == 'low-speed-rp':
+            # Hub upstream segment: full-speed and low-speed packets share
+            # polarity, only the bit rate tells them apart.
+            self.state = 'GET SPEED'
+        else:
+            self.start_packet()
+
+    def start_packet(self):
         self.update_bitrate()
-        self.samplepos = self.samplenum - (self.bitwidth / 2) + 0.5
+        self.samplepos = self.samplenum_sop - (self.bitwidth / 2) + 0.5
         self.set_new_target_samplenum()
         self.putpx(['SOP', None])
         self.putx([4, ['SOP', 'S']])
         self.state = 'GET BIT'
+
+    def get_speed(self, pins):
+        # SYNC starts with a single K bit. A full-speed K has ended (edge seen)
+        # well before the middle of a low-speed bit (skip timeout).
+        if pins == self.edgepins:
+            self.start_packet()
+        else:
+            self.signalling = 'full-speed'
+            self.start_packet()
+            self.get_bit('K') # The first bit has already gone by.
 
     def handle_bit(self, b):
         if self.consecutive_ones == 6:
@@ -293,7 +313,11 @@ class Decoder(srd.Decoder):
             self.putpb(['KEEP ALIVE', None])
             self.putb([9, ['Keep-alive', 'KA', 'A']])
 
-        if self.options['signalling'] == 'automatic' and sym == 'FS_J':
+        if self.signalling == 'low-speed-rp' and sym in ('FS_J', 'J'):
+            # The low-speed device answers through the hub without a PREamble,
+            # so keep the segment's rates; GET SPEED picks one per packet.
+            pass
+        elif self.options['signalling'] == 'automatic' and sym == 'FS_J':
             self.signalling = 'full-speed'
         elif self.options['signalling'] == 'automatic' and sym == 'LS_J':
             self.signalling = 'low-speed'
@@ -324,6 +348,11 @@ class Decoder(srd.Decoder):
                     self.state = 'WAIT IDLE'
                 else:
                     self.wait_for_sop(sym)
+                self.edgepins = (dp, dm)
+            elif self.state == 'GET SPEED':
+                fs_bitwidth = float(self.samplerate) / bitrates['full-speed']
+                (dp, dm) = self.wait([{0: 'e'}, {1: 'e'}, {'skip': max(1, int(3 * fs_bitwidth))}])
+                self.get_speed((dp, dm))
                 self.edgepins = (dp, dm)
             elif self.state in ('GET BIT', 'GET EOP'):
                 # Wait until we're in the middle of the desired bit.
