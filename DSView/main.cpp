@@ -169,6 +169,13 @@ bool bHighScale = true;
 #endif
 #endif
 
+#if defined(_WIN32) && QT_VERSION >= QT_VERSION_CHECK(6,0,0)
+	// The native window code (WinNativeWidget, MainFrame) works with integer
+	// device pixel ratios, as Qt 5 rounded them: keep 150% at 2, not 1.5.
+	// Set after the probe application above, whose deletion resets it.
+	QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::Round);
+#endif
+
 	//----------------------init app
     QApplication a(argcFinal, argvFinal);
 
