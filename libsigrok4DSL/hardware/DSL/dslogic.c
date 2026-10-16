@@ -1337,8 +1337,7 @@ static void remove_sources(struct DSL_context *devc)
     if(devc->usb_thread) {
         sr_info("%s: stop USB event thread", __func__);
         sr_source_remove_by_device(-1, sdi);
-        devc->usb_thread_quit = TRUE;
-        devc->usb_thread = NULL;
+        dsl_stop_usb_event_thread(sdi);
     }
 }
 
@@ -1549,6 +1548,7 @@ static int dev_acquisition_start(struct sr_dev_inst *sdi, void *cb_data)
        use a thread to call libusb_handle_events instead. */
     else {
         devc->usbfd = NULL;
+        dsl_stop_usb_event_thread(sdi);
         devc->usb_thread_quit = FALSE;
         devc->usb_thread = g_thread_new("dslogic-usb-poll", usb_event_thread, sdi);
         if(!devc->usb_thread) {

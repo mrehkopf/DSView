@@ -1974,11 +1974,33 @@ SR_PRIV int dsl_dev_open(struct sr_dev_driver *di, struct sr_dev_inst *sdi, gboo
     return SR_OK;
 }
 
+/*
+ * Stop the USB event thread of a Windows acquisition, see usb_event_thread().
+ * A stopped capture leaves it running to reap the cancelled transfers, so it
+ * is also stopped before the next capture and when the device is closed.
+ */
+SR_PRIV void dsl_stop_usb_event_thread(const struct sr_dev_inst *sdi)
+{
+    struct DSL_context *devc = sdi->priv;
+    struct drv_context *drvc = sdi->driver->priv;
+
+    if (devc == NULL || devc->usb_thread == NULL)
+        return;
+
+    devc->usb_thread_quit = TRUE;
+    /* Return from libusb_handle_events_timeout_completed() now. */
+    libusb_interrupt_event_handler(drvc->sr_ctx->libusb_ctx);
+    g_thread_join(devc->usb_thread);
+    devc->usb_thread = NULL;
+}
+
 SR_PRIV int dsl_dev_close(struct sr_dev_inst *sdi)
 {
     struct sr_usb_dev_inst *usb;
 
     assert(sdi);
+
+    dsl_stop_usb_event_thread(sdi);
 
     usb = sdi->conn;
 
