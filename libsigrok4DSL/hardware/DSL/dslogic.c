@@ -402,7 +402,13 @@ static GSList *scan(GSList *options)
         address = libusb_get_device_address(device_handle);
         sr_info("Found a new device,handle:%p", device_handle);
  
-        if (dsl_check_conf_profile(device_handle)) {
+        ret = dsl_check_conf_profile(device_handle);
+        if (ret == DSL_PROFILE_NOT_READY) {
+            sr_warn("The device does not answer, skip it, handle:%p", device_handle);
+            continue;
+        }
+
+        if (ret == DSL_PROFILE_FIRMWARE) {
 			/* Already has the firmware, so fix the new address. */
             sr_info("Found a DSLogic device,name:\"%s\",handle:%p, pid:%02x", 
                 prof->model,device_handle, prof->pid);

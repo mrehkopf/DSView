@@ -242,20 +242,37 @@ SR_PRIV int dsl_en_ch_num(const struct sr_dev_inst *sdi)
  * @return TRUE if the device's configuration profile match dsl hardware
  *         configuration, FALSE otherwise.
  */
-SR_PRIV gboolean dsl_check_conf_profile(libusb_device *dev)
+/* Whether a failed request means that the device does not answer (yet). */
+static gboolean dsl_no_answer(int ret)
+{
+    return ret == LIBUSB_ERROR_TIMEOUT || ret == LIBUSB_ERROR_IO
+        || ret == LIBUSB_ERROR_NO_DEVICE || ret == LIBUSB_ERROR_BUSY;
+}
+
+/*
+ * Whether the device runs the DSL firmware. Right after it is plugged, a
+ * device may not answer yet: that is not the same as missing firmware, and
+ * uploading firmware to a device that boots it from flash can hang it.
+ */
+SR_PRIV int dsl_check_conf_profile(libusb_device *dev)
 {
     struct libusb_device_descriptor des;
     struct libusb_device_handle *hdl;
     int ret;
-    gboolean bSucess;
+    int status;
+    int tries;
     unsigned char strdesc[64];
 
-    hdl = NULL;
-    bSucess = FALSE;
-    ret = 0;
+    status = DSL_PROFILE_NOT_READY;
 
-    while (!bSucess) {
+    for (tries = 0; tries < 3 && status == DSL_PROFILE_NOT_READY; tries++) {
+        if (tries > 0)
+            g_usleep(300 * 1000);
+
+        hdl = NULL;
         /* Assume the FW has not been loaded, unless proven wrong. */
+        status = DSL_PROFILE_NO_FIRMWARE;
+
         if ((ret = libusb_get_device_descriptor(dev, &des)) < 0){
             sr_err("%s:%d, Failed to get device descriptor: %s", 
 			    __func__, __LINE__, libusb_error_name(ret));
@@ -266,38 +283,34 @@ SR_PRIV gboolean dsl_check_conf_profile(libusb_device *dev)
             sr_err("%s:%d, Failed to open device: %s", 
 			    __func__, __LINE__, libusb_error_name(ret));
             // Mybe the device is busy, add it to list.
-            return TRUE;
+            return DSL_PROFILE_FIRMWARE;
         }
 
         if ((ret = libusb_get_string_descriptor_ascii(hdl,
                 des.iManufacturer, strdesc, sizeof(strdesc))) < 0){
             sr_err("%s:%d, Failed to get device descriptor ascii: %s", 
 			    __func__, __LINE__, libusb_error_name(ret));
-            break;
+            if (dsl_no_answer(ret))
+                status = DSL_PROFILE_NOT_READY;
+        }
+        else if (strncmp((const char *)strdesc, "DreamSourceLab", 14) == 0) {
+            if ((ret = libusb_get_string_descriptor_ascii(hdl,
+                    des.iProduct, strdesc, sizeof(strdesc))) < 0){
+                sr_err("%s:%d, Failed to get device descriptor ascii: %s", 
+                    __func__, __LINE__, libusb_error_name(ret));
+                if (dsl_no_answer(ret))
+                    status = DSL_PROFILE_NOT_READY;
+            }
+            else if (strncmp((const char *)strdesc, "USB-based DSL Instrument v2", 27) == 0) {
+                /* If we made it here, it must be an dsl device. */
+                status = DSL_PROFILE_FIRMWARE;
+            }
         }
 
-        if (strncmp((const char *)strdesc, "DreamSourceLab", 14))
-            break;
-
-        if ((ret = libusb_get_string_descriptor_ascii(hdl,
-                des.iProduct, strdesc, sizeof(strdesc))) < 0){
-            sr_err("%s:%d, Failed to get device descriptor ascii: %s", 
-			    __func__, __LINE__, libusb_error_name(ret));
-            break;
-        }
-
-        if (strncmp((const char *)strdesc, "USB-based DSL Instrument v2", 27))
-            break;
-
-        /* If we made it here, it must be an dsl device. */
-        bSucess = TRUE;
-    }
-
-    if (hdl){
         libusb_close(hdl);
     }
 
-    return bSucess;
+    return status;
 }
 
 static int hw_dev_open(struct sr_dev_driver *di, struct sr_dev_inst *sdi)

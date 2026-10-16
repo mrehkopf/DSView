@@ -610,6 +610,9 @@ if(WIN32)
             DSView/pv/winnativewidget.h
             DSView/pv/winshadow.h
         )
+    # USB hotplug, libusb has none on Windows.
+    list(APPEND libsigrok4DSL_SOURCES libsigrok4DSL/win32/hotplug_win.c)
+    add_definitions(-DHAVE_EXTERN_INIT)
 endif()
 
 if(Qt5Core_FOUND)
@@ -669,6 +672,8 @@ set(DSVIEW_LINK_LIBS
 if(WIN32)
     # Workaround for a MinGW linking issue.
     list(APPEND PULSEVIEW_LINK_LIBS "-llzma -llcms2")
+    # CM_Register_Notification() for USB hotplug.
+    list(APPEND DSVIEW_LINK_LIBS cfgmgr32)
 endif()
 
 add_executable(${PROJECT_NAME}
