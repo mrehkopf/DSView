@@ -202,40 +202,40 @@ jobs:
       - name: Set up MSYS2
         uses: msys2/setup-msys2@v2
         with:
-          msystem: MINGW64
+          msystem: UCRT64
           update: true
           install: >-
             git
             zip
             rsync
-            mingw-w64-x86_64-toolchain
-            mingw-w64-x86_64-cmake
-            mingw-w64-x86_64-ninja
-            mingw-w64-x86_64-qt6-base
-            mingw-w64-x86_64-qt6-svg
-            mingw-w64-x86_64-qt6-5compat
-            mingw-w64-x86_64-glib2
-            mingw-w64-x86_64-zlib
-            mingw-w64-x86_64-libusb
-            mingw-w64-x86_64-boost
-            mingw-w64-x86_64-fftw
-            mingw-w64-x86_64-python
-            mingw-w64-x86_64-pkg-config
+            mingw-w64-ucrt-x86_64-toolchain
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-qt6-base
+            mingw-w64-ucrt-x86_64-qt6-svg
+            mingw-w64-ucrt-x86_64-qt6-5compat
+            mingw-w64-ucrt-x86_64-glib2
+            mingw-w64-ucrt-x86_64-zlib
+            mingw-w64-ucrt-x86_64-libusb
+            mingw-w64-ucrt-x86_64-boost
+            mingw-w64-ucrt-x86_64-fftw
+            mingw-w64-ucrt-x86_64-python
+            mingw-w64-ucrt-x86_64-pkg-config
 
       - name: Configure
         run: |
-          # Force CMake to find MSYS2's own mingw64 Python (whose runtime DLL
+          # Force CMake to find MSYS2's own ucrt64 Python (whose runtime DLL
           # we actually bundle below) instead of the native Windows Python
           # that's preinstalled on the windows-latest runner (e.g. python314.dll
           # under the hosted tool cache). If CMake picks that one up instead,
           # DSView.exe ends up linked against a DLL that only exists on the CI
-          # runner, isn't found by the /mingw64/bin-only dependency bundling
+          # runner, isn't found by the /ucrt64/bin-only dependency bundling
           # loop, and the packaged app fails to start with "python314.dll was
           # not found".
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=dsview-dist \
-            -DPython3_ROOT_DIR=/mingw64 \
+            -DPython3_ROOT_DIR=/ucrt64 \
             -DPython3_FIND_STRATEGY=LOCATION \
             -DPython3_FIND_REGISTRY=NEVER \
             -DPython3_FIND_VIRTUALENV=STANDARD
@@ -257,35 +257,37 @@ jobs:
           # directly by DSView.exe itself).
           for group in platforms styles imageformats iconengines; do
             mkdir -p "dsview-dist/${group}"
-            cp -v /mingw64/share/qt6/plugins/${group}/*.dll "dsview-dist/${group}/"
+            cp -v /ucrt64/share/qt6/plugins/${group}/*.dll "dsview-dist/${group}/"
           done
 
           # DSView embeds Python (for its protocol decoders) via
           # Py_InitializeEx(); without its own copy of the standard library
           # (encodings, os.py, etc.) next to the exe, the interpreter can't
           # bootstrap once libpython3.14.dll is copied out of MSYS2's
-          # /mingw64 prefix layout, and Py_FatalError() aborts the process
+          # /ucrt64 prefix layout, and Py_FatalError() aborts the process
           # silently before any window is shown. Bundle it under "pylib",
           # which appcontrol.cpp points PYTHONHOME at via applicationDirPath().
           PYVER="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
           mkdir -p "dsview-dist/pylib"
           rsync -a \
-            --exclude 'test' --exclude 'idlelib' --exclude 'tkinter' --exclude '__pycache__' \
-            "/mingw64/lib/python${PYVER}/" "dsview-dist/pylib/"
+            --exclude 'test' --exclude 'idlelib' --exclude 'tkinter' --exclude '_tkinter*' \
+            --exclude '__pycache__' \
+            "/ucrt64/lib/python${PYVER}/" "dsview-dist/pylib/"
 
           # The install rules only place DSView.exe + data files; the MSYS2
           # toolchain/Qt6 runtime DLLs it's dynamically linked against still
-          # need to be copied in manually. Resolve the dependency closure with
-          # ldd and keep looping until a pass copies nothing new, since some
-          # transitive deps only show up once their dependents are present.
+          # need to be copied in manually. Resolve the dependency closure from
+          # the PE import tables and keep looping until a pass copies nothing
+          # new, since some transitive deps only show up once their dependents
+          # are present. objdump rather than ldd, which does not read the .pyd
+          # Python extension modules: they need DLLs of their own (libffi for
+          # ctypes, libmpdec for decimal, ...).
           while :; do
             new=0
-            for dll in $(find dsview-dist -name '*.exe' -o -name '*.dll' \
-                | xargs ldd 2>/dev/null \
-                | grep -i '/mingw64/bin/' | awk '{print $3}' | sort -u); do
-              base="$(basename "$dll")"
-              if [ ! -f "dsview-dist/$base" ]; then
-                cp -v "$dll" dsview-dist/
+            for dll in $(find dsview-dist \( -name '*.exe' -o -name '*.dll' -o -name '*.pyd' \) \
+                -exec objdump -p {} + | awk '/DLL Name:/ {print $3}' | sort -u); do
+              if [ -f "/ucrt64/bin/$dll" ] && [ ! -f "dsview-dist/$dll" ]; then
+                cp -v "/ucrt64/bin/$dll" dsview-dist/
                 new=1
               fi
             done
