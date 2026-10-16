@@ -199,6 +199,13 @@ namespace pv
         addToolBar(_file_bar);
         addToolBar(_logo_bar);
 
+        // Set it on the bars too: with Qt 6, a style sheet change resets the
+        // icon size a bar inherited from the window to the style's default.
+        _sampling_bar->setIconSize(iconSize());
+        _trig_bar->setIconSize(iconSize());
+        _file_bar->setIconSize(iconSize());
+        _logo_bar->setIconSize(iconSize());
+
         // Setup the dockWidget
         _protocol_dock = new QDockWidget(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_PROTOCOL_DOCK_TITLE), "Decode Protocol"), this);
         _protocol_dock->setObjectName("protocol_dock");
