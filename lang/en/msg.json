@@ -440,6 +440,10 @@
         "text": "Stacking drift correction skipped: estimated drift %1 ppm is outside the expected range."
     },
     {
+        "id": "IDS_MSG_STACKING_DRIFT_INCONSISTENT",
+        "text": "Stacking drift correction skipped: reference edge timing is inconsistent (typical deviation %1 samples)."
+    },
+    {
         "id": "IDS_MSG_STACKING_ALIGNMENT_APPLIED",
         "text": "Stacking reference alignment applied: secondary offset %1 samples (%2 ns) from %3 reference edges."
     },
@@ -449,7 +453,7 @@
     },
     {
         "id": "IDS_MSG_STACKING_ALIGNMENT_REJECTED",
-        "text": "Stacking reference alignment skipped: reference edge offsets vary by %1 samples."
+        "text": "Stacking reference alignment skipped: reference edge timing is inconsistent (typical deviation %1 samples)."
     },
     {
         "id": "IDS_MSG_DRIVER_HINT_TITLE",

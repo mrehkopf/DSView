@@ -62,10 +62,26 @@ private:
         void reset(ds_device_handle h);
     };
 
-    struct ReferenceEdge
+    // master sample, secondary sample
+    typedef std::pair<int64_t, int64_t> ReferencePair;
+
+    struct ReferenceFit
     {
-        int64_t sample = 0;
-        bool rising = false;
+        // master = scale * secondary + offset
+        long double scale = 1.0L;
+        long double offset = 0.0L;
+        size_t inlier_count = 0;
+        int64_t inlier_span = 0;
+        // mean master sample of the inliers and their squared deviations from it
+        long double inlier_center = 0.0L;
+        long double inlier_spread = 0.0L;
+        long double median_offset = 0.0L;
+        double median_residual = 0.0;
+
+        // Expected timing error from edge quantization at master sample x,
+        // for the fitted line or for its slope alone pivoted at `pivot`
+        double error_at(int64_t x) const;
+        double slope_error_at(int64_t pivot, int64_t x) const;
     };
 
     SourceBuffer* source_for_handle(ds_device_handle handle);
@@ -83,22 +99,24 @@ private:
     int64_t secondary_shift_samples();
     void collect_reference_edges(const SourceBuffer &source,
                                  int physical_index,
-                                 std::vector<ReferenceEdge> &edges) const;
-    int64_t reference_pair_window(const std::vector<ReferenceEdge> &edges) const;
-    void add_reference_pairs(bool rising,
-                             const std::vector<ReferenceEdge> &master_edges,
-                             const std::vector<ReferenceEdge> &secondary_edges,
-                             int64_t alignment_shift,
-                             int64_t pair_window,
-                             std::vector<std::pair<int64_t, int64_t> > &pairs) const;
-    bool collect_reference_pairs(int64_t alignment_shift,
-                                 std::vector<std::pair<int64_t, int64_t> > &pairs,
-                                 int64_t &pair_window);
-    bool apply_reference_alignment(const std::vector<std::pair<int64_t, int64_t> > &pairs,
-                                   int64_t pair_window);
-    bool fit_reference_affine(const std::vector<std::pair<int64_t, int64_t> > &pairs,
-                              long double &scale,
-                              long double &offset) const;
+                                 std::vector<int64_t> *rising,
+                                 std::vector<int64_t> *falling,
+                                 std::vector<int64_t> *gaps) const;
+    int64_t reference_pair_window(std::vector<int64_t> &gaps) const;
+    void pair_reference_edges(const std::vector<int64_t> master_edges[2],
+                              const std::vector<int64_t> secondary_edges[2],
+                              const ReferenceFit &model,
+                              int64_t first,
+                              int64_t last,
+                              int64_t pair_window,
+                              std::vector<ReferencePair> &pairs) const;
+    bool fit_reference_pairs(const std::vector<ReferencePair> &pairs, ReferenceFit &fit) const;
+    void refine_reference_model(const std::vector<ReferencePair> &pairs,
+                                int64_t span,
+                                ReferenceFit &model) const;
+    bool fit_reference_timing(int64_t alignment_shift, ReferenceFit &fit);
+    void apply_reference_alignment(const ReferenceFit &fit);
+    int64_t reference_anchor() const;
     void update_secondary_anchor();
     void ensure_reference_correction();
     long double secondary_source_for_dest(uint64_t dest_sample) const;

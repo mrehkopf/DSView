@@ -447,6 +447,10 @@
         "text": "已跳过堆叠漂移校正: 估算漂移 %1 ppm 超出预期范围。"
     },
     {
+        "id": "IDS_MSG_STACKING_DRIFT_INCONSISTENT",
+        "text": "已跳过堆叠漂移校正: 参考边沿时序不一致 (典型偏差 %1 样本)。"
+    },
+    {
         "id": "IDS_MSG_STACKING_ALIGNMENT_APPLIED",
         "text": "已应用堆叠参考对齐: 次分析仪偏移 %1 样本 (%2 ns), 使用 %3 个参考边沿。"
     },
@@ -456,6 +460,6 @@
     },
     {
         "id": "IDS_MSG_STACKING_ALIGNMENT_REJECTED",
-        "text": "已跳过堆叠参考对齐: 参考边沿偏移变化 %1 样本。"
+        "text": "已跳过堆叠参考对齐: 参考边沿时序不一致 (典型偏差 %1 样本)。"
     }
 ]

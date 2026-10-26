@@ -176,17 +176,20 @@ Stacking dialog.
 
 The sync trigger aligns the two captures at the trigger point. However, the two
 analyzers run on independent clocks, so they can drift apart over a long
-capture. Connect a shared reference signal, such as a clock or any signal with
-regular edges, to one channel on each analyzer. Then select those channels
-as **Master reference input** and **Secondary reference input**.
+capture. Connect a shared reference signal to one channel on each analyzer,
+for example a clock or any other signal whose edges are at least about 100
+samples apart. Then select those channels as **Master reference input** and
+**Secondary reference input**.
 
 - **Align using reference signal** pairs edges of the reference signal on both
-  analyzers and corrects the constant offset between them.
+  analyzers and corrects the constant offset between them at the trigger point.
 - **Correct clock drift using reference signal** also estimates the clock
   frequency difference (in ppm) and rescales the secondary's timeline to match.
-- **Reference edge** selects which edges are used: rising, falling or both.
+- **Reference edge** selects which edges are used: rising, falling or both. If
+  **Both** reports inconsistent edge timing, select a single edge instead.
 
-Edges are paired starting from the trigger point alignment. An edge on the
+Edges are paired starting at the trigger point, then outwards over the whole
+capture, following the drift as it builds up. Near the trigger, an edge on the
 secondary only counts if it lies within about a quarter of the reference
 signal's typical edge spacing. The reference signal therefore corrects small
 remaining offsets, but not an offset of a whole reference period or more.
@@ -195,7 +198,8 @@ After each capture the status messages report the offset or drift that was
 applied. A correction is skipped, and a message explains why, if:
 
 - there are not enough matching edges,
-- the edge offsets are too inconsistent, or
+- the paired edges don't follow a consistent timing (typically more than 2
+  samples off), or
 - the estimated drift is implausibly large.
 
 # Appearance

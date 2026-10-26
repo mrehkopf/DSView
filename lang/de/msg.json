@@ -440,6 +440,10 @@
         "text": "Stacking-Driftkorrektur übersprungen: Die geschätzte Drift von %1 ppm liegt außerhalb des erwarteten Bereichs."
     },
     {
+        "id": "IDS_MSG_STACKING_DRIFT_INCONSISTENT",
+        "text": "Stacking-Driftkorrektur übersprungen: Die Referenzflanken passen zeitlich nicht zusammen (typische Abweichung %1 Samples)."
+    },
+    {
         "id": "IDS_MSG_STACKING_ALIGNMENT_APPLIED",
         "text": "Stacking-Referenzausrichtung angewendet: Versatz des Zweitgeräts %1 Samples (%2 ns), ermittelt aus %3 Referenzflanken."
     },
@@ -449,7 +453,7 @@
     },
     {
         "id": "IDS_MSG_STACKING_ALIGNMENT_REJECTED",
-        "text": "Stacking-Referenzausrichtung übersprungen: Die Versätze der Referenzflanken schwanken um %1 Samples."
+        "text": "Stacking-Referenzausrichtung übersprungen: Die Referenzflanken passen zeitlich nicht zusammen (typische Abweichung %1 Samples)."
     },
     {
         "id": "IDS_MSG_DRIVER_HINT_TITLE",
