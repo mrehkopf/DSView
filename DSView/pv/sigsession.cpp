@@ -144,6 +144,7 @@ namespace pv
         _is_instant = false;
         _is_working = false;
         _is_saving = false;
+        _is_adv_trigger = false;
         _device_status = ST_INIT;
         _noData_cnt = 0;
         _data_lock = false;

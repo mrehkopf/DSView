@@ -406,6 +406,15 @@ public:
         _is_saving = flag;
     }
 
+    // Advanced trigger selected in the trigger dock; the per-channel trigger buttons are not in effect.
+    inline bool is_adv_trigger(){
+        return _is_adv_trigger;
+    }
+
+    inline void set_adv_trigger(bool flag){
+        _is_adv_trigger = flag;
+    }
+
     inline DeviceEventObject* device_event_object(){
         return &_device_event;
     }
@@ -638,6 +647,7 @@ private:
     int         _repeat_hold_prg; // The time sleep progress
     int         _repeat_wait_prog_step;
     bool        _is_saving;
+    bool        _is_adv_trigger;
     bool        _is_instant;
     std::atomic<int>  _device_status;
     int         _work_time_id;

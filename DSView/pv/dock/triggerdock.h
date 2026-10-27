@@ -86,6 +86,7 @@ private:
     trigger::ChannelPattern bus_target_pattern() const;
     QSet<int> available_bus_channels() const;
     QString bus_value_error(trigger::BusValueError error) const;
+    void update_trigger_mode();
 
       /*
      * commit trigger setting
