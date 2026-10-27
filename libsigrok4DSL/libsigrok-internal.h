@@ -345,6 +345,9 @@ SR_PRIV int ds_trigger_destroy(void);
 SR_PRIV int ds_trigger_copy(struct ds_trigger *out);
 SR_PRIV int ds_trigger_apply(const struct ds_trigger *src);
 
+/*--- output/output.c -------------------------------------------------------*/
+SR_PRIV GSList *sr_output_channels(const struct sr_output *o);
+
 /*--- hardware/common/serial.c ----------------------------------------------*/
 
 enum {

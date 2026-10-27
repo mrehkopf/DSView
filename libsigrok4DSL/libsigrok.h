@@ -525,6 +525,13 @@ struct sr_output {
     const struct sr_dev_inst *sdi;
 
 	/**
+	 * The channels to write, in data order. If NULL, the channels of
+	 * sdi are used. This lets the frontend export channels that belong
+	 * to more than one device, as in logic stacking.
+	 */
+	GSList *channels;
+
+	/**
 	 * An optional parameter which the frontend can pass in to the
 	 * output module. How the string is interpreted is entirely up to
 	 * the module.

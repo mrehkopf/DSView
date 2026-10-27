@@ -52,7 +52,7 @@ static int init(struct sr_output *o, GHashTable *options)
 	(void)options;
 
 	num_enabled_channels = 0;
-	for (l = o->sdi->channels; l; l = l->next) {
+	for (l = sr_output_channels(o); l; l = l->next) {
 		ch = l->data;
 		if (ch->type != SR_CHANNEL_LOGIC)
 			continue;
@@ -82,7 +82,7 @@ static int init(struct sr_output *o, GHashTable *options)
 	}
 
 	/* Once more to map the enabled channels. */
-	for (i = 0, l = o->sdi->channels; l; l = l->next) {
+	for (i = 0, l = sr_output_channels(o); l; l = l->next) {
 		ch = l->data;
 		if (ch->type != SR_CHANNEL_LOGIC)
 			continue;
@@ -107,7 +107,7 @@ static GString *gen_header(const struct sr_output *o)
 
 	ctx = o->priv;
 	header = g_string_sized_new(512);
-	num_channels = g_slist_length(o->sdi->channels);
+	num_channels = g_slist_length(sr_output_channels(o));
 
 	/* timestamp */
 	t = time(NULL);
@@ -155,7 +155,7 @@ static GString *gen_header(const struct sr_output *o)
 
 	/* Wires / channels */
     p = 0;
-	for (i = 0, l = o->sdi->channels; l; l = l->next, i++) {
+	for (i = 0, l = sr_output_channels(o); l; l = l->next, i++) {
 		ch = l->data;
 		if (ch->type != SR_CHANNEL_LOGIC)
 			continue;

@@ -907,6 +907,8 @@ void StoreSession::export_exec(data::Snapshot *snapshot)
     struct sr_output output;
     output.module = (sr_output_module*) _outModule;
     output.sdi = _session->get_device()->inst();
+    // With logic stacking, the device has only the master's channels.
+    output.channels = _session->get_device()->get_channels();
     output.param = NULL;
     output.start_sample_index = 0;
 

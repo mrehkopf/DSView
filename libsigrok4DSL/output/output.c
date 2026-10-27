@@ -95,6 +95,17 @@ SR_API const struct sr_output_module **sr_output_list(void)
 }
 
 /**
+ * Returns the channels an output instance writes: the frontend's list if
+ * it set one, otherwise the device's own channels.
+ */
+SR_PRIV GSList *sr_output_channels(const struct sr_output *o)
+{
+	if (o->channels)
+		return o->channels;
+	return o->sdi ? o->sdi->channels : NULL;
+}
+
+/**
  * Returns the specified output module's ID.
  *
  * @since 0.4.0

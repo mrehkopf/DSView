@@ -131,7 +131,6 @@ static int create_archive(const struct sr_output *o)
 	size_t ch_nr;
     char version[1];
     char *s = NULL;
-    int logic_channels = 0;
     int enabled_logic_channels = 0;
 
 	outc = o->priv;
@@ -180,30 +179,30 @@ static int create_archive(const struct sr_output *o)
             SR_PACKAGE_VERSION_STRING);
 
 	devgroup = "device 1";
-	logic_channels = 0;
 	enabled_logic_channels = 0;
 
-	for (l = o->sdi->channels; l; l = l->next) {
+	for (l = sr_output_channels(o); l; l = l->next) {
 		ch = l->data;
 
-		if (ch->type == SR_CHANNEL_LOGIC){
-			if (ch->enabled)
-				enabled_logic_channels++;
-			logic_channels++;	
-		}
+		if (ch->type == SR_CHANNEL_LOGIC && ch->enabled)
+			enabled_logic_channels++;
 	}
 
-	/* Only set capturefile and probes if we will actually save logic data. */
+	/* Only set capturefile and probes if we will actually save logic data.
+	 * The samples hold the enabled channels only, one bit each. */
 	if (enabled_logic_channels > 0) {
 		g_key_file_set_string(meta, devgroup, "capturefile", "logic-1");
-		g_key_file_set_integer(meta, devgroup, "total probes", logic_channels);
+		g_key_file_set_integer(meta, devgroup, "total probes", enabled_logic_channels);
 	}
 
 	s = sr_samplerate_string(outc->samplerate);
 	g_key_file_set_string(meta, devgroup, "samplerate", s);
 	g_free(s);
 
-	for (l = o->sdi->channels; l; l = l->next) {
+	/* Probe N names sample bit N-1. Channel indices can have gaps, so
+	 * number the probes by position. */
+	ch_nr = 0;
+	for (l = sr_output_channels(o); l; l = l->next) {
 		ch = l->data;
 
 		if (!ch->enabled || ch->type != SR_CHANNEL_LOGIC){
@@ -211,7 +210,7 @@ static int create_archive(const struct sr_output *o)
 		}
 
 		s = NULL;
-		ch_nr = ch->index + 1;
+		ch_nr++;
 		s = g_strdup_printf("probe%zu", ch_nr);
 
 		if (s) {

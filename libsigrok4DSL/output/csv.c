@@ -92,7 +92,7 @@ static int init(struct sr_output *o, GHashTable *options)
     }
 
 	/* Get the number of channels, and the unitsize. */
-	for (l = o->sdi->channels; l; l = l->next) {
+	for (l = sr_output_channels(o); l; l = l->next) {
 		ch = l->data;
         if (ch->type != ctx->type)
 			continue;
@@ -116,7 +116,7 @@ static int init(struct sr_output *o, GHashTable *options)
 	/* Once more to map the enabled channels. */
     i = 0;
 
-	for (l = o->sdi->channels; l; l = l->next) {
+	for (l = sr_output_channels(o); l; l = l->next) {
 		ch = l->data;
         if (ch->type != ctx->type)
 			continue;
@@ -124,7 +124,8 @@ static int init(struct sr_output *o, GHashTable *options)
 			continue;
         ctx->channel_index[i] = ch->index;
         //ctx->mask |= (1 << ch->index);
-        ctx->mask |= (1 << i);
+        if (i < 64)
+            ctx->mask |= ((uint64_t)1 << i);
         range = ch->vdiv * ch->vfactor * DS_CONF_DSO_VDIVS;
         ctx->channel_unit[i] = (range >= 5000000) ? 1000000 :
                                 (range >= 5000) ? 1000 : 1;
@@ -156,7 +157,7 @@ static GString *gen_header(const struct sr_output *o)
 
 	/* Columns / channels */
     if (ctx->type == SR_CHANNEL_LOGIC)
-        num_channels = g_slist_length(o->sdi->channels);
+        num_channels = g_slist_length(sr_output_channels(o));
     else
         num_channels = ctx->num_enabled_channels;
     g_string_append_printf(header, "; Channels (%d/%d)\n",
@@ -176,7 +177,7 @@ static GString *gen_header(const struct sr_output *o)
 
     i = 0;
         
-    for (l = o->sdi->channels; l; l = l->next) {
+    for (l = sr_output_channels(o); l; l = l->next) {
         ch = l->data;
 
         if (ch->type != ctx->type)
@@ -200,7 +201,7 @@ static GString *gen_header(const struct sr_output *o)
         i++;
     }
 
-    if (o->sdi->channels)
+    if (sr_output_channels(o))
         /* Drop last separator. */
         g_string_truncate(header, header->len - 1);
     g_string_append_printf(header, "\n");
@@ -344,7 +345,7 @@ static int receive(const struct sr_output *o, const struct sr_datafeed_packet *p
        int enalbe_channel_flags[8];
        int ch_num = 0;
 
-       for (l = o->sdi->channels; l; l = l->next){
+       for (l = sr_output_channels(o); l; l = l->next){
             ch = l->data;
             enalbe_channel_flags[ch_num++] = ch->enabled;
        }
