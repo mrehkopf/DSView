@@ -1016,6 +1016,10 @@
         "text": "Signal line width"
     },
     {
+        "id": "IDS_DLG_THICK_HIGH_LEVEL",
+        "text": "Thicker high level"
+    },
+    {
         "id": "IDS_DLG_CHANNEL_DIVIDER",
         "text": "Channel divider line"
     },

@@ -138,6 +138,7 @@ static void _loadApp(AppOptions &o, QSettings &st)
     getFiled("dontAskSaveOnExit", st, o.dontAskSaveOnExit, false);
     getFiled("logicSignalLineWidth", st, o.logicSignalLineWidth, 1.0f);
     getFiled("logicChannelDivider", st, o.logicChannelDivider, true);
+    getFiled("logicThickHighLevel", st, o.logicThickHighLevel, false);
     getFiled("dsoSplitChannels", st, o.dsoSplitChannels, false);
 
     o.warnofMultiTrig = true;
@@ -196,6 +197,7 @@ static void _saveApp(AppOptions &o, QSettings &st)
     setFiled("dontAskSaveOnExit", st, o.dontAskSaveOnExit);
     setFiled("logicSignalLineWidth", st, o.logicSignalLineWidth);
     setFiled("logicChannelDivider", st, o.logicChannelDivider);
+    setFiled("logicThickHighLevel", st, o.logicThickHighLevel);
     setFiled("dsoSplitChannels", st, o.dsoSplitChannels);
 
     QString fmt =  FormatArrayToString(o.m_protocolFormats);

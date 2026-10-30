@@ -194,28 +194,43 @@ void LogicSignal::paint_mid_align(QPainter &p, int left, int right, QColor fore,
                                                           samples_per_pixel, _probe->index);
     assert(_cur_pulses.size() >= width);
 
+    const float line_width = AppConfig::Instance().appOptions.logicSignalLineWidth;
+    const bool thick_high = AppConfig::Instance().appOptions.logicThickHighLevel;
+
     int preX = 0;
     int preY = first_sample ? high_offset : low_offset;
     int x = preX;
     std::vector<QLine> wave_lines;
+    std::vector<QLineF> high_lines;
+
+    // With the thick high level option, high segments are collected apart and
+    // painted with a wider flat-capped pen. They reach out by half the edge
+    // width so they end flush with the outer side of the adjoining edges.
+    // Zero-length segments are covered by the edges and skipped.
+    auto push_level = [&](int x0, int x1, int level) {
+        if (!thick_high || level != high_offset)
+            wave_lines.push_back(QLine(x0, level, x1, level));
+        else if (x1 > x0)
+            high_lines.push_back(QLineF(x0 - line_width / 2, level, x1 + line_width / 2, level));
+    };
 
     if (_cur_edges.size() < max_togs) {
         std::vector<std::pair<uint16_t, bool>>::const_iterator i;
         for (i = _cur_edges.begin() + 1; i != _cur_edges.end() - 1; i++) {
             x = (*i).first;
-            wave_lines.push_back(QLine(preX, preY, x, preY));
+            push_level(preX, x, preY);
             wave_lines.push_back(QLine(x, high_offset, x, low_offset));
             preX = x;
             preY = (*i).second ? high_offset : low_offset;
         }
         x = (*i).first;
-        wave_lines.push_back(QLine(preX, preY, x, preY));
+        push_level(preX, x, preY);
     }
     else if (_cur_pulses.size() > 0) {
         std::vector<std::pair<bool, bool>>::const_iterator i = _cur_pulses.begin();
         while (i != _cur_pulses.end() - 1) {
             if ((*i).first) {
-                wave_lines.push_back(QLine(preX, preY, x, preY));
+                push_level(preX, x, preY);
                 wave_lines.push_back(QLine(x, high_offset, x, low_offset));
                 preX = x;
                 preY = (*i).second ? high_offset : low_offset;
@@ -223,13 +238,20 @@ void LogicSignal::paint_mid_align(QPainter &p, int left, int right, QColor fore,
             x++;
             i++;
         }
-        wave_lines.push_back(QLine(preX, preY, x, preY));
+        push_level(preX, x, preY);
     }
 
     QColor defaultColour = get_default_colour();
     QColor lineColour = _colour.isValid() ? _colour : (defaultColour.isValid() ? defaultColour : fore);
-    p.setPen(QPen(lineColour, AppConfig::Instance().appOptions.logicSignalLineWidth));
+    p.setPen(QPen(lineColour, line_width));
     p.drawLines(wave_lines.data(), wave_lines.size());
+
+    if (!high_lines.empty()) {
+        QPen high_pen(lineColour, line_width + 1);
+        high_pen.setCapStyle(Qt::FlatCap);
+        p.setPen(high_pen);
+        p.drawLines(high_lines.data(), high_lines.size());
+    }
 }
 
 void LogicSignal::paint_caps(QPainter &p, QLineF *const lines,

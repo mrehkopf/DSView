@@ -89,6 +89,7 @@ struct AppOptions
     bool dontAskSaveOnExit;
     float logicSignalLineWidth;
     bool logicChannelDivider;
+    bool logicThickHighLevel;
     bool dsoSplitChannels;
     std::vector<StringPair> m_protocolFormats;
 };
