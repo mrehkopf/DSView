@@ -461,6 +461,7 @@ public:
     bool have_hardware_data();
     struct ds_device_base_info* get_device_list(int &out_count, int &actived_index);
     void add_msg_listener(IMessageListener *ln);
+    void remove_msg_listener(IMessageListener *ln);
     void broadcast_msg(int msg);    
     bool have_new_realtime_refresh(bool keep);
     view::DecodeTrace* get_decoder_trace(int index);

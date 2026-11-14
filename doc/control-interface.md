@@ -1,0 +1,249 @@
+# Control interface
+
+Scripts and AI agents can drive DSView through a local socket: select a
+device, set the sample rate, threshold voltage and other options, choose
+channels, run captures and export the data as VCD or CSV. Commands go through
+the same code paths as the toolbar, so a capture started this way behaves like
+one started with the Start button, and the GUI shows it.
+
+There are two ways in:
+
+- **`dsview-ctl`**, a command line client that prints JSON. This is the easy
+  route for shell scripts and for agents that can run commands.
+- **JSON-RPC 2.0** directly on the socket, for programs. See
+  [Protocol](#protocol).
+
+Logic analyzer mode only, for now. Triggers are set up in the GUI (or come
+from the saved device profile); the control interface can't change them yet.
+See [Limitations](#limitations).
+
+## Starting DSView
+
+| Command | What you get |
+| --- | --- |
+| `DSView --control` | The normal window, plus the control socket. Dialogs still appear. While one is open, commands that change something fail with error 7. |
+| `DSView --control --non-interactive` | No dialogs. Each one is answered with No/Cancel, and its text is passed on to the client in `messages`. |
+| `DSView --headless` | No window at all (Qt's offscreen platform). Implies `--control` and `--non-interactive`. |
+
+`--control=NAME` picks the socket. The default is `dsview-control` in the
+per-user runtime directory on Linux (usually `/run/user/<uid>/dsview-control`),
+and the named pipe `dsview-control-<user>` on Windows. Only your user can
+connect. On Linux the path must stay under about 100 bytes.
+
+If another DSView already serves that socket, the new one doesn't start a server;
+in headless mode it exits with status 2. A socket file left behind by a
+crashed DSView is replaced. An analyzer can only be open in one DSView at a
+time.
+
+To stop a headless DSView, run `dsview-ctl quit` or send it Ctrl-C or SIGTERM.
+These take the normal exit path, which saves the device profile and releases the
+analyzer. A headless DSView doesn't save the window layout.
+
+## dsview-ctl
+
+```bash
+DSView --headless &
+dsview-ctl devices
+dsview-ctl select "DSLogic U3Pro32"
+dsview-ctl set operation_mode="Buffer Mode" samplerate=100M duration=1ms vth=1.8
+dsview-ctl enable 0-7
+dsview-ctl capture --instant -o capture.vcd
+dsview-ctl quit
+```
+
+| Command | Does |
+| --- | --- |
+| `info` | DSView version, protocol version, socket, current device, state |
+| `quit` | Close DSView |
+| `devices` | List devices |
+| `select INDEX\|NAME` | Switch device. NAME can be the device name, its unique id, or `name [id]` as the GUI shows it |
+| `config` | All options with their values and choices |
+| `get [KEY...]` | Current values |
+| `set KEY=VALUE...` | Change options |
+| `channels` | List channels |
+| `enable CH...` | Enable exactly these channels, e.g. `enable 0-7 12` |
+| `rename CH NAME` | Rename a channel; the name appears in exports |
+| `capture` | Capture and wait for the end. `--instant` ignores the trigger, `--no-wait` returns once it runs, `--timeout SEC` stops it after that long, `-o FILE` exports afterwards (`--format vcd\|csv\|gnuplot`) |
+| `status` | Capture state and data size |
+| `wait [--timeout SEC]` | Wait for a running capture to end |
+| `stop` | Stop the running capture |
+| `export FILE` | Export the data. `--format`, `--start N`, `--end N` |
+| `call METHOD [JSON]` | Send any request |
+
+Global options go before the command: `-s NAME` (`--socket`) picks the socket and
+`--compact` prints one-line JSON.
+
+Results are printed as JSON on stdout. Errors are printed as JSON on stderr
+(`code`, `message` and sometimes `data`), with these exit codes:
+
+| Exit code | Meaning |
+| --- | --- |
+| 0 | Success |
+| 1 | DSView reported an error |
+| 2 | Bad command line |
+| 3 | Can't reach DSView |
+
+Relative file names are made absolute before they are sent, because DSView's
+working directory isn't the client's.
+
+## Options
+
+`config` (`config.list`) lists what the current device offers. A DSLogic
+U3Pro32 has:
+
+| Key | Type | Notes |
+| --- | --- | --- |
+| `samplerate` | Hz | One of the listed choices |
+| `duration` | seconds | Rounded up to the next choice the toolbar offers |
+| `samples` | count | Sets the shortest duration that holds this many samples |
+| `operation_mode` | choice | `Buffer Mode`, `Stream Mode`, `Internal Test` |
+| `channel_mode` | choice | The choices depend on `operation_mode` |
+| `stop_option` | choice | What a stop in buffer mode does |
+| `vth` | volts | Threshold, 0 to 5 V |
+| `filter` | choice | `None` or `1 Sample Clock` |
+| `rle_compress` | bool | Offers longer durations that only fit with RLE |
+| `external_clock` | bool | Sample on an external clock |
+| `clock_negedge` | bool | External clock on the falling edge |
+| `ext_clock_rate` | Hz | Frequency of the external clock |
+| `max_height` | choice | Display scaling |
+
+Older DSLogic models have `threshold` (a choice) instead of `vth`. The demo
+device reports `pattern`, which can't be changed here yet. While stacking, only
+`vth`, `filter`, `external_clock`, `clock_negedge` and `ext_clock_rate` are
+offered; they are set on both analyzers.
+
+Values can be numbers or strings:
+
+- **Units and prefixes:** strings may carry SI prefixes (`p n u m k M G`, so
+  `m` is milli and `M` is mega) and a unit, e.g. `100M`, `100MHz`, `10ms`,
+  `1.8V`.
+- **Bare numbers** are in the base unit: Hz, seconds, volts, samples.
+- **Choices** are given by name (case-insensitive), as `config` lists them.
+- **Booleans** accept `true`/`false`, `on`/`off`, `yes`/`no` or `1`/`0`.
+
+`config.set` applies values in a fixed order, because some options change what
+the others accept:
+
+1. `operation_mode`, then `channel_mode`.
+2. The other device options.
+3. `samplerate`.
+4. `duration` or `samples`.
+
+The sample count is a multiple of 1024. If one value is rejected, the ones
+before it stay applied, and the error's `data` holds `applied` and the current
+`values`.
+
+## Capturing
+
+`capture.start` uses the trigger set up in DSView. With `instant` it starts at
+once and ignores the trigger, like the Instant button. Repeat and loop mode are
+switched to single mode, since only single captures end on their own.
+
+| Call | Timeout behaviour |
+| --- | --- |
+| `capture.start` with `wait` and a `timeout` | Stops the capture when time runs out, then reports error 4 together with whatever data arrived |
+| `capture.wait` with a `timeout` | Leaves the capture running, so you can wait again or stop it |
+
+A client that disconnects doesn't stop the capture.
+
+The status object (`capture.status`, and the result of a finished capture) has
+these fields:
+
+| Field | Meaning |
+| --- | --- |
+| `state` | `idle`, `running` or `exporting` |
+| `has_data` | Whether there is captured data |
+| `samples`, `samplerate`, `duration` | Size of the data |
+| `trigger_armed` | The capture waited for the trigger set up in DSView (not instant, and a trigger was set) |
+| `triggered`, `trigger_sample` | Whether and where the trigger hit; only with an armed trigger |
+| `stopped` | The capture was stopped before it was complete |
+| `error` | Why the last capture failed, if it did |
+| `progress` | Hardware only, while running: percentage |
+
+## Exporting
+
+`export` writes the captured data in one of these formats:
+
+| Format | Written as |
+| --- | --- |
+| `vcd` | Value Change Dump. The default, also chosen for files ending in `.vcd` |
+| `csv` | CSV. Chosen by a `.csv` ending |
+| `gnuplot` | gnuplot data. Chosen by a `.gnuplot` ending |
+
+Only enabled channels are written, under their names. `start` and `end` select
+the samples `start` to `end - 1`. The range is widened to whole multiples of 8
+samples, and the result's `start` and `samples` give the actual range. The
+result also lists the channels and the file size.
+
+Timestamps in the file count from the start of the capture, also when only a
+range is exported, so they line up with `trigger_sample`. A VCD file ends with a
+timestamp at the end of the exported data. That tells you how long the last
+levels lasted.
+
+Fast signals make big files. 67 million samples of a 32-bit counter take
+1.5 GB as VCD. Export a range when you only need part of the capture.
+
+CSV output follows the **Original data** / **Compressed data** choice last made
+in the GUI's export dialog. Compressed data has one row per change; original data
+has one row per sample.
+
+## Protocol
+
+JSON-RPC 2.0 over the socket (a Unix domain socket, or a named pipe on
+Windows). Each request and each response is one JSON object on one line, in
+UTF-8. Several requests may be in flight on one connection; match replies by
+`id`. A request without `id` is a notification and gets no reply. Batches are
+not supported.
+
+```text
+→ {"jsonrpc":"2.0","id":1,"method":"config.set","params":{"samplerate":"100M","duration":"1ms"}}
+← {"jsonrpc":"2.0","id":1,"result":{"applied":{"samplerate":100000000,"duration":0.001,"samples":100352},"values":{...}}}
+```
+
+Any reply may carry `messages`: dialogs that weren't shown because DSView runs
+non-interactively, such as a hardware error. In an error reply they are in
+`error.data.messages`.
+
+| Method | Params | Result |
+| --- | --- | --- |
+| `server.info` | | `name`, `version`, `protocol` (1), `pid`, `socket`, `headless`, `non_interactive`, `state`, `device` |
+| `server.quit` | | `quitting`. DSView exits after replying |
+| `device.list` | | `devices`: `index`, `name`, `unique_id`, `active` |
+| `device.select` | `index` or `name` | `device`: `name`, `driver`, `type` (`hardware`, `demo`, `file`), `mode`, `stacking` |
+| `config.list` | | `options`: `key`, `label`, `type`, `value`, `choices`, `unit`, `min`, `max`, `read_only` |
+| `config.get` | `keys` (optional list) | `values`: key → value |
+| `config.set` | key → value | `applied` (what was set, after rounding), `values` |
+| `channel.list` | | `channels`: `index`, `name`, `enabled`; `max_enabled`; `read_only` while stacking |
+| `channel.set` | `enabled`: list of indexes, or `index` with `enabled` and/or `name` | As `channel.list` |
+| `capture.start` | `instant`, `wait`, `timeout` (seconds) | Status |
+| `capture.wait` | `timeout` | Status |
+| `capture.status` | | Status |
+| `capture.stop` | | Status once the capture has ended |
+| `export` | `path` (absolute), `format`, `start`, `end` | `path`, `format`, `bytes`, `start`, `samples`, `samplerate`, `trigger_sample`, `channels` |
+
+| Code | Meaning |
+| --- | --- |
+| -32700 | Not valid JSON |
+| -32600 | Not a request object |
+| -32601 | Unknown method; `data.methods` lists them |
+| -32602 | Bad parameters; often with `data.keys`, `data.formats` or `data.applied` |
+| -32603 | Internal error, e.g. the device could not be opened |
+| 1 | Busy: a capture or export is running, or DSView is in the middle of something |
+| 2 | No device |
+| 3 | Not supported: not logic analyzer mode, a data file instead of a device, or channels while stacking |
+| 4 | Timed out; `data` is the status |
+| 5 | Capture failed; `data` is the status |
+| 6 | Export failed |
+| 7 | A dialog is open in DSView |
+| 8 | No captured data |
+
+## Limitations
+
+- **Modes:** logic analyzer mode only. With an oscilloscope, the info,
+  device and status calls work and the rest return error 3.
+- **Not yet available:** setting triggers, protocol decoders, loading and
+  saving sessions (`.dsl`), and switching the device mode.
+- **Persistence:** settings changed through the control interface are kept
+  in the device profile, as GUI changes are.
+- **AppImage:** `dsview-ctl` is not yet reachable from the AppImage. Use a
+  client built from source, or talk to the socket directly.

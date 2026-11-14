@@ -851,6 +851,9 @@ bool StoreSession::export_start()
     else
     {
         if (_thread.joinable()) _thread.join();
+        // Busy from here, not from when the thread gets going, so a poll
+        // straight after this can't mistake the export for finished.
+        _is_busy = true;
         _thread = std::thread(&StoreSession::export_proc, this, snapshot);
         return !_has_error;
     }
@@ -913,6 +916,13 @@ void StoreSession::export_exec(data::Snapshot *snapshot)
     output.start_sample_index = 0;
 
     if (channel_type == SR_CHANNEL_LOGIC){
+        // The samples are copied in whole bytes of 8. Widen the range to
+        // byte boundaries, so the sample numbers the output module writes
+        // match the data it gets.
+        _start_index &= ~(uint64_t)7;
+        if (_end_index > 0)
+            _end_index = (_end_index + 7) & ~(uint64_t)7;
+
         output.start_sample_index = _start_index;
     }
 
@@ -927,6 +937,8 @@ void StoreSession::export_exec(data::Snapshot *snapshot)
     if(_outModule->init){
        if(_outModule->init(&output, params) != SR_OK){
         dsv_err("Failed to init export module.");
+        _has_error = true;
+        _error = "Failed to init export module.";
         release_export_params();
         return;
        }
@@ -1022,6 +1034,8 @@ void StoreSession::export_exec(data::Snapshot *snapshot)
 
         if (start_index > logic_snapshot->get_ring_sample_count()){
             dsv_err("ERROR:the start curosr is invalid!");
+            _has_error = true;
+            _error = "The start of the export range is beyond the captured data.";
             _units_stored = -1;
             file.close();
             _outModule->cleanup(&output);
@@ -1050,18 +1064,21 @@ void StoreSession::export_exec(data::Snapshot *snapshot)
             _unit_count = end_index;
         }
 
+        // end_block is 0 both for "no end" and for an end in the first block.
+        const bool has_end = end_index > 0;
+
         for (int blk = 0; !_canceled  &&  blk < blk_num; blk++) {           
             buf_vec.clear();
             buf_sample.clear();
 
             if (blk < start_block)
                 continue;
-            if (blk > end_block && end_block > 0)
+            if (has_end && blk > end_block)
                 break;
 
             uint64_t block_size = logic_snapshot->get_block_size(blk);
 
-            if (blk == end_block && end_offset / 8 < block_size && end_offset > 0){
+            if (has_end && blk == end_block && end_offset / 8 < block_size){
                 block_size = end_offset / 8;
             }
             if (blk == start_block && start_offset > 0){
@@ -1136,13 +1153,28 @@ void StoreSession::export_exec(data::Snapshot *snapshot)
                     g_string_free(data_out,TRUE);
                 }
 
-                _units_stored += size;              
+                _units_stored += size;
                 progress_updated();
             }
 
             if (xbuf){
                 free(xbuf);
                 xbuf = NULL;
+            }
+        }
+
+        // Lets VCD write its closing timestamp, so a reader knows how long
+        // the capture ran after the last change. The other modules ignore it.
+        if (!_canceled){
+            p.type = SR_DF_END;
+            p.status = SR_PKT_OK;
+            p.payload = NULL;
+            p.bExportOriginalData = 0;
+            _outModule->receive(&output, &p, &data_out);
+
+            if (data_out){
+                out << QString::fromUtf8((char*) data_out->str);
+                g_string_free(data_out,TRUE);
             }
         }
     }

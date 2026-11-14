@@ -225,9 +225,12 @@ if(Qt6Core_FOUND)
     # here turns a missing module into a configure error instead of a UI whose
     # checkboxes, combobox arrows and window buttons are silently not painted.
     find_package(Qt6Svg REQUIRED)
+    # Local socket for the control interface (pv/control, dsview-ctl).
+    find_package(Qt6Network REQUIRED)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Qt6Widgets_EXECUTABLE_COMPILE_FLAGS}")
-    set(QT_INCLUDE_DIRS ${Qt6Gui_INCLUDE_DIRS} ${Qt6Widgets_INCLUDE_DIRS} ${Qt6Svg_INCLUDE_DIRS})
-    set(QT_LIBRARIES Qt6::Gui Qt6::Widgets)
+    set(QT_INCLUDE_DIRS ${Qt6Gui_INCLUDE_DIRS} ${Qt6Widgets_INCLUDE_DIRS} ${Qt6Svg_INCLUDE_DIRS} ${Qt6Network_INCLUDE_DIRS})
+    set(QT_LIBRARIES Qt6::Gui Qt6::Widgets Qt6::Network)
+    set(QT_CTL_LIBRARIES Qt6::Core Qt6::Network)
     ds_link_qt_svg(Qt6::Svg)
     if(WIN32)
         find_package(Qt6Core5Compat REQUIRED)
@@ -246,9 +249,11 @@ if(Qt5Core_FOUND)
     find_package(Qt5Widgets REQUIRED)
     find_package(Qt5Gui REQUIRED)
     find_package(Qt5Svg REQUIRED) # see the Qt6 branch above
+    find_package(Qt5Network REQUIRED) # see the Qt6 branch above
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Qt5Widgets_EXECUTABLE_COMPILE_FLAGS}")
-    set(QT_INCLUDE_DIRS ${Qt5Gui_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS} ${Qt5Svg_INCLUDE_DIRS})
-    set(QT_LIBRARIES Qt5::Gui Qt5::Widgets)
+    set(QT_INCLUDE_DIRS ${Qt5Gui_INCLUDE_DIRS} ${Qt5Widgets_INCLUDE_DIRS} ${Qt5Svg_INCLUDE_DIRS} ${Qt5Network_INCLUDE_DIRS})
+    set(QT_LIBRARIES Qt5::Gui Qt5::Widgets Qt5::Network)
+    set(QT_CTL_LIBRARIES Qt5::Core Qt5::Network)
     ds_link_qt_svg(Qt5::Svg)
     add_definitions(${Qt5Gui_DEFINITIONS} ${Qt5Widgets_DEFINITIONS})
 endif()
@@ -382,6 +387,8 @@ set(DSView_SOURCES
     DSView/pv/widgets/decodermenu.cpp
     DSView/pv/config/appconfig.cpp
     DSView/pv/appcontrol.cpp
+    DSView/pv/control/controlmode.cpp
+    DSView/pv/control/controlserver.cpp
     DSView/pv/dstimer.cpp
     DSView/pv/eventobject.cpp
     DSView/pv/ZipMaker.cpp
@@ -413,6 +420,7 @@ set(DSView_SOURCES
 set(DSView_HEADERS
     DSView/mystyle.h
     DSView/pv/mainwindow.h
+    DSView/pv/control/controlserver.h
     DSView/pv/dialogs/deviceoptions.h
     DSView/pv/dialogs/stackingoptions.h
     DSView/pv/logicstackingconfig.h
@@ -691,10 +699,28 @@ add_executable(${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME} ${DSVIEW_LINK_LIBS})
 
+# A static Qt (MXE) links only the default platform plugin; --headless needs
+# the offscreen one as well. Shared builds load it from the plugin folder.
+if(Qt6Core_FOUND AND TARGET Qt6::QOffscreenIntegrationPlugin)
+    get_target_property(DS_QT_CORE_TYPE Qt6::Core TYPE)
+    if(DS_QT_CORE_TYPE STREQUAL "STATIC_LIBRARY")
+        qt_import_plugins(${PROJECT_NAME} INCLUDE Qt6::QOffscreenIntegrationPlugin)
+    endif()
+endif()
+
 if(WIN32)
 # Pass -mwindows so that no "DOS box" will open when PulseView is started.
 set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-mwindows")
 endif()
+
+#===============================================================================
+#= dsview-ctl: command line client for the control interface
+#
+# A console program (no -mwindows), so scripts can read its output on Windows
+# too. It only needs Qt Core and Network; see doc/control-interface.md.
+#-------------------------------------------------------------------------------
+add_executable(dsview-ctl DSView/tools/dsview-ctl.cpp)
+target_link_libraries(dsview-ctl ${QT_CTL_LIBRARIES})
 
 if(ENABLE_COTIRE)
     include(cotire)
@@ -719,6 +745,7 @@ if(WIN32)
     set(CPACK_PACKAGE_VENDOR "DreamSourceLab")
     set(CPACK_NSIS_INSTALLED_ICON_NAME "DSView.exe")
     install(TARGETS ${PROJECT_NAME} DESTINATION .)
+    install(TARGETS dsview-ctl DESTINATION .)
     install(DIRECTORY DSView/res DESTINATION .)
     install(DIRECTORY DSView/demo DESTINATION .)
     install(DIRECTORY lang DESTINATION .)
@@ -731,6 +758,7 @@ if(WIN32)
 else()
     # Install the executable.
     install(TARGETS ${PROJECT_NAME} DESTINATION bin)
+    install(TARGETS dsview-ctl DESTINATION bin)
     install(DIRECTORY DSView/res DESTINATION share/DSView)
     install(DIRECTORY DSView/demo DESTINATION share/DSView)
     install(FILES DSView/icons/logo.svg DESTINATION share/DSView RENAME logo.svg)

@@ -108,6 +108,8 @@
 #include "dsvdef.h"
 #include <thread>
 #include "ui/uimanager.h"
+#include "control/controlmode.h"
+#include "control/controlserver.h"
 
 namespace pv
 {
@@ -254,6 +256,7 @@ namespace pv
         _msg = NULL;
         _frame = parent;
         _restoring_dock_layout = false;
+        _control_server = NULL;
 
         assert(title_bar);
         assert(_frame);
@@ -276,6 +279,21 @@ namespace pv
         _pattern_mode = "random";
 
         setup_ui();
+
+        // After setup_ui(): the server registers its message listener after
+        // ours, and the first device is already open.
+        if (control::ControlMode::ServerEnabled())
+        {
+            _control_server = new control::ControlServer(_session, _sampling_bar, this);
+
+            if (!_control_server->listen(control::ControlMode::ServerName())
+                && control::ControlMode::IsHeadless())
+            {
+                // Nothing else can reach a headless DSView.
+                dsv_err("No control server, exiting.");
+                QTimer::singleShot(0, qApp, [](){ QCoreApplication::exit(2); });
+            }
+        }
 
         setContextMenuPolicy(Qt::NoContextMenu);
 
@@ -558,6 +576,9 @@ namespace pv
             break;
         }
 
+        if (_control_server != NULL)
+            _control_server->notify_session_error(title, details);
+
         pv::dialogs::DSMessageBox msg(this, title);
         msg.mBox()->setText(details);
         msg.mBox()->setStandardButtons(QMessageBox::Ok);
@@ -585,8 +606,11 @@ namespace pv
             save_config_to_file(sessionFile);
         }
 
-        app.frameOptions.windowState = saveState(DOCK_LAYOUT_VERSION);
-        app.SaveFrame();
+        // Dock sizes on the offscreen screen are not the user's layout.
+        if (!control::ControlMode::IsHeadless()){
+            app.frameOptions.windowState = saveState(DOCK_LAYOUT_VERSION);
+            app.SaveFrame();
+        }
     }
 
     QString MainWindow::gen_config_file_path(bool isNewFormat)

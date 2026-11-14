@@ -24,6 +24,10 @@ includes the Qt 6 port and the UI and driver improvements from
 - **Identify:** blink a DSLogic's or DSCope's LED red and green for two
   seconds, to see which device is which. The button is in the **Options**
   dialog and, for each stacked analyzer, in the Stacking dialog.
+- **Control interface:** scripts and AI agents can set up the analyzer, run
+  captures and export VCD or CSV, through the `dsview-ctl` command line tool
+  or JSON-RPC on a local socket. DSView can run without a window
+  (`--headless`). See [doc/control-interface.md](doc/control-interface.md).
 - Smaller fixes: no more busy-looping in the USB event thread (Windows), fewer redundant
   capture status repaints, reserved space for the waveform status and
   measurement bar.

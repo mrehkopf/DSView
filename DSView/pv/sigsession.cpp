@@ -22,6 +22,7 @@
  */
 
 #include <libsigrokdecode.h>
+#include <algorithm>
 
 #include "sigsession.h"
 #include "mainwindow.h"
@@ -2630,11 +2631,19 @@ namespace pv
         _msg_listeners.push_back(ln);
     }
 
+    void SigSession::remove_msg_listener(IMessageListener *ln)
+    {
+        _msg_listeners.erase(std::remove(_msg_listeners.begin(), _msg_listeners.end(), ln),
+                             _msg_listeners.end());
+    }
+
     void SigSession::broadcast_msg(int msg)
     {
-        for (IMessageListener *cb : _msg_listeners)
+        // By index: a listener may add or remove listeners while handling
+        // the message.
+        for (size_t i = 0; i < _msg_listeners.size(); i++)
         {
-            cb->OnMessage(msg);
+            _msg_listeners[i]->OnMessage(msg);
         }
     }
 

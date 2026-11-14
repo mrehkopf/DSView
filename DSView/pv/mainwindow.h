@@ -76,6 +76,10 @@ class SearchDock;
 namespace view {
 class View;
 }
+
+namespace control {
+class ControlServer;
+}
  
 //The mainwindow,referenced by MainFrame
 //TODO: create graph view,toolbar,and show device list
@@ -274,6 +278,8 @@ private:
 
     int         _key_value;
     bool        _key_vaild;
+
+    control::ControlServer  *_control_server;
 };
 
 } // namespace pv

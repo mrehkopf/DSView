@@ -103,6 +103,27 @@ namespace pv
 
             void commit_settings();
 
+            // Control interface (pv/control/controlserver.cpp). These do what
+            // the matching toolbar controls and the device options dialog do,
+            // without asking anything.
+            struct DurationChoice
+            {
+                double  duration; // ns
+                bool    rle;      // needs RLE compression to fit
+            };
+            std::vector<uint64_t> sample_rate_choices();
+            std::vector<DurationChoice> duration_choices();
+            uint64_t selected_sample_rate();
+            double selected_duration();
+            static uint64_t sample_count_for(double duration, uint64_t sample_rate);
+            // Both need a value from the matching *_choices() list.
+            bool select_sample_rate(uint64_t sample_rate);
+            bool select_duration(double duration);
+            // Call after changing device options or channels directly.
+            bool apply_device_options();
+            bool select_device(ds_device_handle handle);
+            bool start_capture(bool instant, QString &error);
+
         signals:
             void sig_store_session_data();
 

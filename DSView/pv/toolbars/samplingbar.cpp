@@ -287,48 +287,57 @@ namespace pv
 
             if (ret == QDialog::Accepted)
             {
-                if (_session->have_view_data() == false)
-                    this->commit_settings();
-
-                _session->broadcast_msg(DSV_MSG_DEVICE_OPTIONS_UPDATED);
-
-                update_sample_rate_list();
-
-                int mode = _device_agent->get_work_mode();
-                bool zero = false;
-                bool test;
-                bool ret;
-
-                if (mode == DSO){
-                    _device_agent->get_config_bool(SR_CONF_ZERO, zero);
-                   
-                    if (zero){
-                        zero_adj();
-                        return;
-                    }
-                }
-
-                ret = _device_agent->get_config_bool(SR_CONF_TEST, test);
-                if (ret)
-                {
-                    if (test)
-                    {
-                        update_sample_rate_selector_value();
-                        _sample_count.setDisabled(true);
-                        _sample_rate.setDisabled(true);
-                    }
-                    else
-                    {
-                        _sample_count.setDisabled(false);
-                        if (mode != DSO)
-                            _sample_rate.setDisabled(false);
-                    }
-                }
-
-                this->reload();
+                if (!apply_device_options())
+                    return;
             }
 
             _session->broadcast_msg(DSV_MSG_END_DEVICE_OPTIONS);
+        }
+
+        // Returns false when DSO zero calibration took over (which ends the
+        // options session itself).
+        bool SamplingBar::apply_device_options()
+        {
+            if (_session->have_view_data() == false)
+                this->commit_settings();
+
+            _session->broadcast_msg(DSV_MSG_DEVICE_OPTIONS_UPDATED);
+
+            update_sample_rate_list();
+
+            int mode = _device_agent->get_work_mode();
+            bool zero = false;
+            bool test;
+            bool ret;
+
+            if (mode == DSO){
+                _device_agent->get_config_bool(SR_CONF_ZERO, zero);
+               
+                if (zero){
+                    zero_adj();
+                    return false;
+                }
+            }
+
+            ret = _device_agent->get_config_bool(SR_CONF_TEST, test);
+            if (ret)
+            {
+                if (test)
+                {
+                    update_sample_rate_selector_value();
+                    _sample_count.setDisabled(true);
+                    _sample_rate.setDisabled(true);
+                }
+                else
+                {
+                    _sample_count.setDisabled(false);
+                    if (mode != DSO)
+                        _sample_rate.setDisabled(false);
+                }
+            }
+
+            this->reload();
+            return true;
         }
 
         void SamplingBar::on_stacking_configure()
@@ -870,10 +879,7 @@ namespace pv
 
                     if (_device_agent->get_work_mode() != DSO)
                     {
-                        const uint64_t sample_count = ((uint64_t)ceil(sample_duration / SR_SEC(1) *
-                                                                      sample_rate) +
-                                                       SAMPLES_ALIGN) &
-                                                      ~SAMPLES_ALIGN;
+                        const uint64_t sample_count = sample_count_for(sample_duration, sample_rate);
                         if (sample_count != _device_agent->get_sample_limit())
                             _device_agent->set_config_uint64(
                                                       SR_CONF_LIMIT_SAMPLES,
@@ -1466,6 +1472,129 @@ namespace pv
         void SamplingBar::set_sample_count_index(int index)
         {
             _sample_count.setCurrentIndex(index);
+        }
+
+        uint64_t SamplingBar::sample_count_for(double duration, uint64_t sample_rate)
+        {
+            return ((uint64_t)ceil(duration / SR_SEC(1) * sample_rate) + SAMPLES_ALIGN) &
+                   ~SAMPLES_ALIGN;
+        }
+
+        std::vector<uint64_t> SamplingBar::sample_rate_choices()
+        {
+            std::vector<uint64_t> list;
+
+            for (int i = 0; i < _sample_rate.count(); i++)
+                list.push_back(_sample_rate.itemData(i).value<uint64_t>());
+
+            return list;
+        }
+
+        std::vector<SamplingBar::DurationChoice> SamplingBar::duration_choices()
+        {
+            std::vector<DurationChoice> list;
+
+            for (int i = 0; i < _sample_count.count(); i++){
+                DurationChoice c;
+                c.duration = _sample_count.itemData(i).value<double>();
+                c.rle = _sample_count.itemText(i).contains(RLEString);
+                list.push_back(c);
+            }
+
+            return list;
+        }
+
+        uint64_t SamplingBar::selected_sample_rate()
+        {
+            return _sample_rate.itemData(_sample_rate.currentIndex()).value<uint64_t>();
+        }
+
+        double SamplingBar::selected_duration()
+        {
+            return _sample_count.itemData(_sample_count.currentIndex()).value<double>();
+        }
+
+        bool SamplingBar::select_sample_rate(uint64_t sample_rate)
+        {
+            for (int i = 0; i < _sample_rate.count(); i++)
+            {
+                if (_sample_rate.itemData(i).value<uint64_t>() == sample_rate)
+                {
+                    // Rebuilds the duration list, keeping the duration.
+                    _sample_rate.setCurrentIndex(i);
+                    commit_settings();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        bool SamplingBar::select_duration(double duration)
+        {
+            for (int i = 0; i < _sample_count.count(); i++)
+            {
+                if (_sample_count.itemData(i).value<double>() == duration)
+                {
+                    set_sample_count_index(i);
+                    commit_settings();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Like picking the device in the selector, but without offering to
+        // save unsaved data first.
+        bool SamplingBar::select_device(ds_device_handle handle)
+        {
+            _session->stop_capture();
+            _session->session_save();
+
+            if (_session->set_device(handle))
+                return true;
+
+            update_device_list();
+            return false;
+        }
+
+        // Like the start button, but never stops a running capture.
+        bool SamplingBar::start_capture(bool instant, QString &error)
+        {
+            if (_session->is_doing_action()){
+                error = "DSView is busy with another action.";
+                return false;
+            }
+
+            if (_session->is_working()){
+                error = "A capture is already running.";
+                return false;
+            }
+
+            if (_device_agent->have_instance() == false){
+                error = "No device is selected.";
+                return false;
+            }
+
+            // A control client waits for one capture to end; repeat and
+            // loop mode never end on their own.
+            if (!_session->is_single_mode())
+                _action_single->trigger();
+
+            commit_settings();
+
+            if (_device_agent->get_work_mode() == LOGIC && _view != NULL){
+                if (_session->is_realtime_refresh())
+                    _view->auto_set_max_scale();
+            }
+
+            _is_run_as_instant = instant;
+            bool ret = _session->start_capture(instant);
+            update_view_status();
+
+            if (!ret)
+                error = "The capture could not be started.";
+
+            return ret;
         }
 
     } // namespace toolbars

@@ -62,6 +62,7 @@
 #include "dialogs/dsdialog.h"
 #include "ui/popupdlglist.h"
 #include "nativescale.h"
+#include "control/controlmode.h"
 
 
 #ifdef _WIN32
@@ -660,6 +661,10 @@ void MainFrame::saveNormalRegion()
     if (!_is_resize_ready){
         return;
     } 
+    // The offscreen screen's geometry is not the user's.
+    if (control::ControlMode::IsHeadless()){
+        return;
+    }
     if (!IsNormalsized()){
         return;
     } 
@@ -694,6 +699,10 @@ void MainFrame::saveNormalRegion()
 
 void MainFrame::writeSettings()
 {  
+    // The offscreen screen's geometry is not the user's.
+    if (control::ControlMode::IsHeadless())
+        return;
+
     AppConfig &app = AppConfig::Instance();
     app.frameOptions.isMax = IsMaxsized();
     app.frameOptions.displayName = windowHandle()->screen()->name();
@@ -1269,6 +1278,14 @@ void MainFrame::show_driver_hint_once()
         QMessageBox::ActionRole);
     msg.addButton(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_IGNORE), "Ignore"),
                   QMessageBox::ActionRole);
+
+    // A plain QMessageBox, so DSMessageBox's non-interactive check doesn't
+    // cover it. Keep showDriverHint set for the next interactive start.
+    if (control::ControlMode::IsNonInteractive()){
+        control::ControlMode::RecordSuppressedDialog(msg.windowTitle(), text);
+        return;
+    }
+
     msg.exec();
 
     if (msg.clickedButton() == noMoreButton) {
