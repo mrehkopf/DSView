@@ -84,10 +84,10 @@ Python version.
 
 Building for Windows
 --------------------
-Native build with MSYS2 (this is what CI uses). In a MINGW64 shell:
- $ pacman -S git mingw-w64-x86_64-{toolchain,cmake,ninja,qt6-base,qt6-svg,qt6-5compat,glib2,zlib,libusb,boost,fftw,python,pkg-config}
+Native build with MSYS2 (this is what CI uses). In a UCRT64 shell:
+ $ pacman -S git mingw-w64-ucrt-x86_64-{toolchain,cmake,ninja,qt6-base,qt6-svg,qt6-5compat,glib2,zlib,libusb,boost,fftw,python,pkg-config}
  $ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-	-DPython3_ROOT_DIR=/mingw64 -DPython3_FIND_STRATEGY=LOCATION \
+	-DPython3_ROOT_DIR=/ucrt64 -DPython3_FIND_STRATEGY=LOCATION \
 	-DPython3_FIND_REGISTRY=NEVER
  $ cmake --build build
 

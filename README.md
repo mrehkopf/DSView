@@ -95,10 +95,10 @@ translations. On Linux it copies the udev rule as well. To build a .deb package,
 
 ## Windows (native, MSYS2)
 
-This is the method used by CI. In a MINGW64 shell, install:
+This is the method used by CI. In a UCRT64 shell, install:
 
 ```sh
-pacman -S git mingw-w64-x86_64-{toolchain,cmake,ninja,qt6-base,qt6-svg,qt6-5compat,glib2,zlib,libusb,boost,fftw,python,pkg-config}
+pacman -S git mingw-w64-ucrt-x86_64-{toolchain,cmake,ninja,qt6-base,qt6-svg,qt6-5compat,glib2,zlib,libusb,boost,fftw,python,pkg-config}
 ```
 
 Then configure with MSYS2's own Python, so that the executable does not link
@@ -106,7 +106,7 @@ against some other Python installed on the system:
 
 ```sh
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-    -DPython3_ROOT_DIR=/mingw64 -DPython3_FIND_STRATEGY=LOCATION -DPython3_FIND_REGISTRY=NEVER
+    -DPython3_ROOT_DIR=/ucrt64 -DPython3_FIND_STRATEGY=LOCATION -DPython3_FIND_REGISTRY=NEVER
 cmake --build build
 ```
 
