@@ -1438,6 +1438,9 @@ static int dev_acquisition_start(struct sr_dev_inst *sdi, void *cb_data)
     if (vdev->trig_pos != 0)
     {
         struct ds_trigger_pos session_trigger;
+        /* The file only holds a position when the capture had triggered. */
+        memset(&session_trigger, 0, sizeof(session_trigger));
+        session_trigger.status = 1;
         if (sdi->mode == DSO)
             session_trigger.real_pos = vdev->trig_pos * vdev->enabled_probes / vdev->num_probes;
         else
