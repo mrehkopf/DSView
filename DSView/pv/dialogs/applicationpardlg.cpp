@@ -165,6 +165,20 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     QComboBox *ftCbSize = new DsComboBox();
     ftCbSize->setFixedWidth(50);
     bind_font_size_list(ftCbSize, app.appOptions.fontSize);
+
+    // Toolbar icon size in px, 0 = the style's default.
+    QComboBox *cbIconSize = new DsComboBox();
+    cbIconSize->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    cbIconSize->addItem(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_ICON_SIZE_AUTO), "Automatic"), 0);
+    for (int size : {24, 32, 40, 48}){
+        cbIconSize->addItem(QString("%1 px").arg(size), size);
+    }
+    if (cbIconSize->findData(app.appOptions.toolbarIconSize) < 0){
+        // A size set in the config file by hand.
+        cbIconSize->addItem(QString("%1 px").arg(app.appOptions.toolbarIconSize),
+                            app.appOptions.toolbarIconSize);
+    }
+    cbIconSize->setCurrentIndex(cbIconSize->findData(app.appOptions.toolbarIconSize));
    
     QHBoxLayout *hl_units = new QHBoxLayout();
     QButtonGroup *bg_timeUnit = new QButtonGroup();
@@ -351,10 +365,12 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     uiLay->addWidget(ck_profileBar, 0, 1, Qt::AlignRight);
     uiLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_FONT_SIZE), "Font size")), 1, 0, Qt::AlignLeft);
     uiLay->addWidget(ftCbSize, 1, 1, Qt::AlignRight);
-    uiLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DISPLAY_ANTIALIAS), "Antialiasing")), 2, 0, Qt::AlignLeft);
-    uiLay->addWidget(ck_antialias, 2, 1, Qt::AlignRight);
-    uiLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DONT_ASK_SAVE_ON_EXIT), "Do not ask to save captured data")), 3, 0, Qt::AlignLeft);
-    uiLay->addWidget(ck_dontAskSaveOnExit, 3, 1, Qt::AlignRight);
+    uiLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_TOOLBAR_ICON_SIZE), "Toolbar icon size")), 2, 0, Qt::AlignLeft);
+    uiLay->addWidget(cbIconSize, 2, 1, Qt::AlignRight);
+    uiLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DISPLAY_ANTIALIAS), "Antialiasing")), 3, 0, Qt::AlignLeft);
+    uiLay->addWidget(ck_antialias, 3, 1, Qt::AlignRight);
+    uiLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DONT_ASK_SAVE_ON_EXIT), "Do not ask to save captured data")), 4, 0, Qt::AlignLeft);
+    uiLay->addWidget(ck_dontAskSaveOnExit, 4, 1, Qt::AlignRight);
     lay->addWidget(uiGroup);
 
     dlg.layout()->addLayout(lay);      
@@ -391,6 +407,10 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
         if (app.appOptions.fontSize != fSize){
             app.appOptions.fontSize = fSize;
             bFontChanged = true;
+        }
+        if (app.appOptions.toolbarIconSize != cbIconSize->currentData().toInt()){
+            app.appOptions.toolbarIconSize = cbIconSize->currentData().toInt();
+            bAppChanged = true;
         }
         if (app.appOptions.autoScrollLatestData != ck_autoScrollLatestData->isChecked()){
             app.appOptions.autoScrollLatestData = ck_autoScrollLatestData->isChecked();

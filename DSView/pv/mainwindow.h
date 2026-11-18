@@ -147,6 +147,7 @@ private:
     void update_toolbar_view_status();
     void calc_min_height();    
     void update_title_bar_text();
+    void apply_toolbar_icon_size();
 
     //json operation
 private:

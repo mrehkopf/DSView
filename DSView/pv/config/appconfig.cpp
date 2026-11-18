@@ -126,6 +126,7 @@ static void _loadApp(AppOptions &o, QSettings &st)
     getFiled("displayProfileInBar", st, o.displayProfileInBar, false);
     getFiled("swapBackBufferAlways", st, o.swapBackBufferAlways, false);
     getFiled("fontSize", st, o.fontSize, 9.0);
+    getFiled("toolbarIconSize", st, o.toolbarIconSize, 0);
     getFiled("autoScrollLatestData", st, o.autoScrollLatestData, true);
     getFiled("verticalScrollIsZoom", st, o.verticalScrollIsZoom, true);
     getFiled("traceHeightFactor", st, o.traceHeightFactor, 1.0);
@@ -168,6 +169,12 @@ static void _loadApp(AppOptions &o, QSettings &st)
         o.logicSignalLineWidth = 1.0f;
     }
 
+    if (o.toolbarIconSize != 0
+        && (o.toolbarIconSize < MinToolbarIconSize || o.toolbarIconSize > MaxToolbarIconSize))
+    {
+        o.toolbarIconSize = 0;
+    }
+
     st.endGroup();
 }
 
@@ -185,6 +192,7 @@ static void _saveApp(AppOptions &o, QSettings &st)
     setFiled("displayProfileInBar", st, o.displayProfileInBar);
     setFiled("swapBackBufferAlways", st, o.swapBackBufferAlways);
     setFiled("fontSize", st, o.fontSize);
+    setFiled("toolbarIconSize", st, o.toolbarIconSize);
     setFiled("autoScrollLatestData", st, o.autoScrollLatestData);
     setFiled("verticalScrollIsZoom", st, o.verticalScrollIsZoom);
     setFiled("traceHeightFactor", st, o.traceHeightFactor);

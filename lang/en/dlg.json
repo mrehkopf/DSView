@@ -724,6 +724,14 @@
         "text": "Font Size"
     },
     {
+        "id": "IDS_DLG_TOOLBAR_ICON_SIZE",
+        "text": "Toolbar icon size"
+    },
+    {
+        "id": "IDS_DLG_ICON_SIZE_AUTO",
+        "text": "Automatic"
+    },
+    {
         "id": "IDS_DLG_GROUP_LOGIC",
         "text": "Logic Analyzer"
     },

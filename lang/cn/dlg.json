@@ -724,6 +724,14 @@
         "text": "字体大小"
     },
     {
+        "id": "IDS_DLG_TOOLBAR_ICON_SIZE",
+        "text": "工具栏图标大小"
+    },
+    {
+        "id": "IDS_DLG_ICON_SIZE_AUTO",
+        "text": "自动"
+    },
+    {
         "id": "IDS_DLG_GROUP_LOGIC",
         "text": "逻辑分析仪"
     },

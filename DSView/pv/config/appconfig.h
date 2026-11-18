@@ -42,6 +42,10 @@
 #define RULER_UNIT_SAMPLES "Samples"
 #define RULER_UNIT_TIME    "Time"
 
+// Range of AppOptions::toolbarIconSize; 0 means the style's default.
+#define MinToolbarIconSize 16
+#define MaxToolbarIconSize 64
+
 //--------------------api---
 QString GetIconPath();
 QString GetAppDataDir();
@@ -80,6 +84,7 @@ struct AppOptions
     bool  autoScrollLatestData;
     bool  verticalScrollIsZoom;
     float fontSize;
+    int   toolbarIconSize; // in px, 0 = the style's default
     float traceHeightFactor;
     QString rulerTimeUnits;
     bool antialias;
