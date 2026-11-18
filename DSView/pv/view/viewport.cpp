@@ -162,6 +162,14 @@ bool Viewport::event(QEvent *event)
     return QWidget::event(event);
 }
 
+// Whether a logic channel's row reaches into a viewport of this height.
+// Channels scrolled out of view cost as much to paint as the visible ones.
+static bool logic_row_in_view(Trace *t, int height)
+{
+    const int half_height = t->get_totalHeight() / 2 + View::SignalMargin;
+    return t->get_y() + half_height >= 0 && t->get_y() - half_height <= height;
+}
+
 void Viewport::paintEvent(QPaintEvent *event)
 {
     (void)event;
@@ -199,6 +207,8 @@ void Viewport::doPaint()
     _view.get_traces(_type, traces);
 
     for(auto t : traces){
+        if (t->signal_type() == SR_CHANNEL_LOGIC && !logic_row_in_view(t, height()))
+            continue;
         t->paint_back(p, 0, _view.get_view_width(), fore, back);
         if (_view.back_ready())
             break;
@@ -394,11 +404,15 @@ void Viewport::paintSignals(QPainter &p, QColor fore, QColor back)
                 {
                     LogicSignal *logic_signal = (LogicSignal*)t;
 
-                    if (bFirst)
+                    if (bFirst) {
                         end_align_sample = logic_signal->data()->get_ring_sample_count();
+                        bFirst = false;
+                    }
+
+                    if (!logic_row_in_view(t, height()))
+                        continue;
 
                     logic_signal->paint_mid_align_sample(p, 0, t->get_view_rect().right(), fore, back, end_align_sample);
-                    bFirst = false;
                 }
                 else{
                     t->paint_mid(p, 0, t->get_view_rect().right(), fore, back);
