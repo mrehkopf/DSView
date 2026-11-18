@@ -123,7 +123,7 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
    _dso_split_channels = AppConfig::Instance().appOptions.dsoSplitChannels;
 
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
-    setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
+    setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 //    setWidgetResizable(true);
 //    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
