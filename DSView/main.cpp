@@ -177,8 +177,9 @@ bool bHighScale = true;
     QApplication::setApplicationName("DSView");
     QApplication::setOrganizationName("DreamSourceLab");
     QApplication::setOrganizationDomain("www.DreamSourceLab.com");
-    // Wayland app_id / taskbar matching: must equal the installed dsview.desktop basename
-    QGuiApplication::setDesktopFileName("dsview");
+    // Wayland app_id / taskbar matching: must equal the installed desktop file's
+    // basename, which is also the AppStream component id.
+    QGuiApplication::setDesktopFileName("io.github.mrehkopf.dsview");
 
 	//----------------------init log
 	dsv_log_init(); // Don't call before QApplication be inited

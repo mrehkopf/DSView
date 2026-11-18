@@ -732,7 +732,8 @@ else()
     install(FILES DSView/icons/logo.svg DESTINATION share/pixmaps RENAME dsview.svg)
 
     if(CMAKE_SYSTEM_NAME MATCHES "Linux")
-        install(FILES DSView/DSView.desktop DESTINATION /usr/share/applications RENAME dsview.desktop)
+        install(FILES DSView/DSView.desktop DESTINATION /usr/share/applications RENAME io.github.mrehkopf.dsview.desktop)
+        install(FILES DSView/io.github.mrehkopf.dsview.appdata.xml DESTINATION /usr/share/metainfo)
 
         add_compile_definitions(_DEFAULT_SOURCE)
 
