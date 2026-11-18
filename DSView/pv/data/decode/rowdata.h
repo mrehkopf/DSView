@@ -32,6 +32,15 @@ namespace pv {
 namespace data {
 namespace decode {
 
+// One thing to draw in an annotation row: a single annotation, or a run of
+// annotations too narrow to draw one by one, from ann to last. last is NULL
+// for a single annotation.
+struct AnnotationSpan
+{
+    Annotation *ann;
+    Annotation *last;
+};
+
 class RowData
 {
 public:
@@ -60,6 +69,20 @@ public:
 	void get_annotation_subset(std::vector<pv::data::decode::Annotation*> &dest,
 		                        uint64_t start_sample, uint64_t end_sample);
 
+    /**
+     * Like get_annotation_subset(), but for drawing at samples_per_pixel:
+     * annotations narrower than merge_pixels (instants too, if merge_instants)
+     * that follow each other with less than a pixel in between are returned
+     * as one run, if there are at least two of them. The work grows with the
+     * number of pixels, not annotations.
+     * Returns false, leaving dest empty, if the annotations overlap or are
+     * out of order; use get_annotation_subset() then.
+     */
+    bool get_annotation_spans(std::vector<AnnotationSpan> &dest,
+                              uint64_t start_sample, uint64_t end_sample,
+                              double samples_per_pixel, double merge_pixels,
+                              bool merge_instants);
+
     void clear();
 
 private:
@@ -67,6 +90,11 @@ private:
     uint64_t        _min_annotation;
     uint64_t        _item_count;
 	std::vector<Annotation*> _annotations;
+    // _max_end[i] is the largest end sample of annotations 0..i, so the first
+    // annotation that can reach a sample is found by binary search.
+    std::vector<uint64_t> _max_end;
+    // Whether each annotation starts at or after the end of all earlier ones.
+    bool            _ordered;
     static std::mutex _global_visitor_mutex;
 };
 

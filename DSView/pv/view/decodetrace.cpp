@@ -38,6 +38,7 @@
 #include "../data/decode/decoder.h"
 #include "../data/logicsnapshot.h"
 #include "../data/decode/annotation.h"
+#include "../data/decode/rowdata.h"
 #include "../view/logicsignal.h"
 #include "../view/view.h"
 #include "../widgets/decodergroupbox.h"
@@ -360,12 +361,35 @@ void DecodeTrace::paint_mid(QPainter &p, int left, int right, QColor fore, QColo
                         if ((max_annWidth > 100) ||
                             (max_annWidth > 10 && (min_annWidth > 1 || samples_per_pixel < 50)) ||
                             (max_annWidth == 0 && samples_per_pixel < 10)) {
-                            std::vector<Annotation*> annotations;
-                            _decoder_stack->get_annotation_subset(annotations, row,
-                                start_sample, end_sample);
+                            double last_x = -1;
 
-                            if (!annotations.empty()) {
-                                double last_x = -1;
+                            // Annotations narrower than a pixel next to each other
+                            // make a solid bar; draw those runs as one bar.
+                            const double merge_pixels = 1.0;
+                            const bool merge_instants = min(min_annWidth, (double)annotation_height) < merge_pixels;
+                            std::vector<AnnotationSpan> spans;
+
+                            if (_decoder_stack->get_annotation_spans(spans, row,
+                                    start_sample, end_sample, samples_per_pixel,
+                                    merge_pixels, merge_instants)) {
+                                for (const AnnotationSpan &span : spans) {
+                                    if (span.last == NULL)
+                                        draw_annotation(*span.ann, p,
+                                            annotation_height, left, right,
+                                            samples_per_pixel, pixels_offset, y,
+                                            local_row, min_annWidth, fore, back, last_x);
+                                    else
+                                        draw_annotation_run(*span.ann, *span.last, p,
+                                            annotation_height, left, right,
+                                            samples_per_pixel, pixels_offset, y,
+                                            local_row, min_annWidth);
+                                }
+                            }
+                            else {
+                                // Overlapping or out of order: check every annotation.
+                                std::vector<Annotation*> annotations;
+                                _decoder_stack->get_annotation_subset(annotations, row,
+                                    start_sample, end_sample);
 
                                 for(Annotation *a : annotations){
                                     draw_annotation(*a, p,
@@ -413,12 +437,6 @@ void DecodeTrace::draw_annotation(const pv::data::decode::Annotation &a,
     const double end = min(a.end_sample() / samples_per_pixel -
         pixels_offset, (double)right);
 
-    const QColor fill_base = _colour.isValid() ? _colour :
-        get_row_base_colour(local_row);
-    QColor fill, outline;
-    generate_annotation_colours(fill_base, local_row, a, &fill, &outline);
-    const QColor &text_color = get_text_colour(fill);
-
     if (start > right + DrawPadding || end < left - DrawPadding){
 		return;
     }
@@ -429,22 +447,14 @@ void DecodeTrace::draw_annotation(const pv::data::decode::Annotation &a,
     
     last_x = end;
 
+    const QColor fill_base = _colour.isValid() ? _colour :
+        get_row_base_colour(local_row);
+    QColor fill, outline;
+    generate_annotation_colours(fill_base, local_row, a, &fill, &outline);
+    const QColor &text_color = get_text_colour(fill);
+
     if (_decoder_stack->get_mark_index() == (int64_t)(a.start_sample()+ a.end_sample())/2) {
-        p.setPen(View::Blue);
-        int xpos = (start+end)/2;
-        int ypos = get_y()+_totalHeight*0.5 + 1;
-        const QPoint triangle[] = {
-            QPoint(xpos, ypos),
-            QPoint(xpos-1, ypos + 1),
-            QPoint(xpos, ypos + 1),
-            QPoint(xpos+1, ypos + 1),
-            QPoint(xpos-2, ypos + 2),
-            QPoint(xpos-1, ypos + 2),
-            QPoint(xpos, ypos + 2),
-            QPoint(xpos+1, ypos + 2),
-            QPoint(xpos+2, ypos + 2),
-        };
-        p.drawPoints(triangle, 9);
+        draw_search_mark(p, (start+end)/2);
     }
 
 	if (a.start_sample() == a.end_sample()){
@@ -483,6 +493,64 @@ void DecodeTrace::draw_annotation(const pv::data::decode::Annotation &a,
             }
         }
     }
+}
+
+void DecodeTrace::draw_annotation_run(const pv::data::decode::Annotation &a,
+    const pv::data::decode::Annotation &last,
+    QPainter &p, int h, int left, int right,
+    double samples_per_pixel, double pixels_offset, int y,
+    int local_row, double min_annWidth)
+{
+    // One by one, ranges this narrow are drawn as a line at their start in
+    // the outline colour, and instants as a narrow rounded rectangle in the
+    // fill colour. Cover the same area.
+    const bool instant = a.start_sample() == a.end_sample();
+    const double pad = instant ? max(min(min_annWidth, (double)h) / 2, 0.5) : 0.5;
+    const double start = max(a.start_sample() / samples_per_pixel -
+        pixels_offset - pad, (double)left);
+    const double end = min(last.start_sample() / samples_per_pixel -
+        pixels_offset + pad, (double)right);
+
+    if (start > right + DrawPadding || end < left - DrawPadding)
+        return;
+
+    const QColor fill_base = _colour.isValid() ? _colour :
+        get_row_base_colour(local_row);
+    QColor fill, outline;
+    generate_annotation_colours(fill_base, local_row, a, &fill, &outline);
+
+    const double width = max(end - start, 1.0);
+
+    if (instant) {
+        p.fillRect(QRectF(start, y - h / 2, width, h), fill);
+    }
+    else {
+        // The lines' square caps reach half a pixel past both ends.
+        const double top = y + .5 - h / 2;
+        p.fillRect(QRectF(start, top - 0.5, width, 2 * (h / 2) + 1), outline);
+    }
+
+    const int64_t mark = _decoder_stack->get_mark_index();
+    if (mark >= (int64_t)a.start_sample() && mark <= (int64_t)last.end_sample())
+        draw_search_mark(p, mark / samples_per_pixel - pixels_offset);
+}
+
+void DecodeTrace::draw_search_mark(QPainter &p, int xpos)
+{
+    p.setPen(View::Blue);
+    int ypos = get_y()+_totalHeight*0.5 + 1;
+    const QPoint triangle[] = {
+        QPoint(xpos, ypos),
+        QPoint(xpos-1, ypos + 1),
+        QPoint(xpos, ypos + 1),
+        QPoint(xpos+1, ypos + 1),
+        QPoint(xpos-2, ypos + 2),
+        QPoint(xpos-1, ypos + 2),
+        QPoint(xpos, ypos + 2),
+        QPoint(xpos+1, ypos + 2),
+        QPoint(xpos+2, ypos + 2),
+    };
+    p.drawPoints(triangle, 9);
 }
 
 void DecodeTrace::draw_nodetail(QPainter &p,

@@ -154,6 +154,17 @@ private:
         double samples_per_pixel, double pixels_offset, int y,
         int local_row, double min_annWidth, QColor fore, QColor back, double &last_x);
 
+    // Draws a run of annotations too narrow to draw one by one, from a to
+    // last, as one bar.
+    void draw_annotation_run(const pv::data::decode::Annotation &a,
+        const pv::data::decode::Annotation &last,
+        QPainter &p, int h, int left, int right,
+        double samples_per_pixel, double pixels_offset, int y,
+        int local_row, double min_annWidth);
+
+    // The marker under the annotation found by a search.
+    void draw_search_mark(QPainter &p, int xpos);
+
     void draw_nodetail(QPainter &p,
         int text_height, int left, int right, int y,
         int local_row, QColor fore, QColor back);
