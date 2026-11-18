@@ -202,6 +202,7 @@ void LogicSignal::paint_mid_align(QPainter &p, int left, int right, QColor fore,
     int x = preX;
     std::vector<QLine> wave_lines;
     std::vector<QLineF> high_lines;
+    std::vector<QRectF> edge_blocks;
 
     // With the thick high level option, high segments are collected apart and
     // painted with a wider flat-capped pen. They reach out by half the edge
@@ -228,10 +229,34 @@ void LogicSignal::paint_mid_align(QPainter &p, int left, int right, QColor fore,
     }
     else if (_cur_pulses.size() > 0) {
         std::vector<std::pair<bool, bool>>::const_iterator i = _cur_pulses.begin();
-        while (i != _cur_pulses.end() - 1) {
+        const std::vector<std::pair<bool, bool>>::const_iterator last = _cur_pulses.end() - 1;
+
+        while (i != last) {
             if ((*i).first) {
                 push_level(preX, x, preY);
-                wave_lines.push_back(QLine(x, high_offset, x, low_offset));
+
+                // Edges on several pixels in a row paint a solid block
+                // between the levels. Draw it as one rectangle: with
+                // antialiasing, each line costs about as much as the block.
+                std::vector<std::pair<bool, bool>>::const_iterator run_end = i;
+                while (run_end + 1 != last && (*(run_end + 1)).first)
+                    run_end++;
+
+                if (run_end == i) {
+                    wave_lines.push_back(QLine(x, high_offset, x, low_offset));
+                }
+                else {
+                    const int run_x = x + (run_end - i);
+                    // Cover the edges' square caps, and with thick high levels
+                    // the high segments between them.
+                    const double top = high_offset - (thick_high ? (line_width + 1) / 2 : line_width / 2);
+                    const double bottom = low_offset + line_width / 2;
+                    edge_blocks.push_back(QRectF(x - line_width / 2, top,
+                                                 run_x - x + line_width, bottom - top));
+                    x = run_x;
+                    i = run_end;
+                }
+
                 preX = x;
                 preY = (*i).second ? high_offset : low_offset;
             }
@@ -243,6 +268,15 @@ void LogicSignal::paint_mid_align(QPainter &p, int left, int right, QColor fore,
 
     QColor defaultColour = get_default_colour();
     QColor lineColour = _colour.isValid() ? _colour : (defaultColour.isValid() ? defaultColour : fore);
+
+    if (!edge_blocks.empty()) {
+        const QBrush brush = p.brush();
+        p.setPen(Qt::NoPen);
+        p.setBrush(lineColour);
+        p.drawRects(edge_blocks.data(), edge_blocks.size());
+        p.setBrush(brush);
+    }
+
     p.setPen(QPen(lineColour, line_width));
     p.drawLines(wave_lines.data(), wave_lines.size());
 
