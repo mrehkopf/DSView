@@ -15,6 +15,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Read version
+        run: |
+          # From CMakeLists.txt, for the file names below.
+          major="$(sed -nE 's/^set\(DS_VERSION_MAJOR ([0-9]+)\)/\1/p' CMakeLists.txt)"
+          minor="$(sed -nE 's/^set\(DS_VERSION_MINOR ([0-9]+)\)/\1/p' CMakeLists.txt)"
+          micro="$(sed -nE 's/^set\(DS_VERSION_MICRO ([0-9]+)\)/\1/p' CMakeLists.txt)"
+          echo "DSVIEW_VERSION=${major}.${minor}.${micro}" >> "$GITHUB_ENV"
+
       - name: Install build dependencies
         run: |
           sudo apt-get update
@@ -91,13 +99,14 @@ jobs:
           echo "--- ldd after patch ---"
           ldd "${BIN}.bin" 2>/dev/null || true
 
-          dpkg-deb --root-owner-group -b deb-extract "$DEB"
+          rm "$DEB"
+          dpkg-deb --root-owner-group -b deb-extract "DSView-${DSVIEW_VERSION}-linux-amd64.deb"
 
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v6
         with:
-          name: DSView-linux-deb
-          path: build/*.deb
+          name: DSView-${{ env.DSVIEW_VERSION }}-linux-amd64.deb
+          path: build/DSView-${{ env.DSVIEW_VERSION }}-linux-amd64.deb
 
       - name: Install into AppDir
         run: |
@@ -191,13 +200,13 @@ jobs:
             "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
           chmod +x appimagetool
           ./appimagetool --appimage-extract-and-run \
-            "${GITHUB_WORKSPACE}/AppDir" DSView-x86_64.AppImage
+            "${GITHUB_WORKSPACE}/AppDir" "DSView-${DSVIEW_VERSION}-x86_64.AppImage"
 
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v6
         with:
-          name: DSView-linux-appimage
-          path: '*.AppImage'
+          name: DSView-${{ env.DSVIEW_VERSION }}-x86_64.AppImage
+          path: DSView-${{ env.DSVIEW_VERSION }}-x86_64.AppImage
 
   windows:
     name: Windows (MSYS2)
@@ -231,6 +240,14 @@ jobs:
             mingw-w64-ucrt-x86_64-fftw
             mingw-w64-ucrt-x86_64-python
             mingw-w64-ucrt-x86_64-pkg-config
+
+      - name: Read version
+        run: |
+          # From CMakeLists.txt, for the file names below.
+          major="$(sed -nE 's/^set\(DS_VERSION_MAJOR ([0-9]+)\)/\1/p' CMakeLists.txt)"
+          minor="$(sed -nE 's/^set\(DS_VERSION_MINOR ([0-9]+)\)/\1/p' CMakeLists.txt)"
+          micro="$(sed -nE 's/^set\(DS_VERSION_MICRO ([0-9]+)\)/\1/p' CMakeLists.txt)"
+          echo "DSVIEW_VERSION=${major}.${minor}.${micro}" >> "$GITHUB_ENV"
 
       - name: Configure
         run: |
@@ -307,13 +324,13 @@ jobs:
       - name: Package as zip
         run: |
           cd dsview-dist
-          zip -r "${GITHUB_WORKSPACE}/DSView-windows-x86_64.zip" .
+          zip -r "${GITHUB_WORKSPACE}/DSView-${DSVIEW_VERSION}-windows-x86_64.zip" .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: DSView-windows
-          path: DSView-windows-x86_64.zip
+          name: DSView-${{ env.DSVIEW_VERSION }}-windows-x86_64.zip
+          path: DSView-${{ env.DSVIEW_VERSION }}-windows-x86_64.zip
 
       # Native Windows shell rather than the job-default MSYS2 bash for the
       # Inno Setup steps below: iscc.exe/pnputil.exe are plain Windows tools,
@@ -326,20 +343,15 @@ jobs:
       - name: Build Windows installer
         shell: pwsh
         run: |
-          # Read the app version from CMakeLists.txt instead of hand-duplicating
-          # it here, so the installer's version can't silently drift from the
-          # one DSView itself reports.
-          $major = (Select-String -Path CMakeLists.txt -Pattern 'DS_VERSION_MAJOR (\d+)').Matches[0].Groups[1].Value
-          $minor = (Select-String -Path CMakeLists.txt -Pattern 'DS_VERSION_MINOR (\d+)').Matches[0].Groups[1].Value
-          $micro = (Select-String -Path CMakeLists.txt -Pattern 'DS_VERSION_MICRO (\d+)').Matches[0].Groups[1].Value
-          $version = "$major.$minor.$micro"
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer\windows\dsview.iss" "/DMyAppVersion=$version"
+          # The version comes from CMakeLists.txt (see "Read version"), so the
+          # installer's version can't drift from the one DSView itself reports.
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer\windows\dsview.iss" "/DMyAppVersion=$env:DSVIEW_VERSION"
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v6
         with:
-          name: DSView-windows-installer
-          path: installer/windows/Output/DSView-windows-x86_64-setup.exe
+          name: DSView-${{ env.DSVIEW_VERSION }}-windows-x86_64-setup.exe
+          path: installer/windows/Output/DSView-${{ env.DSVIEW_VERSION }}-windows-x86_64-setup.exe
 
   release:
     name: Publish latest pre-release
