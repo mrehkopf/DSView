@@ -96,7 +96,7 @@ public:
         _titleBarWidget = w;
     }
 
-    int GetDevicePixelRatio();
+    qreal GetDevicePixelRatio();
     bool IsVisible();
 
     void ReShowWindow();

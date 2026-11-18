@@ -72,7 +72,7 @@ struct FormInitInfo
 {
     FormRegion r;
     bool isMaxSize;
-    int k;
+    qreal k;
 };
 
 // A top-level QWidget lets the Qt style manage the window background.

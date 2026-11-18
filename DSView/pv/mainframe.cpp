@@ -61,6 +61,7 @@
 #include "log.h"
 #include "dialogs/dsdialog.h"
 #include "ui/popupdlglist.h"
+#include "nativescale.h"
 
 
 #ifdef _WIN32
@@ -236,9 +237,9 @@ QPoint MainFrame::GetParentPos()
 #ifdef _WIN32
     if (_parentNativeWidget != NULL){
         RECT rc;
-        int k =  window()->devicePixelRatio(); 
+        qreal k =  window()->devicePixelRatioF();
         GetWindowRect(_parentNativeWidget->Handle(), &rc); 
-        return QPoint(rc.left / k, rc.top / k);
+        return QPoint(FromNativePixels(rc.left, k), FromNativePixels(rc.top, k));
     }
 #endif
     
@@ -668,15 +669,15 @@ void MainFrame::saveNormalRegion()
 #ifdef _WIN32
     if (_parentNativeWidget != NULL){
         RECT rc;
-        int k = _parentNativeWidget->GetDevicePixelRatio();
+        qreal k = _parentNativeWidget->GetDevicePixelRatio();
         
         GetWindowRect(_parentNativeWidget->Handle(), &rc);
-        app.frameOptions.left = rc.left / k;
-        app.frameOptions.top = rc.top / k;
-        app.frameOptions.right = rc.right / k;
-        app.frameOptions.bottom = rc.bottom / k;
-        app.frameOptions.x = rc.left / k;
-        app.frameOptions.y = rc.top / k; 
+        app.frameOptions.left = FromNativePixels(rc.left, k);
+        app.frameOptions.top = FromNativePixels(rc.top, k);
+        app.frameOptions.right = FromNativePixels(rc.right, k);
+        app.frameOptions.bottom = FromNativePixels(rc.bottom, k);
+        app.frameOptions.x = FromNativePixels(rc.left, k);
+        app.frameOptions.y = FromNativePixels(rc.top, k);
     }
 #endif
 
@@ -730,8 +731,8 @@ void MainFrame::ShowFormInit()
         h++;
     }
 
-    dsv_info("Init form, x:%d, y:%d, w:%d, h:%d, k:%d",
-             x, y, w, h, _initWndInfo.k);
+    dsv_info("Init form, x:%d, y:%d, w:%d, h:%d, k:%.2f",
+             x, y, w, h, (double)_initWndInfo.k);
 
     bool isWin32 = false;
 #ifdef _WIN32
@@ -786,11 +787,11 @@ void MainFrame::AttachNativeWindow()
 
     assert(_parentNativeWidget == NULL);
 
-    int k = _initWndInfo.k; 
-    int x = _normalRegion.x * k;
-    int y = _normalRegion.y * k;
-    int w = _normalRegion.w * k;
-    int h = _normalRegion.h * k;
+    qreal k = _initWndInfo.k;
+    int x = ToNativePixels(_normalRegion.x, k);
+    int y = ToNativePixels(_normalRegion.y, k);
+    int w = ToNativePixels(_normalRegion.x + _normalRegion.w, k) - x;
+    int h = ToNativePixels(_normalRegion.y + _normalRegion.h, k) - y;
 
   
     QColor bkColor = AppConfig::Instance().GetStyleColor(); 
@@ -814,12 +815,12 @@ void MainFrame::AttachNativeWindow()
             int h1 = full_rc.height() / 1.5;
             int x1 = full_rc.left() + (full_rc.width() - w1) / 2;
             int y1 = full_rc.top() + (full_rc.height() - h1) / 2; 
-            int x2 = full_rc.left() + (full_rc.width() - w1) / 2 * k;
-            int y2 = full_rc.top() + (full_rc.height() - h1) / 2 * k; 
+            int x2 = full_rc.left() + ToNativePixels((full_rc.width() - w1) / 2, k);
+            int y2 = full_rc.top() + ToNativePixels((full_rc.height() - h1) / 2, k);
 
             this->move(x1, y1);
             this->resize(w1,w1);
-            nativeWindow->setGeometry(x2 , y2 , w1 * k, h1 *k);
+            nativeWindow->setGeometry(x2 , y2 , ToNativePixels(w1, k), ToNativePixels(h1, k));
 
             dsv_info("%s:Reset the normal region, x:%d, y:%d, w:%d, h:%d",
                         scr->name().toStdString().c_str(),
@@ -871,12 +872,15 @@ void MainFrame::SetFormRegion(int x, int y, int w, int h)
    #ifdef _WIN32
 
    if (_parentNativeWidget != NULL){
-        int k = _parentNativeWidget->GetDevicePixelRatio(); 
+        qreal k = _parentNativeWidget->GetDevicePixelRatio();
         
-        x *= k;
-        y *= k;
-        w *= k;
-        h *= k;
+        // Convert the edges, not the size, see nativescale.h.
+        int nx = ToNativePixels(x, k);
+        int ny = ToNativePixels(y, k);
+        w = ToNativePixels(x + w, k) - nx;
+        h = ToNativePixels(y + h, k) - ny;
+        x = nx;
+        y = ny;
  
         _parentNativeWidget->setGeometry(x, y, w, h);
 
@@ -894,14 +898,15 @@ QRect MainFrame::GetFormRegion()
 #ifdef _WIN32
 
     if (_parentNativeWidget != NULL){
-        int k = _parentNativeWidget->GetDevicePixelRatio();
+        qreal k = _parentNativeWidget->GetDevicePixelRatio();
         RECT r; 
         GetWindowRect(_parentNativeWidget->Handle(), &r); 
-        int x = r.left;
-        int y = r.top;
-        int w = r.right-r.left;
-        int h = r.bottom-r.top;
-        rc = QRect(x/k, y/k, w/k, h/k);
+        // Convert the edges, not the size, see nativescale.h.
+        int x = FromNativePixels(r.left, k);
+        int y = FromNativePixels(r.top, k);
+        int w = FromNativePixels(r.right, k) - x;
+        int h = FromNativePixels(r.bottom, k) - y;
+        rc = QRect(x, y, w, h);
     }
     else{
         rc = geometry();
@@ -970,8 +975,8 @@ void MainFrame::ReadSettings()
 
     bool bReset = false;
     int scrIndex = -1;
-    int k = 1;
-    int zoomk = 1;
+    qreal k = 1;
+    qreal zoomk = 1;
     QString scrName = "";
     QRect full_rect = QRect(0,0,0,0);
     QScreen *screen = NULL;
@@ -1006,7 +1011,7 @@ void MainFrame::ReadSettings()
     }
 #endif
     
-    QRect winRc = {x * zoomk, y * zoomk, right-left, bottom-top};
+    QRect winRc = {ToNativePixels(x, zoomk), ToNativePixels(y, zoomk), right-left, bottom-top};
 
     if (!bReset){
         QRect inrc = full_rect.intersected(winRc);
@@ -1037,12 +1042,12 @@ void MainFrame::ReadSettings()
         QRect inrc = full_rect.intersected(winRc);
         if (inrc.width() < 70 || inrc.height() < 70 || winRc.width() < 100){
             _normalRegion.x = full_rect.left() 
-                        + (full_rect.width() - _normalRegion.w) / 2 * zoomk;
+                        + ToNativePixels((full_rect.width() - _normalRegion.w) / 2, zoomk);
             _normalRegion.y = full_rect.top() 
-                        + (full_rect.height() - _normalRegion.h) / 2 * zoomk;
+                        + ToNativePixels((full_rect.height() - _normalRegion.h) / 2, zoomk);
 
-            _normalRegion.x /= zoomk;
-            _normalRegion.y /= zoomk;
+            _normalRegion.x = FromNativePixels(_normalRegion.x, zoomk);
+            _normalRegion.y = FromNativePixels(_normalRegion.y, zoomk);
         }
 
         dsv_info("Show as max, screen:%s, x:%d, y:%d, w:%d, h:%d", 
@@ -1053,11 +1058,11 @@ void MainFrame::ReadSettings()
     {
         int w = full_rect.width() / 1.5;
         int h = full_rect.height() / 1.5;
-        int x0 = full_rect.left() + (full_rect.width() - w) / 2 * zoomk;
-        int y0 = full_rect.top() + (full_rect.height() - h) / 2 * zoomk;
+        int x0 = full_rect.left() + ToNativePixels((full_rect.width() - w) / 2, zoomk);
+        int y0 = full_rect.top() + ToNativePixels((full_rect.height() - h) / 2, zoomk);
  
-        _initWndInfo.r.x = x0 / zoomk;
-        _initWndInfo.r.y = y0 / zoomk;
+        _initWndInfo.r.x = FromNativePixels(x0, zoomk);
+        _initWndInfo.r.y = FromNativePixels(y0, zoomk);
         _initWndInfo.r.w = w;
         _initWndInfo.r.h = h;
         _normalRegion = _initWndInfo.r;

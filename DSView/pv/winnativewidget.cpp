@@ -22,6 +22,7 @@
 
 
 #include "winnativewidget.h"
+#include "nativescale.h"
 #include <QApplication>
 #include <QScreen>
 #include <QGuiApplication>
@@ -293,11 +294,11 @@ LRESULT CALLBACK WinNativeWidget::WndProc(HWND hWnd, UINT message, WPARAM wParam
                 return 0;
             }
             
-            int k = self->GetDevicePixelRatio(); 
+            qreal k = self->GetDevicePixelRatio();
             NCCALCSIZE_PARAMS* params = reinterpret_cast<NCCALCSIZE_PARAMS*>(lParam); 
             RECT* rect = &params->rgrc[0]; 
 
-            int borderSize = 1 * k;
+            int borderSize = ScaledToNative(1, k);
             rect->left += borderSize;
             rect->top += 1;
             rect->right -= borderSize;
@@ -431,7 +432,7 @@ LRESULT CALLBACK WinNativeWidget::WndProc(HWND hWnd, UINT message, WPARAM wParam
                 if (self->getMonitorWorkArea(self->_hCurrentMonitor, &maxWidth, &maxHeight))
                 {
                     auto gw = self->_childWidget;
-                    int k = self->GetDevicePixelRatio();
+                    qreal k = self->GetDevicePixelRatio();
                     QSize minimum = gw->minimumSize();
                     QSize sizeHint = gw->minimumSizeHint();
 
@@ -492,8 +493,8 @@ LRESULT CALLBACK WinNativeWidget::WndProc(HWND hWnd, UINT message, WPARAM wParam
 
 LRESULT WinNativeWidget::hitTest(HWND hWnd, WPARAM wParam, LPARAM lParam)
 {
-    int k = GetDevicePixelRatio();
-    const LONG borderWidth = 4 * k;
+    qreal k = GetDevicePixelRatio();
+    const LONG borderWidth = ScaledToNative(4, k);
     RECT rc;
     GetWindowRect(hWnd, &rc);
 
@@ -563,12 +564,13 @@ LRESULT WinNativeWidget::hitTest(HWND hWnd, WPARAM wParam, LPARAM lParam)
     {
         QRect titleRect = _titleBarWidget->geometry(); 
 
-        int titleWidth = titleRect.width() * k - 55 * k;
-        int titleHeight = titleRect.height() * k;
+        int titleWidth = ScaledToNative(titleRect.width() - 55, k);
+        int titleHeight = ScaledToNative(titleRect.height(), k);
+        int edge = ScaledToNative(2, k);
     
-        if (x > left + 2 * k && x < left + titleWidth)
+        if (x > left + edge && x < left + titleWidth)
         {
-            if (y > top + 2 * k && y < top + titleHeight){                        
+            if (y > top + edge && y < top + titleHeight){                       
                 return HTCAPTION;
             }
         }
@@ -621,7 +623,7 @@ void WinNativeWidget::ResizeChild()
 {
     if (_childWindow != NULL){ 
 
-        int k =  GetDevicePixelRatio();
+        qreal k =  GetDevicePixelRatio();
         
         if (_shadow != NULL){
             _shadow->setScale(k);
@@ -908,7 +910,7 @@ bool WinNativeWidget::IsWin7()
     return false;
 }
 
-int WinNativeWidget::GetDevicePixelRatio()
+qreal WinNativeWidget::GetDevicePixelRatio()
 {
     auto screen = GetPointScreen();
     if (screen != NULL){

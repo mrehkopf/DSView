@@ -53,7 +53,7 @@ public:
 
     void moveShadow();
 
-    inline void setScale(int k){
+    inline void setScale(qreal k){
         m_scale = k;
     }
 
@@ -84,7 +84,7 @@ private:
     QTimer      *m_timer;
     QTimer      *m_checkTimer;
     HWND        m_hwnd;
-    int         m_scale;
+    qreal       m_scale;
     bool        m_bActived;
     IShadowCallback *m_callback;
 };

@@ -20,6 +20,7 @@
  */
  
 #include "winshadow.h" 
+#include "nativescale.h"
  
 #define COLOR1 QColor(0, 0, 0, 75)
 #define COLOR2 QColor(0, 0, 0, 30)
@@ -158,7 +159,7 @@ void WinShadow::moveShadow()
         RECT rc;
         GetWindowRect(m_hwnd, &rc);
 
-        int bw = (SHADOW_BORDER_WIDTH - 1) * m_scale;
+        int bw = ScaledToNative(SHADOW_BORDER_WIDTH - 1, m_scale);
   
         int x = rc.left;
         int y = rc.top;
