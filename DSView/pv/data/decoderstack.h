@@ -55,6 +55,7 @@ namespace decode {
 class Annotation;
 class Decoder;
 class RowData;
+struct AnnotationSpan;
 }
 
 class DecoderStack;
@@ -112,6 +113,12 @@ public:
 		std::vector<pv::data::decode::Annotation*> &dest,
 		const decode::Row &row, uint64_t start_sample,
 		uint64_t end_sample);
+
+    // See RowData::get_annotation_spans().
+    bool get_annotation_spans(
+        std::vector<pv::data::decode::AnnotationSpan> &dest,
+        const decode::Row &row, uint64_t start_sample, uint64_t end_sample,
+        double samples_per_pixel, double merge_pixels, bool merge_instants);
 
     uint64_t get_annotation_index(
         const decode::Row &row, uint64_t start_sample);

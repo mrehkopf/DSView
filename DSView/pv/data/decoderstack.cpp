@@ -228,6 +228,19 @@ void DecoderStack::get_annotation_subset(
 }
 
 
+bool DecoderStack::get_annotation_spans(
+    std::vector<pv::data::decode::AnnotationSpan> &dest,
+    const Row &row, uint64_t start_sample, uint64_t end_sample,
+    double samples_per_pixel, double merge_pixels, bool merge_instants)
+{
+    auto iter = _rows.find(row);
+    if (iter == _rows.end())
+        return true;
+
+    return (*iter).second->get_annotation_spans(dest, start_sample, end_sample,
+                                                samples_per_pixel, merge_pixels, merge_instants);
+}
+
 uint64_t DecoderStack::get_annotation_index(
     const Row &row, uint64_t start_sample)
 {  
