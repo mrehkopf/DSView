@@ -40,6 +40,7 @@
 #include "../storesession.h"
 #include "../toolbars/samplingbar.h"
 #include "../dock/triggerdock.h"
+#include "../view/signal.h"
 #include "../appcontrol.h"
 #include "../log.h"
 #include "DSView/config.h"
@@ -1484,8 +1485,19 @@ void ControlServer::m_channel_set(const Call &call, const QJsonObject &params)
     for (size_t i = 0; i < probes.size(); i++)
         probes[i]->enabled = enable[i];
 
-    if (named != NULL)
-        _device->set_channel_name(named->index, new_name.toUtf8().data());
+    if (named != NULL){
+        // As the channel header does: the trace keeps its own copy of the
+        // name, which the signal rebuild below carries over.
+        view::Signal *sig = NULL;
+        for (view::Signal *s : _session->get_signals()){
+            if (s->signal_type() == SR_CHANNEL_LOGIC && s->get_index() == named->index)
+                sig = s;
+        }
+        if (sig != NULL)
+            _session->set_trace_name(sig, new_name);
+        else
+            _device->set_channel_name(named->index, new_name.toUtf8().data());
+    }
 
     _sampling_bar->apply_device_options();
 

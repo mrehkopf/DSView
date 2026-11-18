@@ -61,7 +61,7 @@ dsview-ctl quit
 | `set KEY=VALUE...` | Change options |
 | `channels` | List channels |
 | `enable CH...` | Enable exactly these channels, e.g. `enable 0-7 12` |
-| `rename CH NAME` | Rename a channel; the name appears in exports |
+| `rename CH NAME` | Rename a channel, as in the channel header. The name appears in exports and saved files |
 | `trigger` | Show the trigger |
 | `trigger CH=COND...` | Set the simple trigger to exactly these conditions, e.g. `trigger 0=rising 3=high`. `--clear` removes all conditions, `--position PCT` sets the trigger position, `--mode MODE` switches between `simple`, `advanced` and `serial` |
 | `capture` | Capture and wait for the end. `--instant` ignores the trigger, `--no-wait` returns once it runs, `--timeout SEC` stops it after that long, `-o FILE` exports afterwards (`--format vcd\|csv\|gnuplot`) |
