@@ -2,7 +2,7 @@
 
 Scripts and AI agents can drive DSView through a local socket: select a
 device, set the sample rate, threshold voltage and other options, choose
-channels, run captures and export the data as VCD or CSV. Commands go through
+channels, set the trigger, run captures and export the data as VCD or CSV. Commands go through
 the same code paths as the toolbar, so a capture started this way behaves like
 one started with the Start button, and the GUI shows it.
 
@@ -13,9 +13,7 @@ There are two ways in:
 - **JSON-RPC 2.0** directly on the socket, for programs. See
   [Protocol](#protocol).
 
-Logic analyzer mode only, for now. Triggers are set up in the GUI (or come
-from the saved device profile); the control interface can't change them yet.
-See [Limitations](#limitations).
+Logic analyzer mode only, for now. See [Limitations](#limitations).
 
 ## Starting DSView
 
@@ -47,7 +45,8 @@ dsview-ctl devices
 dsview-ctl select "DSLogic U3Pro32"
 dsview-ctl set operation_mode="Buffer Mode" samplerate=100M duration=1ms vth=1.8
 dsview-ctl enable 0-7
-dsview-ctl capture --instant -o capture.vcd
+dsview-ctl trigger 0=rising --position 10
+dsview-ctl capture --timeout 5 -o capture.vcd
 dsview-ctl quit
 ```
 
@@ -63,6 +62,8 @@ dsview-ctl quit
 | `channels` | List channels |
 | `enable CH...` | Enable exactly these channels, e.g. `enable 0-7 12` |
 | `rename CH NAME` | Rename a channel; the name appears in exports |
+| `trigger` | Show the trigger |
+| `trigger CH=COND...` | Set the simple trigger to exactly these conditions, e.g. `trigger 0=rising 3=high`. `--clear` removes all conditions, `--position PCT` sets the trigger position, `--mode MODE` switches between `simple`, `advanced` and `serial` |
 | `capture` | Capture and wait for the end. `--instant` ignores the trigger, `--no-wait` returns once it runs, `--timeout SEC` stops it after that long, `-o FILE` exports afterwards (`--format vcd\|csv\|gnuplot`) |
 | `status` | Capture state and data size |
 | `wait [--timeout SEC]` | Wait for a running capture to end |
@@ -133,10 +134,93 @@ The sample count is a multiple of 1024. If one value is rejected, the ones
 before it stay applied, and the error's `data` holds `applied` and the current
 `values`.
 
+## Triggers
+
+`trigger.get` shows the trigger and `trigger.set` changes it. The trigger is
+the one in DSView's trigger panel and channel headers, so the GUI shows what
+was set, and DSView keeps it in the device profile.
+
+```bash
+dsview-ctl trigger 0=rising 3=high --position 10   # simple trigger
+dsview-ctl trigger --clear                          # no trigger
+dsview-ctl call trigger.set '{"stages": [{"pattern0": {"15": "rising"}},
+                                         {"pattern0": {"12": "rising"}, "count": 2}]}'
+```
+
+A pattern is an object of channel and condition, such as
+`{"0": "rising", "3": "high"}`:
+
+- **Channels** are given by index, or by name when the key is not a number.
+- **Usable channels:** only enabled channels that the hardware trigger covers
+  (`usable_channels`). While stacking, the secondary's channels are left out.
+- **Conditions** are words or the letters the GUI shows:
+
+| Condition | Letter | Meaning |
+| --- | --- | --- |
+| `none` | `X` | Don't care |
+| `low` | `0` | Low level |
+| `high` | `1` | High level |
+| `rising` | `R` | Rising edge |
+| `falling` | `F` | Falling edge |
+| `edge` | `C` | Rising or falling edge |
+
+### Modes
+
+- **`simple`:** the `channels` pattern. All its conditions must hold at the
+  same sample. Setting `channels` replaces the whole simple trigger. With no
+  conditions (`{}`, or `trigger --clear`), there is no trigger and captures
+  start at once.
+- **`advanced`:** `stages`, a list of 1 to 16 stages. The trigger fires once
+  each stage has matched, one after the other. Setting `stages` replaces all of
+  them; fields left out take their defaults. Needs DSLogic hardware, not in
+  stream mode. A stage has these fields:
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `pattern0`, `pattern1` | `{}` | Two patterns |
+| `negate0`, `negate1` | `false` | Match when the pattern doesn't hold (`!=` in the GUI) |
+| `logic` | `and` | How the two patterns combine: `and` or `or` |
+| `count` | 1 | How many matches the stage needs |
+| `contiguous` | `false` | The matches must be on consecutive samples |
+
+- **`serial`:** can be selected with `mode`, but its settings can only be
+  changed in DSView's Serial Trigger tab so far. `trigger.get` reports them.
+  The serial trigger also uses the logic settings of the first stages.
+
+Without `mode`, `channels` selects the simple trigger and `stages` the advanced
+one. To give both, add `mode`. Changing only `position` keeps the mode.
+
+`position` is the share of the capture before the trigger, in percent, from 1
+to `position_max` (up to 90 in buffer mode, 1 in stream mode). The analyzer
+doesn't wait for the part before the trigger to fill: a trigger that comes
+sooner sits earlier in the data. `trigger_sample` in the capture status says
+where.
+
+### Notes
+
+- **Set the trigger last:** device options and channels can change it, as they
+  do in the GUI. Stream mode switches to the simple trigger and sets the position
+  to 1, and neither comes back when you leave stream mode. A channel that is
+  switched off loses its simple trigger condition. `trigger.set` replies with
+  the trigger as DSView then holds it, the same as `trigger.get`.
+- **Multi-channel warning:** DSView normally asks before it captures with a
+  simple trigger on several channels. It doesn't for a trigger set through the
+  control interface, as long as that DSView keeps running and the trigger
+  stays as it was set. A trigger that comes from the saved device profile still
+  brings up the warning; with `--non-interactive` it ends up in `messages`.
+- **Demo device:** it accepts a simple trigger but ignores it, so `triggered`
+  stays `false`.
+- **Measured on a DSLogic U3Pro32 at 100 MHz, using its internal test pattern:**
+  `trigger_sample` is the sample where the condition is met. The exception is a
+  stage `count` above 1 on a condition that holds on consecutive samples: there
+  the reported position can be one sample before the last match. The part
+  before the trigger came out a few samples short of `position` (rounded down to
+  a multiple of 64 samples).
+
 ## Capturing
 
-`capture.start` uses the trigger set up in DSView. With `instant` it starts at
-once and ignores the trigger, like the Instant button. Repeat and loop mode are
+`capture.start` uses the trigger (see [Triggers](#triggers)). With `instant` it
+starts at once and ignores the trigger, like the Instant button. Repeat and loop mode are
 switched to single mode, since only single captures end on their own.
 
 | Call | Timeout behaviour |
@@ -154,7 +238,7 @@ these fields:
 | `state` | `idle`, `running` or `exporting` |
 | `has_data` | Whether there is captured data |
 | `samples`, `samplerate`, `duration` | Size of the data |
-| `trigger_armed` | The capture waited for the trigger set up in DSView (not instant, and a trigger was set) |
+| `trigger_armed` | The capture waited for a trigger (not instant, and a trigger was set) |
 | `triggered`, `trigger_sample` | Whether and where the trigger hit; only with an armed trigger |
 | `stopped` | The capture was stopped before it was complete |
 | `error` | Why the last capture failed, if it did |
@@ -220,6 +304,8 @@ non-interactively, such as a hardware error. In an error reply they are in
 | `capture.status` | | Status |
 | `capture.stop` | | Status once the capture has ended |
 | `export` | `path` (absolute), `format`, `start`, `end` | `path`, `format`, `bytes`, `start`, `samples`, `samplerate`, `trigger_sample`, `channels` |
+| `trigger.get` | | `mode`, `active` (a capture waits for it), `position`, `position_max`, `modes` (available here), `usable_channels`, `channels`, `stages`, `serial` |
+| `trigger.set` | `mode`, `position`, `channels`, `stages` | As `trigger.get` |
 
 | Code | Meaning |
 | --- | --- |
@@ -230,7 +316,7 @@ non-interactively, such as a hardware error. In an error reply they are in
 | -32603 | Internal error, e.g. the device could not be opened |
 | 1 | Busy: a capture or export is running, or DSView is in the middle of something |
 | 2 | No device |
-| 3 | Not supported: not logic analyzer mode, a data file instead of a device, or channels while stacking |
+| 3 | Not supported: not logic analyzer mode, a data file instead of a device, channels while stacking, an advanced or serial trigger here, or serial trigger settings |
 | 4 | Timed out; `data` is the status |
 | 5 | Capture failed; `data` is the status |
 | 6 | Export failed |
@@ -241,8 +327,8 @@ non-interactively, such as a hardware error. In an error reply they are in
 
 - **Modes:** logic analyzer mode only. With an oscilloscope, the info,
   device and status calls work and the rest return error 3.
-- **Not yet available:** setting triggers, protocol decoders, loading and
-  saving sessions (`.dsl`), and switching the device mode.
+- **Not yet available:** serial trigger settings, protocol decoders, loading
+  and saving sessions (`.dsl`), and switching the device mode.
 - **Persistence:** settings changed through the control interface are kept
   in the device profile, as GUI changes are.
 - **AppImage:** `dsview-ctl` is not yet reachable from the AppImage. Use a

@@ -39,6 +39,7 @@
 #include "../deviceagent.h"
 #include "../storesession.h"
 #include "../toolbars/samplingbar.h"
+#include "../dock/triggerdock.h"
 #include "../appcontrol.h"
 #include "../log.h"
 #include "DSView/config.h"
@@ -242,11 +243,12 @@ bool stacking_shared_option(int key)
 } // namespace
 
 ControlServer::ControlServer(SigSession *session, toolbars::SamplingBar *sampling_bar,
-                             QObject *parent) :
+                             dock::TriggerDock *trigger_dock, QObject *parent) :
     QObject(parent),
     _session(session),
     _device(session->get_device()),
     _sampling_bar(sampling_bar),
+    _trigger_dock(trigger_dock),
     _stop_requested(false),
     _trigger_armed(false)
 {
@@ -451,6 +453,8 @@ void ControlServer::dispatch(const Call &call, const QString &method, const QJso
         {"capture.status",  &ControlServer::m_capture_status},
         {"capture.stop",    &ControlServer::m_capture_stop},
         {"export",          &ControlServer::m_export},
+        {"trigger.get",     &ControlServer::m_trigger_get},
+        {"trigger.set",     &ControlServer::m_trigger_set},
     };
 
     for (const auto &m : methods){
@@ -626,6 +630,13 @@ QJsonObject ControlServer::capture_status()
             st["duration"] = (double)samples / (double)rate;
         if (triggered)
             st["trigger_sample"] = (double)_session->get_trigger_pos();
+    }
+
+    // A capture stopped (or failed) before any data came: say whether it
+    // was still waiting for the trigger.
+    if (!running && !have_data && (_stop_requested || !_capture_error.isEmpty())){
+        st["trigger_armed"] = _trigger_armed;
+        st["triggered"] = _trigger_armed && _session->trigd();
     }
 
     if (_stop_requested)
@@ -1766,6 +1777,456 @@ void ControlServer::on_export_poll()
     r["channels"] = channels;
 
     reply(ex->call, r);
+}
+
+//------------------------------------------------------------- trigger
+
+namespace {
+
+typedef dock::TriggerDock::ControlTrigger ControlTrigger;
+typedef dock::TriggerDock::ControlStage ControlStage;
+
+const char *trigger_mode_name(int mode)
+{
+    switch (mode){
+        case ADV_TRIGGER:    return "advanced";
+        case SERIAL_TRIGGER: return "serial";
+    }
+    return "simple";
+}
+
+const char *condition_name(QChar symbol)
+{
+    switch (symbol.toLatin1()){
+        case '0': return "low";
+        case '1': return "high";
+        case 'R': return "rising";
+        case 'F': return "falling";
+        case 'C': return "edge";
+    }
+    return "none";
+}
+
+// A word, or a letter as the GUI shows it (X 0 1 R F C).
+bool parse_condition(const QJsonValue &value, QChar &out)
+{
+    if (value.isNull()){
+        out = QLatin1Char('X');
+        return true;
+    }
+    if (value.isDouble()){
+        if (value.toDouble() == 0 || value.toDouble() == 1){
+            out = value.toDouble() == 0 ? QLatin1Char('0') : QLatin1Char('1');
+            return true;
+        }
+        return false;
+    }
+    if (!value.isString())
+        return false;
+
+    static const struct { const char *name; char symbol; } names[] = {
+        {"none", 'X'},    {"x", 'X'},
+        {"low", '0'},     {"0", '0'},
+        {"high", '1'},    {"1", '1'},
+        {"rising", 'R'},  {"r", 'R'},
+        {"falling", 'F'}, {"f", 'F'},
+        {"edge", 'C'},    {"c", 'C'},
+    };
+    const QString s = value.toString().trimmed().toLower();
+    for (const auto &n : names){
+        if (s == n.name){
+            out = QLatin1Char(n.symbol);
+            return true;
+        }
+    }
+    return false;
+}
+
+QJsonObject pattern_json(const trigger::ChannelPattern &pattern)
+{
+    QJsonObject obj;
+    for (auto it = pattern.cbegin(); it != pattern.cend(); ++it)
+        obj[QString::number(it.key())] = condition_name(it.value());
+    return obj;
+}
+
+// "0-7, 12"
+QString channel_ranges(const QSet<int> &channels)
+{
+    QList<int> list = channels.values();
+    std::sort(list.begin(), list.end());
+
+    QStringList parts;
+    for (int i = 0; i < list.size(); ){
+        int j = i;
+        while (j + 1 < list.size() && list.at(j + 1) == list.at(j) + 1)
+            j++;
+        parts << (j > i ? QString("%1-%2").arg(list.at(i)).arg(list.at(j))
+                        : QString::number(list.at(i)));
+        i = j + 1;
+    }
+    return parts.isEmpty() ? QString("none") : parts.join(", ");
+}
+
+// Reads channel: condition objects. A channel is its index, or its name
+// when the key is not a number.
+struct PatternParser
+{
+    QSet<int>           usable;
+    QSet<int>           existing;
+    int                 channel_count;  // channels the hardware trigger covers
+    QHash<QString, int> names;
+
+    bool parse(const QJsonValue &value, const QString &where,
+               trigger::ChannelPattern &out, QString &error) const
+    {
+        out.clear();
+        if (!value.isObject()){
+            error = where + " needs an object of channel: condition, e.g. {\"0\": \"rising\"}.";
+            return false;
+        }
+
+        QSet<int> seen;
+        const QJsonObject obj = value.toObject();
+        for (auto it = obj.constBegin(); it != obj.constEnd(); ++it){
+            bool numeric = false;
+            int ch = it.key().trimmed().toInt(&numeric);
+            if (!numeric)
+                ch = names.value(it.key(), -1);
+            if (ch < 0){
+                error = QString("%1: no channel \"%2\".").arg(where, it.key());
+                return false;
+            }
+            if (seen.contains(ch)){
+                error = QString("%1: channel %2 is given twice.").arg(where).arg(ch);
+                return false;
+            }
+            seen.insert(ch);
+
+            QChar c;
+            if (!parse_condition(it.value(), c)){
+                error = QString("%1: channel \"%2\" needs one of none, low, high, rising, "
+                                "falling, edge (or X 0 1 R F C).").arg(where, it.key());
+                return false;
+            }
+            if (c == QLatin1Char('X'))
+                continue;
+
+            if (!usable.contains(ch)){
+                if (!existing.contains(ch))
+                    error = QString("%1: no channel %2.").arg(where).arg(ch);
+                else if (ch >= channel_count)
+                    error = QString("%1: channel %2 can't be part of a trigger; the trigger "
+                                    "covers channels 0-%3.").arg(where).arg(ch).arg(channel_count - 1);
+                else
+                    error = QString("%1: channel %2 is disabled.").arg(where).arg(ch);
+                return false;
+            }
+            out.insert(ch, c);
+        }
+        return true;
+    }
+};
+
+bool parse_stage(const QJsonValue &value, const QString &where, const PatternParser &patterns,
+                 ControlStage &out, QString &error)
+{
+    out = ControlStage();
+    if (!value.isObject()){
+        error = where + " needs an object.";
+        return false;
+    }
+
+    static const QStringList keys = {"pattern0", "negate0", "pattern1", "negate1",
+                                     "logic", "contiguous", "count"};
+    const QJsonObject obj = value.toObject();
+    for (const QString &k : obj.keys()){
+        if (!keys.contains(k)){
+            error = QString("%1: unknown key \"%2\". Stages have %3.").arg(where, k, keys.join(", "));
+            return false;
+        }
+    }
+
+    for (int i = 0; i < 2; i++){
+        const QString pk = QString("pattern%1").arg(i);
+        if (obj.contains(pk) && !patterns.parse(obj.value(pk), where + "." + pk, out.pattern[i], error))
+            return false;
+
+        const QString nk = QString("negate%1").arg(i);
+        if (obj.contains(nk) && !parse_bool(obj.value(nk), out.negate[i])){
+            error = where + "." + nk + " needs true or false.";
+            return false;
+        }
+    }
+
+    if (obj.contains("logic")){
+        const QString l = obj.value("logic").toString().trimmed().toLower();
+        if (l != "and" && l != "or"){
+            error = where + ".logic needs \"and\" or \"or\".";
+            return false;
+        }
+        out.or_logic = (l == "or");
+    }
+
+    if (obj.contains("contiguous") && !parse_bool(obj.value("contiguous"), out.contiguous)){
+        error = where + ".contiguous needs true or false.";
+        return false;
+    }
+
+    if (obj.contains("count")){
+        double c = -1;
+        if (!parse_quantity(obj.value("count"), "", c) || c != std::floor(c) || c < 1 || c > INT32_MAX){
+            error = where + QString(".count needs a whole number from 1 to %1.").arg(INT32_MAX);
+            return false;
+        }
+        out.count = (int)c;
+    }
+    return true;
+}
+
+bool same_stages(const QVector<ControlStage> &a, const QVector<ControlStage> &b)
+{
+    if (a.size() != b.size())
+        return false;
+    for (int i = 0; i < a.size(); i++){
+        const ControlStage &x = a.at(i);
+        const ControlStage &y = b.at(i);
+        if (x.pattern[0] != y.pattern[0] || x.pattern[1] != y.pattern[1] ||
+            x.negate[0] != y.negate[0] || x.negate[1] != y.negate[1] ||
+            x.or_logic != y.or_logic || x.contiguous != y.contiguous || x.count != y.count)
+            return false;
+    }
+    return true;
+}
+
+QJsonArray int_list(const QSet<int> &set)
+{
+    QList<int> list = set.values();
+    std::sort(list.begin(), list.end());
+    QJsonArray arr;
+    for (int v : list)
+        arr.append(v);
+    return arr;
+}
+
+} // namespace
+
+QJsonObject ControlServer::trigger_json()
+{
+    const ControlTrigger t = _trigger_dock->control_trigger();
+
+    QJsonObject r;
+    r["mode"] = trigger_mode_name(t.mode);
+    // Whether a capture that isn't instant waits for this trigger.
+    r["active"] = t.mode != SIMPLE_TRIGGER || !t.simple.isEmpty();
+    r["position"] = t.position;
+    r["position_max"] = _trigger_dock->max_position();
+
+    QString reason;
+    QJsonArray modes;
+    modes.append("simple");
+    if (_trigger_dock->advanced_available(reason)){
+        modes.append("advanced");
+        modes.append("serial");
+    }
+    r["modes"] = modes;
+    r["usable_channels"] = int_list(_trigger_dock->trigger_channels());
+
+    r["channels"] = pattern_json(t.simple);
+
+    QJsonArray stages;
+    for (const ControlStage &s : t.stages){
+        QJsonObject st;
+        st["pattern0"] = pattern_json(s.pattern[0]);
+        st["negate0"] = s.negate[0];
+        st["logic"] = s.or_logic ? "or" : "and";
+        st["pattern1"] = pattern_json(s.pattern[1]);
+        st["negate1"] = s.negate[1];
+        st["contiguous"] = s.contiguous;
+        st["count"] = s.count;
+        stages.append(st);
+    }
+    r["stages"] = stages;
+
+    QJsonObject serial;
+    serial["start"] = pattern_json(t.serial.start);
+    serial["stop"] = pattern_json(t.serial.stop);
+    serial["clock"] = pattern_json(t.serial.clock);
+    serial["channel"] = t.serial.channel;
+    serial["bits"] = t.serial.bits;
+    serial["value"] = t.serial.value;
+    r["serial"] = serial;
+
+    return r;
+}
+
+void ControlServer::m_trigger_get(const Call &call, const QJsonObject &params)
+{
+    (void)params;
+
+    if (!check_ready(call, true, true))
+        return;
+
+    reply(call, trigger_json());
+}
+
+void ControlServer::m_trigger_set(const Call &call, const QJsonObject &params)
+{
+    if (!check_ready(call, true) || !check_not_file(call))
+        return;
+
+    static const QStringList keys = {"mode", "position", "channels", "stages"};
+    for (const QString &k : params.keys()){
+        if (k == "serial"){
+            reply_error(call, ErrNotSupported,
+                "The serial trigger can't be set up through the control interface yet. "
+                "Set it up in DSView, then select it with \"mode\": \"serial\".");
+            return;
+        }
+        if (!keys.contains(k)){
+            QJsonObject data;
+            data["keys"] = QJsonArray::fromStringList(keys);
+            reply_error(call, ErrInvalidParams, "Unknown key: " + k, data);
+            return;
+        }
+    }
+
+    const ControlTrigger cur = _trigger_dock->control_trigger();
+    const bool has_channels = params.contains("channels");
+    const bool has_stages = params.contains("stages");
+
+    // Without "mode", the section given picks it.
+    int mode = cur.mode;
+    if (params.contains("mode")){
+        const QString m = params.value("mode").toString().trimmed().toLower();
+        if (m == "simple")
+            mode = SIMPLE_TRIGGER;
+        else if (m == "advanced")
+            mode = ADV_TRIGGER;
+        else if (m == "serial")
+            mode = SERIAL_TRIGGER;
+        else{
+            reply_error(call, ErrInvalidParams, "\"mode\" needs simple, advanced or serial.");
+            return;
+        }
+    }
+    else if (has_channels && has_stages){
+        reply_error(call, ErrInvalidParams,
+            "Give \"mode\" too: \"channels\" is the simple trigger, \"stages\" the advanced one.");
+        return;
+    }
+    else if (has_channels){
+        mode = SIMPLE_TRIGGER;
+    }
+    else if (has_stages){
+        mode = ADV_TRIGGER;
+    }
+
+    QString reason;
+    if ((mode != SIMPLE_TRIGGER || has_stages) && !_trigger_dock->advanced_available(reason)){
+        reply_error(call, ErrNotSupported, reason);
+        return;
+    }
+
+    int position = cur.position;
+    if (params.contains("position")){
+        const QJsonValue v = params.value("position");
+        double p = -1;
+        if (v.isDouble()){
+            p = v.toDouble();
+        }
+        else if (v.isString()){
+            QString s = v.toString().trimmed();
+            if (s.endsWith('%'))
+                s.chop(1);
+            bool ok = false;
+            p = s.trimmed().toDouble(&ok);
+            if (!ok)
+                p = -1;
+        }
+        const int max = _trigger_dock->max_position();
+        if (p != std::floor(p) || p < 1 || p > max){
+            QJsonObject data;
+            data["min"] = 1;
+            data["max"] = max;
+            reply_error(call, ErrInvalidParams,
+                QString("\"position\" needs a whole percentage from 1 to %1.").arg(max), data);
+            return;
+        }
+        position = (int)p;
+    }
+
+    PatternParser patterns;
+    patterns.usable = _trigger_dock->trigger_channels();
+    patterns.channel_count = _trigger_dock->trigger_channel_count();
+    for (const GSList *l = _device->get_channels(); l; l = l->next){
+        const sr_channel *probe = (const sr_channel*)l->data;
+        patterns.existing.insert(probe->index);
+        if (patterns.usable.contains(probe->index))
+            patterns.names.insert(QString::fromUtf8(probe->name), probe->index);
+    }
+
+    QString err;
+    QJsonObject err_data;
+    err_data["usable_channels"] = int_list(patterns.usable);
+
+    trigger::ChannelPattern simple;
+    if (has_channels && !patterns.parse(params.value("channels"), "channels", simple, err)){
+        reply_error(call, ErrInvalidParams, err, err_data);
+        return;
+    }
+
+    QVector<ControlStage> stages;
+    if (has_stages){
+        const QJsonValue v = params.value("stages");
+        const QJsonArray arr = v.toArray();
+        if (!v.isArray() || arr.isEmpty() || arr.size() > TriggerStages){
+            reply_error(call, ErrInvalidParams,
+                QString("\"stages\" needs a list of 1 to %1 stages.").arg(TriggerStages));
+            return;
+        }
+        for (int i = 0; i < arr.size(); i++){
+            ControlStage s;
+            if (!parse_stage(arr.at(i), QString("stages[%1]").arg(i), patterns, s, err)){
+                reply_error(call, ErrInvalidParams, err, err_data);
+                return;
+            }
+            stages.push_back(s);
+        }
+    }
+
+    // All checked; now change the trigger dock, as if edited there.
+    if (params.contains("position"))
+        _trigger_dock->set_control_position(position);
+    if (has_channels)
+        _trigger_dock->set_control_simple(simple);
+    if (has_stages)
+        _trigger_dock->set_control_stages(stages);
+    _trigger_dock->set_control_mode(mode);
+
+    // The dock and the channels have the last word; report what they hold.
+    const ControlTrigger now = _trigger_dock->control_trigger();
+    QStringList differs;
+    if (now.mode != mode)
+        differs << "mode";
+    if (now.position != position)
+        differs << "position";
+    if (has_channels && now.simple != simple)
+        differs << "channels";
+    if (has_stages && !same_stages(now.stages, stages))
+        differs << "stages";
+
+    QJsonObject r = trigger_json();
+    if (!differs.isEmpty()){
+        QJsonObject data;
+        data["differs"] = QJsonArray::fromStringList(differs);
+        data["trigger"] = r;
+        reply_error(call, ErrInternal,
+            "DSView did not take these trigger settings as given: " + differs.join(", "), data);
+        return;
+    }
+
+    reply(call, r);
 }
 
 } // namespace control

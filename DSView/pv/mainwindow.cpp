@@ -284,7 +284,7 @@ namespace pv
         // ours, and the first device is already open.
         if (control::ControlMode::ServerEnabled())
         {
-            _control_server = new control::ControlServer(_session, _sampling_bar, this);
+            _control_server = new control::ControlServer(_session, _sampling_bar, _trigger_widget, this);
 
             if (!_control_server->listen(control::ControlMode::ServerName())
                 && control::ControlMode::IsHeadless())

@@ -82,6 +82,16 @@ const char *usage_text =
 "  export FILE [--format FMT] [--start N] [--end N]\n"
 "                              Export the captured data (sample range\n"
 "                              N..end, default all)\n"
+"  trigger                     Show the trigger\n"
+"  trigger CH=COND... [OPTIONS]\n"
+"                              Set the simple trigger to exactly these\n"
+"                              conditions, e.g. trigger 0=rising 3=high\n"
+"                              COND: none, low, high, rising, falling, edge\n"
+"      --clear                 No conditions: captures start at once\n"
+"      --position PCT          Share of the capture before the trigger, in %\n"
+"      --mode MODE             simple, advanced or serial; advanced and serial\n"
+"                              use the stages set up in DSView or with\n"
+"                                call trigger.set '{\"stages\": [...]}'\n"
 "  call METHOD [JSON]          Send any request, with JSON params\n";
 
 bool compact = false;
@@ -504,6 +514,34 @@ int main(int argc, char *argv[])
             return ExitError;
         print_json(stdout, result);
         return ExitOk;
+    }
+
+    if (cmd == "trigger"){
+        QString position, mode;
+        bool has_position, has_mode;
+        if (!take_option(args, {"--position", "-p"}, position, has_position) ||
+            !take_option(args, {"--mode"}, mode, has_mode))
+            return usage_error("an option is missing its value");
+        const bool clear = take_flag(args, "--clear");
+
+        QJsonObject conditions;
+        for (const QString &arg : args){
+            int eq = arg.indexOf('=');
+            if (eq <= 0)
+                return usage_error("expected CH=CONDITION, got " + arg);
+            conditions[arg.left(eq).trimmed()] = arg.mid(eq + 1).trimmed();
+        }
+        if (clear && !conditions.isEmpty())
+            return usage_error("--clear takes no conditions");
+
+        // Conditions replace the whole simple trigger, and select it.
+        if (clear || !conditions.isEmpty())
+            params["channels"] = conditions;
+        if (has_position)
+            params["position"] = position;
+        if (has_mode)
+            params["mode"] = mode;
+        return simple(params.isEmpty() ? "trigger.get" : "trigger.set");
     }
 
     if (cmd == "call"){

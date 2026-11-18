@@ -44,6 +44,10 @@ namespace toolbars {
 class SamplingBar;
 }
 
+namespace dock {
+class TriggerDock;
+}
+
 namespace control {
 
 // JSON-RPC 2.0 over a local socket, one message per line. Lets scripts and
@@ -58,7 +62,8 @@ class ControlServer : public QObject, public IMessageListener
 public:
     static const int ProtocolVersion = 1;
 
-    ControlServer(SigSession *session, toolbars::SamplingBar *sampling_bar, QObject *parent);
+    ControlServer(SigSession *session, toolbars::SamplingBar *sampling_bar,
+                  dock::TriggerDock *trigger_dock, QObject *parent);
     ~ControlServer();
 
     bool listen(const QString &name);
@@ -128,10 +133,13 @@ private:
     void m_capture_status(const Call &call, const QJsonObject &params);
     void m_capture_stop(const Call &call, const QJsonObject &params);
     void m_export(const Call &call, const QJsonObject &params);
+    void m_trigger_get(const Call &call, const QJsonObject &params);
+    void m_trigger_set(const Call &call, const QJsonObject &params);
 
     QJsonObject device_info();
     QJsonObject capture_status();
     QString state_name();
+    QJsonObject trigger_json();
 
     std::vector<ConfigOption> device_options();
     QJsonObject option_json(const ConfigOption &opt, bool with_choices);
@@ -147,6 +155,7 @@ private:
     SigSession              *_session;
     DeviceAgent             *_device;
     toolbars::SamplingBar   *_sampling_bar;
+    dock::TriggerDock       *_trigger_dock;
     QLocalServer            _server;
     QHash<QLocalSocket*, QByteArray> _buffers;
 

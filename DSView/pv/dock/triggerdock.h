@@ -70,6 +70,52 @@ public:
 
     void try_commit_trigger();
 
+    // Control interface (pv/control). Patterns map a channel index to one of
+    // X 0 1 R F C; a missing channel means X.
+    struct ControlStage
+    {
+        trigger::ChannelPattern pattern[2];
+        bool    negate[2];
+        bool    or_logic;
+        bool    contiguous;
+        int     count;
+
+        ControlStage();
+    };
+
+    struct ControlSerial
+    {
+        trigger::ChannelPattern start;
+        trigger::ChannelPattern stop;
+        trigger::ChannelPattern clock;
+        int     channel;
+        int     bits;
+        QString value;  // 16 symbols of 0 1 X, bit 15 first
+    };
+
+    struct ControlTrigger
+    {
+        int     mode;   // SIMPLE_TRIGGER, ADV_TRIGGER or SERIAL_TRIGGER
+        int     position;
+        trigger::ChannelPattern simple;
+        QVector<ControlStage> stages;   // the active stages
+        ControlSerial serial;
+    };
+
+    ControlTrigger control_trigger() const;
+    // These expect values checked against the limits below. Set the mode
+    // last: changing the stage count enables the advanced widgets.
+    void set_control_position(int position);
+    void set_control_simple(const trigger::ChannelPattern &conditions);
+    void set_control_stages(const QVector<ControlStage> &stages);
+    void set_control_mode(int mode);
+    int  trigger_channel_count() const { return _cur_ch_num; }
+    int  max_position() const;
+    // Whether the advanced and serial triggers can be used; if not, why.
+    bool advanced_available(QString &reason) const;
+    // Enabled channels that can be part of a trigger.
+    QSet<int> trigger_channels() const;
+
 signals:
     void trigger_changed();
 
@@ -89,6 +135,11 @@ private:
     QString bus_partial_warning(const trigger::BusMapping &mapping, const QSet<int> &untriggerable) const;
     QString bus_value_error(trigger::BusValueError error) const;
     void update_trigger_mode();
+    // A pattern from a low (channels 0-15) and an optional high (16-31) field.
+    trigger::ChannelPattern read_pattern(PopupLineEdit *low, PopupLineEdit *high) const;
+    void write_pattern(PopupLineEdit *low, PopupLineEdit *high, const trigger::ChannelPattern &pattern);
+    PopupLineEdit *ext32_field(const QVector<PopupLineEdit *> &list, int i) const;
+    void control_changed();
 
       /*
      * commit trigger setting
@@ -135,6 +186,9 @@ private:
     QLabel *_bus_status;
     QVector<trigger::DecoderBus> _buses;
     trigger::ChannelPattern _acknowledged_simple_trigger;
+    // Set through the control interface, which asks for exactly this; no
+    // multi-channel warning while it is unchanged.
+    trigger::ChannelPattern _control_simple_trigger;
     bool _applying_bus;
 
     QLabel *_position_label;
