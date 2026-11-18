@@ -36,6 +36,13 @@
 #include <QSizePolicy>
 #include <QRadioButton>
 #include <QButtonGroup>
+#include <QScrollArea>
+#include <QScrollBar>
+#include <QScreen>
+#include <QGuiApplication>
+#include <QWindow>
+#include <QStyle>
+#include <QEvent>
 
 #include "../config/appconfig.h"
 #include "../ui/langresource.h"
@@ -44,6 +51,107 @@
 #include "../ui/dscombobox.h"
 #include "../ui/xspinbox.h"
 #include "../log.h"
+
+namespace
+{
+
+// A scroll area that asks for the full size of its content. A maximum
+// height then makes it scroll instead of growing.
+class ContentSizeScrollArea : public QScrollArea
+{
+public:
+    QSize sizeHint() const override
+    {
+        const int f = 2 * frameWidth();
+        QSize sz = widget()->sizeHint() + QSize(f, f);
+
+        if (sz.height() > maximumHeight()){
+            sz.rwidth() += verticalScrollBar()->sizeHint().width();
+        }
+        return sz;
+    }
+};
+
+// Makes the scroll area shorter when the dialog would be taller than the
+// free area of its screen, so that OK and Cancel stay reachable on small or
+// highly scaled screens. This runs on the dialog's show event: the layouts
+// are set up by then, and the dialog is centred on screen afterwards.
+class FitToScreenFilter : public QObject
+{
+public:
+    FitToScreenFilter(QScrollArea *scroll, QWidget *screenRef)
+        : _scroll(scroll), _screenRef(screenRef)
+    {
+    }
+
+    bool eventFilter(QObject *obj, QEvent *event) override
+    {
+        if (event->type() == QEvent::Show && obj->isWidgetType()){
+            fit(static_cast<QWidget*>(obj));
+        }
+        return QObject::eventFilter(obj, event);
+    }
+
+private:
+    void fit(QWidget *dlg)
+    {
+        // The main window's screen. Not QGuiApplication::screenAt(): global
+        // positions are unknown on Wayland.
+        QScreen *screen = NULL;
+        QWidget *top = _screenRef != NULL ? _screenRef->window() : NULL;
+        if (top != NULL && top->windowHandle() != NULL){
+            screen = top->windowHandle()->screen();
+        }
+        if (screen == NULL){
+            screen = QGuiApplication::primaryScreen();
+        }
+        if (screen == NULL){
+            return;
+        }
+
+        int avail = screen->availableGeometry().height();
+        if (!dlg->windowFlags().testFlag(Qt::FramelessWindowHint)){
+            // The native title bar is not part of the dialog's height.
+            avail -= dlg->style()->pixelMetric(QStyle::PM_TitleBarHeight, NULL, dlg);
+        }
+        relayout(dlg);
+        if (dlg->height() <= avail){
+            return;
+        }
+
+        const int other = dlg->height() - _scroll->height();
+        const int minHeight = 4 * _scroll->fontMetrics().height();
+        _scroll->setMaximumHeight(std::max(avail - other, minHeight));
+        relayout(dlg);
+    }
+
+    // Brings the sizes up to date. The dialog sets its fonts just before it
+    // is shown, and the layout requests that follow are only posted, so the
+    // layouts still have sizes from the old fonts here.
+    void relayout(QWidget *dlg)
+    {
+        if (_scroll->widget()->layout() != NULL){
+            _scroll->widget()->layout()->activate();
+        }
+        // The scroll area is not told when its content's size changes.
+        _scroll->updateGeometry();
+
+        for (QWidget *w = _scroll->parentWidget(); w != NULL; w = w->parentWidget()){
+            if (w->layout() != NULL){
+                w->layout()->activate();
+            }
+            if (w == dlg){
+                break;
+            }
+        }
+        dlg->adjustSize();
+    }
+
+    QScrollArea *_scroll;
+    QWidget     *_screenRef;
+};
+
+} // namespace
 
 namespace pv
 {
@@ -373,7 +481,18 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     uiLay->addWidget(ck_dontAskSaveOnExit, 4, 1, Qt::AlignRight);
     lay->addWidget(uiGroup);
 
-    dlg.layout()->addLayout(lay);      
+    // The groups scroll when the dialog would not fit on the screen.
+    QWidget *content = new QWidget();
+    content->setLayout(lay);
+    ContentSizeScrollArea *scroll = new ContentSizeScrollArea();
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scroll->setWidgetResizable(true);
+    scroll->setWidget(content);
+    FitToScreenFilter fitFilter(scroll, parent);
+    dlg.installEventFilter(&fitFilter);
+
+    dlg.layout()->addWidget(scroll);
     dlg.layout()->setSizeConstraint(QLayout::SetFixedSize);
     // prevent dlg.exec()'s implicit font update from resetting preview font stretches
     label_minSample->setObjectName("__LOCKED_FONT_MINSAMPLE");
