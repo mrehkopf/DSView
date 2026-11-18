@@ -61,6 +61,10 @@ const char *usage_text =
 "  devices                     List devices\n"
 "  select INDEX|NAME           Switch to another device\n"
 "  config                      List the options, their values and choices\n"
+"  config load FILE|--default  Load a configuration file (.dsc): options,\n"
+"                              channels, trigger and decoders; --default\n"
+"                              loads the device's default configuration\n"
+"  config save FILE            Save the configuration to a file (.dsc)\n"
 "  get [KEY...]                Show option values\n"
 "  set KEY=VALUE...            Change options, e.g.\n"
 "                                set samplerate=100M duration=10ms vth=1.8\n"
@@ -74,14 +78,19 @@ const char *usage_text =
 "      --no-wait               Return as soon as the capture runs\n"
 "      --timeout SEC           Stop the capture if it takes longer\n"
 "      -o, --output FILE       Export the data to FILE afterwards\n"
-"      --format FMT            vcd (default), csv or gnuplot\n"
+"      --format FMT            vcd (default), csv, gnuplot or dsl; the file\n"
+"                              name's ending also chooses it\n"
 "  status                      Capture state and data size\n"
 "  wait [--timeout SEC]        Wait for a running capture to end; a timeout\n"
 "                              leaves it running\n"
 "  stop                        Stop the running capture\n"
 "  export FILE [--format FMT] [--start N] [--end N]\n"
 "                              Export the captured data (sample range\n"
-"                              N..end, default all)\n"
+"                              N..end, default all). FILE.dsl saves it as a\n"
+"                              DSView data file, always the whole capture\n"
+"  open FILE                   Open a DSView data file (.dsl) and load its\n"
+"                              data; it shows up as a device\n"
+"  close                       Close the open data file\n"
 "  trigger                     Show the trigger\n"
 "  trigger CH=COND... [OPTIONS]\n"
 "                              Set the simple trigger to exactly these\n"
@@ -359,8 +368,9 @@ int main(int argc, char *argv[])
         return ExitOk;
     };
 
-    if (cmd == "info" || cmd == "quit" || cmd == "devices" || cmd == "config" ||
-        cmd == "channels" || cmd == "status" || cmd == "stop"){
+    if (cmd == "info" || cmd == "quit" || cmd == "devices" || cmd == "channels" ||
+        cmd == "status" || cmd == "stop" || cmd == "close" ||
+        (cmd == "config" && args.isEmpty())){
         if (!args.isEmpty())
             return usage_error(cmd + " takes no arguments");
         const char *method =
@@ -369,8 +379,43 @@ int main(int argc, char *argv[])
             cmd == "devices" ? "device.list" :
             cmd == "config" ? "config.list" :
             cmd == "channels" ? "channel.list" :
+            cmd == "close" ? "file.close" :
             cmd == "status" ? "capture.status" : "capture.stop";
         return simple(method);
+    }
+
+    if (cmd == "config"){
+        const QString sub = args.takeFirst();
+        if (sub == "load"){
+            const bool use_default = take_flag(args, "--default");
+            if (use_default ? !args.isEmpty() : args.size() != 1)
+                return usage_error("config load needs one file name, or --default");
+            if (use_default)
+                params["default"] = true;
+            else
+                params["path"] = absolute_path(args.first());
+            return simple("config.load");
+        }
+        if (sub == "save"){
+            if (args.size() != 1)
+                return usage_error("config save needs one file name");
+            params["path"] = absolute_path(args.first());
+            return simple("config.save");
+        }
+        return usage_error("config takes load or save, or nothing to list the options");
+    }
+
+    if (cmd == "open"){
+        if (args.size() != 1)
+            return usage_error("open needs one file name");
+        params["path"] = absolute_path(args.first());
+        if (!connect())
+            return ExitConnect;
+        // A big file takes a while to load.
+        if (!client.call("file.open", params, result, -1))
+            return ExitError;
+        print_json(stdout, result);
+        return ExitOk;
     }
 
     if (cmd == "select"){

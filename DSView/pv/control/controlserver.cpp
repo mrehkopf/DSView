@@ -68,10 +68,14 @@ enum ErrorCode
     ErrExportFailed     = 6,
     ErrDialogOpen       = 7,
     ErrNoData           = 8,
+    ErrFile             = 9,
 };
 
 const int MaxLineLength = 1024 * 1024;
 const int ExportPollInterval = 50; // ms
+// MainWindow starts a data file's replay 100 ms after the device switch; if
+// it hasn't run by then, it failed.
+const int LoadStartTimeout = 5000; // ms
 
 const char *mode_name(int mode)
 {
@@ -161,6 +165,22 @@ bool param_uint64(const QJsonObject &params, const char *name, uint64_t &out, bo
     return true;
 }
 
+// The "path" parameter: required, absolute. Replies nothing; error says why.
+bool param_path(const QJsonObject &params, QString &path, QString &error)
+{
+    path = params.value("path").toString();
+    if (path.isEmpty()){
+        error = "\"path\" is required.";
+        return false;
+    }
+    if (!QDir::isAbsolutePath(path)){
+        error = "\"path\" must be absolute; DSView's working directory is not the client's.";
+        return false;
+    }
+    path = QDir::cleanPath(path);
+    return true;
+}
+
 // Optional timeout in seconds; 0 or absent means no timeout.
 bool param_timeout(const QJsonObject &params, double &out)
 {
@@ -243,16 +263,23 @@ bool stacking_shared_option(int key)
 
 } // namespace
 
-ControlServer::ControlServer(SigSession *session, toolbars::SamplingBar *sampling_bar,
+ControlServer::ControlServer(SigSession *session, IControlHost *host,
+                             toolbars::SamplingBar *sampling_bar,
                              dock::TriggerDock *trigger_dock, QObject *parent) :
     QObject(parent),
     _session(session),
+    _host(host),
     _device(session->get_device()),
     _sampling_bar(sampling_bar),
     _trigger_dock(trigger_dock),
+    _loading(false),
+    _load_started(false),
     _stop_requested(false),
     _trigger_armed(false)
 {
+    _load_timer.setSingleShot(true);
+    connect(&_load_timer, SIGNAL(timeout()), this, SLOT(on_load_timeout()));
+
     // After MainWindow, so the GUI has dealt with a message before a
     // client hears about it.
     _session->add_msg_listener(this);
@@ -456,6 +483,10 @@ void ControlServer::dispatch(const Call &call, const QString &method, const QJso
         {"export",          &ControlServer::m_export},
         {"trigger.get",     &ControlServer::m_trigger_get},
         {"trigger.set",     &ControlServer::m_trigger_set},
+        {"file.open",       &ControlServer::m_file_open},
+        {"file.close",      &ControlServer::m_file_close},
+        {"config.load",     &ControlServer::m_config_load},
+        {"config.save",     &ControlServer::m_config_save},
     };
 
     for (const auto &m : methods){
@@ -529,7 +560,18 @@ bool ControlServer::check_not_file(const Call &call)
     return true;
 }
 
-bool ControlServer::check_ready(const Call &call, bool need_logic, bool allow_running)
+bool ControlServer::check_hardware(const Call &call)
+{
+    if (!_device->is_hardware()){
+        reply_error(call, ErrNotSupported,
+            "Configuration files are for analyzers, not the demo device or a data file "
+            "(as in DSView's File > Config menu).");
+        return false;
+    }
+    return true;
+}
+
+bool ControlServer::check_idle(const Call &call, bool allow_running)
 {
     if (!ControlMode::IsNonInteractive() && QApplication::activeModalWidget() != NULL){
         reply_error(call, ErrDialogOpen,
@@ -537,7 +579,11 @@ bool ControlServer::check_ready(const Call &call, bool need_logic, bool allow_ru
         return false;
     }
     if (_export){
-        reply_error(call, ErrBusy, "An export is running.");
+        reply_error(call, ErrBusy, _export->save ? "A save is running." : "An export is running.");
+        return false;
+    }
+    if (_loading){
+        reply_error(call, ErrBusy, "A data file is being loaded.");
         return false;
     }
     if (_session->is_doing_action() || _session->is_saving()){
@@ -548,6 +594,13 @@ bool ControlServer::check_ready(const Call &call, bool need_logic, bool allow_ru
         reply_error(call, ErrBusy, "A capture is running. Stop it first (capture.stop).");
         return false;
     }
+    return true;
+}
+
+bool ControlServer::check_ready(const Call &call, bool need_logic, bool allow_running)
+{
+    if (!check_idle(call, allow_running))
+        return false;
     if (!_device->have_instance()){
         reply_error(call, ErrNoDevice, "No device is selected.");
         return false;
@@ -567,7 +620,9 @@ bool ControlServer::check_ready(const Call &call, bool need_logic, bool allow_ru
 QString ControlServer::state_name()
 {
     if (_export)
-        return "exporting";
+        return _export->save ? "saving" : "exporting";
+    if (_loading)
+        return "loading";
     if (_session->is_working())
         return "running";
     return "idle";
@@ -603,7 +658,10 @@ QJsonObject ControlServer::capture_status()
     const bool running = _session->is_working();
     const bool have_data = !running && _session->have_view_data();
 
-    if (running || have_data)
+    // A data file's trigger is the one saved in it; nothing was armed.
+    const bool file = _device->is_file();
+
+    if ((running || have_data) && !file)
         st["trigger_armed"] = _trigger_armed;
 
     if (running && _device->is_hardware() && _device->get_work_mode() == LOGIC){
@@ -620,9 +678,7 @@ QJsonObject ControlServer::capture_status()
     if (have_data){
         const uint64_t rate = _session->cur_snap_samplerate();
         const int64_t samples = _session->get_ring_sample_count();
-        // The hardware's trigger report; without an armed trigger, the
-        // position is just where the data starts.
-        const bool triggered = _trigger_armed && _session->trigd();
+        const bool triggered = data_triggered();
 
         st["triggered"] = triggered;
         st["samples"] = (double)samples;
@@ -635,7 +691,7 @@ QJsonObject ControlServer::capture_status()
 
     // A capture stopped (or failed) before any data came: say whether it
     // was still waiting for the trigger.
-    if (!running && !have_data && (_stop_requested || !_capture_error.isEmpty())){
+    if (!running && !have_data && !file && (_stop_requested || !_capture_error.isEmpty())){
         st["trigger_armed"] = _trigger_armed;
         st["triggered"] = _trigger_armed && _session->trigd();
     }
@@ -646,6 +702,13 @@ QJsonObject ControlServer::capture_status()
         st["error"] = _capture_error;
 
     return st;
+}
+
+bool ControlServer::data_triggered()
+{
+    // The hardware's trigger report; without an armed trigger, the position
+    // is just where the data starts. A data file has the trigger saved in it.
+    return (_trigger_armed || _device->is_file()) && _session->trigd();
 }
 
 void ControlServer::OnMessage(int msg)
@@ -662,8 +725,30 @@ void ControlServer::OnMessage(int msg)
             _trigger_armed = !_session->is_instant() && ds_trigger_get_en() != 0;
             break;
 
+        // Only sent once the capture runs: a start that fails after
+        // START_COLLECT_WORK_PREV never ends with END_COLLECT_WORK.
+        case DSV_MSG_START_COLLECT_WORK:
+            if (_loading)
+                _load_started = true;
+            break;
+
         case DSV_MSG_END_COLLECT_WORK:
+            if (_loading && _load_started)
+                finish_loading(QString());
             finish_waiters();
+            break;
+
+        // However the file was selected (file.open, device.select, the GUI
+        // or the command line), MainWindow replays its data next.
+        case DSV_MSG_CURRENT_DEVICE_CHANGED:
+            if (_device->have_instance() && _device->is_file()){
+                _loading = true;
+                _load_started = false;
+                _load_timer.start(LoadStartTimeout);
+            }
+            else if (_loading){
+                finish_loading("Another device was selected before the file was loaded.");
+            }
             break;
 
         case DSV_MSG_CURRENT_DEVICE_DETACHED:
@@ -755,19 +840,8 @@ void ControlServer::m_device_list(const Call &call, const QJsonObject &params)
 
 void ControlServer::m_device_select(const Call &call, const QJsonObject &params)
 {
-    if (!ControlMode::IsNonInteractive() && QApplication::activeModalWidget() != NULL){
-        reply_error(call, ErrDialogOpen,
-            "A dialog is open in DSView. Close it, or start DSView with --non-interactive.");
+    if (!check_idle(call, false))
         return;
-    }
-    if (_export || _session->is_doing_action() || _session->is_saving()){
-        reply_error(call, ErrBusy, "DSView is busy with another action.");
-        return;
-    }
-    if (_session->is_working()){
-        reply_error(call, ErrBusy, "A capture is running. Stop it first (capture.stop).");
-        return;
-    }
 
     int count = 0;
     int active = -1;
@@ -828,6 +902,12 @@ void ControlServer::m_device_select(const Call &call, const QJsonObject &params)
         }
         _stop_requested = false;
         _capture_error.clear();
+    }
+
+    // A data file: once its data is in.
+    if (_loading){
+        reply_when_loaded(call);
+        return;
     }
 
     QJsonObject r;
@@ -1661,27 +1741,23 @@ void ControlServer::m_export(const Call &call, const QJsonObject &params)
     if (!check_ready(call, true))
         return;
 
-    QString path = params.value("path").toString();
-    if (path.isEmpty()){
-        reply_error(call, ErrInvalidParams, "\"path\" is required.");
+    QString path, error;
+    if (!param_path(params, path, error)){
+        reply_error(call, ErrInvalidParams, error);
         return;
     }
-    if (!QDir::isAbsolutePath(path)){
-        reply_error(call, ErrInvalidParams,
-            "\"path\" must be absolute; DSView's working directory is not the client's.");
-        return;
-    }
-    path = QDir::cleanPath(path);
 
     // Default from the file name, else VCD.
+    static const QStringList formats = {"vcd", "csv", "gnuplot", "dsl"};
     QString format = params.value("format").toString().toLower();
     if (format.isEmpty()){
         QString suffix = QFileInfo(path).suffix().toLower();
-        format = (suffix == "csv" || suffix == "gnuplot") ? suffix : "vcd";
+        format = formats.contains(suffix) ? suffix : "vcd";
     }
 
-    static const QStringList formats = {"vcd", "csv", "gnuplot"};
-    bool known = false;
+    // dsl is DSView's own file (Save); the others are output modules.
+    const bool save = format == "dsl";
+    bool known = save;
     for (const struct sr_output_module **m = sr_output_list(); *m != NULL; m++){
         if (format == (*m)->id && formats.contains(format))
             known = true;
@@ -1697,6 +1773,13 @@ void ControlServer::m_export(const Call &call, const QJsonObject &params)
     bool has_start, has_end;
     if (!param_uint64(params, "start", start, has_start) || !param_uint64(params, "end", end, has_end)){
         reply_error(call, ErrInvalidParams, "\"start\" and \"end\" are sample numbers.");
+        return;
+    }
+    // DSView saves a range in whole blocks of 16M samples, and the file
+    // still describes the whole capture.
+    if (save && (has_start || has_end)){
+        reply_error(call, ErrInvalidParams,
+            "A .dsl file holds the whole capture; \"start\" and \"end\" are for vcd, csv and gnuplot.");
         return;
     }
 
@@ -1726,13 +1809,24 @@ void ControlServer::m_export(const Call &call, const QJsonObject &params)
     ex->call = call;
     ex->path = path;
     ex->format = format;
+    ex->save = save;
     ex->start = start & ~(uint64_t)7; // StoreSession widens to whole bytes
     ex->store.reset(new StoreSession(_session));
     ex->store->SetExportTarget(path, format);
     // StoreSession takes 0 as "from the start" / "to the end".
     ex->store->SetDataRange(start, has_end ? end : 0);
 
-    if (!ex->store->export_start()){
+    bool started;
+    if (save){
+        // The settings, trigger and decoders go into the file as well.
+        ex->store->_sessionDataGetter = _host->control_session_data();
+        started = ex->store->save_start();
+    }
+    else{
+        started = ex->store->export_start();
+    }
+
+    if (!started){
         QString err = ex->store->error();
         reply_error(call, ErrExportFailed, err.isEmpty() ? QString("The export could not be started.") : err);
         return;
@@ -1770,6 +1864,10 @@ void ControlServer::on_export_poll()
         return;
     }
 
+    // A save counts bytes of all channels, not samples.
+    if (ex->save)
+        total = (uint64_t)_session->get_ring_sample_count();
+
     QJsonObject r;
     r["path"] = ex->path;
     r["format"] = ex->format;
@@ -1777,7 +1875,7 @@ void ControlServer::on_export_poll()
     r["start"] = (double)ex->start;
     r["samples"] = (double)total;
     r["samplerate"] = (double)_session->cur_snap_samplerate();
-    if (_trigger_armed && _session->trigd())
+    if (data_triggered())
         r["trigger_sample"] = (double)_session->get_trigger_pos();
 
     QJsonArray channels;
@@ -2238,6 +2336,244 @@ void ControlServer::m_trigger_set(const Call &call, const QJsonObject &params)
         return;
     }
 
+    reply(call, r);
+}
+
+//------------------------------------------------------------- files
+
+void ControlServer::reply_when_loaded(const Call &call, const QJsonObject &result)
+{
+    LoadCall lc;
+    lc.call = call;
+    lc.result = result;
+    _load_calls.append(lc);
+}
+
+QJsonObject ControlServer::load_result()
+{
+    QJsonObject r;
+    r["device"] = device_info();
+    r["status"] = capture_status();
+    return r;
+}
+
+void ControlServer::finish_loading(const QString &error)
+{
+    _loading = false;
+    _load_started = false;
+    _load_timer.stop();
+
+    QString err = error;
+    if (err.isEmpty() && !_capture_error.isEmpty())
+        err = "Loading the file's data failed: " + _capture_error;
+
+    QList<LoadCall> calls = _load_calls;
+    _load_calls.clear();
+
+    const QJsonObject loaded = load_result();
+
+    for (const LoadCall &lc : calls){
+        QJsonObject r = lc.result;
+        for (auto it = loaded.begin(); it != loaded.end(); ++it)
+            r[it.key()] = it.value();
+
+        if (err.isEmpty())
+            reply(lc.call, r);
+        else
+            reply_error(lc.call, ErrFile, err, r);
+    }
+}
+
+void ControlServer::on_load_timeout()
+{
+    if (_loading && !_load_started)
+        finish_loading("DSView did not start reading the file's data.");
+}
+
+void ControlServer::m_file_open(const Call &call, const QJsonObject &params)
+{
+    if (!check_idle(call, false))
+        return;
+
+    QString path, error;
+    if (!param_path(params, path, error)){
+        reply_error(call, ErrInvalidParams, error);
+        return;
+    }
+
+    QJsonObject data;
+    data["path"] = path;
+
+    QFileInfo info(path);
+    if (!info.isFile() || !info.isReadable()){
+        reply_error(call, ErrFile, (info.exists() ? "Can't read " : "No such file: ") + path, data);
+        return;
+    }
+
+    ControlMode::TakeSuppressedDialogs(); // only report what opening brings up
+    _stop_requested = false;
+    _capture_error.clear();
+
+    // Captured data that wasn't saved is dropped, as with device.select.
+    if (!_host->control_open_file(path)){
+        data["device"] = device_info();
+        reply_error(call, ErrFile, "Not a DSView data file, or it can't be read: " + path, data);
+        return;
+    }
+
+    if (!_loading){
+        reply_error(call, ErrInternal, "The file was opened, but its data is not being loaded.",
+                    load_result());
+        return;
+    }
+
+    reply_when_loaded(call);
+}
+
+void ControlServer::m_file_close(const Call &call, const QJsonObject &params)
+{
+    (void)params;
+
+    if (!check_idle(call, false))
+        return;
+
+    if (!_device->have_instance() || !_device->is_file()){
+        reply_error(call, ErrNotSupported, "The current device is not a data file.");
+        return;
+    }
+
+    QJsonObject r;
+    r["closed"] = _device->path();
+
+    _stop_requested = false;
+    _capture_error.clear();
+
+    // DSView then selects the last device in the list.
+    _session->close_file(_device->handle());
+
+    // That may be another data file.
+    if (_loading){
+        reply_when_loaded(call, r);
+        return;
+    }
+
+    r["device"] = device_info();
+    reply(call, r);
+}
+
+void ControlServer::m_config_load(const Call &call, const QJsonObject &params)
+{
+    if (!check_ready(call, true) || !check_hardware(call))
+        return;
+
+    bool use_default = false;
+    if (params.contains("default") && !parse_bool(params.value("default"), use_default)){
+        reply_error(call, ErrInvalidParams, "\"default\" needs true or false.");
+        return;
+    }
+
+    QString path, error;
+    if (use_default){
+        if (params.contains("path")){
+            reply_error(call, ErrInvalidParams, "Give \"path\" or \"default\", not both.");
+            return;
+        }
+        path = _host->control_default_config();
+    }
+    else if (!param_path(params, path, error)){
+        reply_error(call, ErrInvalidParams, error + " Or give \"default\": true.");
+        return;
+    }
+
+    QJsonObject data;
+    data["path"] = path;
+
+    // Check the file first: DSView removes the decoders before it looks at
+    // it, and says what is wrong in a dialog.
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)){
+        QString msg = use_default ? QString("There is no default configuration for this device.") :
+                      file.exists() ? "Can't read " + path : "No such file: " + path;
+        reply_error(call, ErrFile, msg, data);
+        return;
+    }
+
+    QJsonParseError perr;
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll(), &perr);
+    file.close();
+
+    const QJsonObject obj = doc.object();
+    if (perr.error != QJsonParseError::NoError || !doc.isObject() || !obj.contains("Version")){
+        reply_error(call, ErrFile, "Not a DSView configuration file: " + path, data);
+        return;
+    }
+    // As DSView: format 1 is too old.
+    if (obj.value("Version").toInt() < 2){
+        reply_error(call, ErrFile, "The configuration file's format is too old for DSView: " + path, data);
+        return;
+    }
+
+    const QString file_device = obj.value("Device").toString();
+    const int file_mode = obj.value("DeviceMode").toInt(-1);
+    if (file_device != _device->driver_name() || file_mode != _device->get_work_mode()){
+        data["file_device"] = file_device;
+        data["file_mode"] = mode_name(file_mode);
+        reply_error(call, ErrFile,
+            QString("The file is for %1 in %2 mode, not %3 in %4 mode.")
+                .arg(file_device, mode_name(file_mode),
+                     _device->driver_name(), mode_name(_device->get_work_mode())),
+            data);
+        return;
+    }
+
+    ControlMode::TakeSuppressedDialogs(); // only report what loading brings up
+
+    if (!_host->control_load_config(path)){
+        reply_error(call, ErrFile, "DSView could not load " + path, data);
+        return;
+    }
+
+    // The client asked for this trigger, as with trigger.set: no warning
+    // about a simple trigger on several channels.
+    _trigger_dock->mark_control_trigger();
+
+    QJsonObject r;
+    r["path"] = path;
+    r["values"] = current_values();
+    reply(call, r);
+}
+
+void ControlServer::m_config_save(const Call &call, const QJsonObject &params)
+{
+    if (!check_ready(call, true) || !check_hardware(call))
+        return;
+
+    QString path, error;
+    if (!param_path(params, path, error)){
+        reply_error(call, ErrInvalidParams, error);
+        return;
+    }
+
+    QFileInfo dir(QFileInfo(path).absolutePath());
+    if (!dir.isDir() || !dir.isWritable()){
+        reply_error(call, ErrInvalidParams, "Can't write to " + dir.absoluteFilePath());
+        return;
+    }
+
+    // As File > Config > Store does: the toolbar's settings go to the
+    // device first.
+    _session->broadcast_msg(DSV_MSG_STORE_CONF_PREV);
+
+    if (!_host->control_store_config(path)){
+        QJsonObject data;
+        data["path"] = path;
+        reply_error(call, ErrFile, "Can't write " + path, data);
+        return;
+    }
+
+    QJsonObject r;
+    r["path"] = path;
+    r["bytes"] = (double)QFileInfo(path).size();
     reply(call, r);
 }
 

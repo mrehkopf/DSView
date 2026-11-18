@@ -284,7 +284,7 @@ namespace pv
         // ours, and the first device is already open.
         if (control::ControlMode::ServerEnabled())
         {
-            _control_server = new control::ControlServer(_session, _sampling_bar, _trigger_widget, this);
+            _control_server = new control::ControlServer(_session, this, _sampling_bar, _trigger_widget, this);
 
             if (!_control_server->listen(control::ControlMode::ServerName())
                 && control::ControlMode::IsHeadless())
@@ -1489,6 +1489,49 @@ namespace pv
     bool MainWindow::on_store_session(QString name)
     {
         return save_config_to_file(name);
+    }
+
+    // Like on_load_file, but tells the control client whether it worked.
+    bool MainWindow::control_open_file(const QString &path)
+    {
+        if (_device_agent->is_hardware()){
+            save_config();
+        }
+
+        try
+        {
+            if (_session->set_file(path))
+                return true;
+        }
+        catch (QString e)
+        {
+            dsv_err("Failed to load file: %s", e.toUtf8().data());
+        }
+
+        if (!_device_agent->have_instance()){
+            _session->set_default_device();
+        }
+        return false;
+    }
+
+    bool MainWindow::control_load_config(const QString &path)
+    {
+        return load_config_from_file(path);
+    }
+
+    bool MainWindow::control_store_config(const QString &path)
+    {
+        return save_config_to_file(path);
+    }
+
+    QString MainWindow::control_default_config()
+    {
+        return _file_bar->genDefaultSessionFile();
+    }
+
+    ISessionDataGetter *MainWindow::control_session_data()
+    {
+        return this;
     }
 
     bool MainWindow::save_config_to_file(QString name)

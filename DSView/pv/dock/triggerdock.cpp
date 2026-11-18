@@ -1680,6 +1680,11 @@ bool TriggerDock::advanced_available(QString &reason) const
     return true;
 }
 
+void TriggerDock::mark_control_trigger()
+{
+    _control_simple_trigger = conditions_only(simple_pattern());
+}
+
 QSet<int> TriggerDock::trigger_channels() const
 {
     QSet<int> channels;

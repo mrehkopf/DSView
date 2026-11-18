@@ -115,6 +115,9 @@ public:
     bool advanced_available(QString &reason) const;
     // Enabled channels that can be part of a trigger.
     QSet<int> trigger_channels() const;
+    // The simple trigger as it is now was asked for by a control client
+    // (a loaded configuration file): no multi-channel warning for it.
+    void mark_control_trigger();
 
 signals:
     void trigger_changed();

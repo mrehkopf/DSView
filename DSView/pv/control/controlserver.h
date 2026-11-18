@@ -32,6 +32,7 @@
 #include <QLocalServer>
 #include <QLocalSocket>
 #include "../interface/icallbacks.h"
+#include "controlhost.h"
 
 class DeviceAgent;
 
@@ -62,7 +63,8 @@ class ControlServer : public QObject, public IMessageListener
 public:
     static const int ProtocolVersion = 1;
 
-    ControlServer(SigSession *session, toolbars::SamplingBar *sampling_bar,
+    ControlServer(SigSession *session, IControlHost *host,
+                  toolbars::SamplingBar *sampling_bar,
                   dock::TriggerDock *trigger_dock, QObject *parent);
     ~ControlServer();
 
@@ -79,6 +81,7 @@ private slots:
     void on_ready_read();
     void on_disconnected();
     void on_export_poll();
+    void on_load_timeout();
 
 private:
     struct Call
@@ -100,8 +103,15 @@ private:
         std::unique_ptr<StoreSession> store;
         QString path;
         QString format;
+        bool    save;   // a .dsl file (DSView's Save), not an export
         uint64_t start;
         QTimer  timer;
+    };
+
+    struct LoadCall
+    {
+        Call        call;
+        QJsonObject result;   // the reply, before the device and status are added
     };
 
     struct ConfigOption;
@@ -116,8 +126,10 @@ private:
 
     // Checks shared by the methods that change something. Replies with an
     // error and returns false when the call can't go ahead.
+    bool check_idle(const Call &call, bool allow_running);
     bool check_ready(const Call &call, bool need_logic, bool allow_running = false);
     bool check_not_file(const Call &call);
+    bool check_hardware(const Call &call);
 
     void m_server_info(const Call &call, const QJsonObject &params);
     void m_server_quit(const Call &call, const QJsonObject &params);
@@ -135,11 +147,22 @@ private:
     void m_export(const Call &call, const QJsonObject &params);
     void m_trigger_get(const Call &call, const QJsonObject &params);
     void m_trigger_set(const Call &call, const QJsonObject &params);
+    void m_file_open(const Call &call, const QJsonObject &params);
+    void m_file_close(const Call &call, const QJsonObject &params);
+    void m_config_load(const Call &call, const QJsonObject &params);
+    void m_config_save(const Call &call, const QJsonObject &params);
 
     QJsonObject device_info();
     QJsonObject capture_status();
     QString state_name();
     QJsonObject trigger_json();
+    bool data_triggered();
+
+    // A data file's samples arrive through a replay that MainWindow starts
+    // after the device switch. Calls that select a file reply once it ends.
+    void reply_when_loaded(const Call &call, const QJsonObject &result = QJsonObject());
+    void finish_loading(const QString &error);
+    QJsonObject load_result();
 
     std::vector<ConfigOption> device_options();
     QJsonObject option_json(const ConfigOption &opt, bool with_choices);
@@ -153,6 +176,7 @@ private:
 
 private:
     SigSession              *_session;
+    IControlHost            *_host;
     DeviceAgent             *_device;
     toolbars::SamplingBar   *_sampling_bar;
     dock::TriggerDock       *_trigger_dock;
@@ -161,6 +185,11 @@ private:
 
     QList<Waiter>           _waiters;
     std::unique_ptr<Export> _export;
+
+    bool                    _loading;         // a data file's replay is due or running
+    bool                    _load_started;
+    QTimer                  _load_timer;
+    QList<LoadCall>         _load_calls;
 
     bool                    _stop_requested;
     bool                    _trigger_armed;   // the last capture waited for a trigger

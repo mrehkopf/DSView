@@ -25,7 +25,8 @@ includes the Qt 6 port and the UI and driver improvements from
   seconds, to see which device is which. The button is in the **Options**
   dialog and, for each stacked analyzer, in the Stacking dialog.
 - **Control interface:** scripts and AI agents can set up the analyzer and its
-  trigger, run captures and export VCD or CSV, through the `dsview-ctl` command line tool
+  trigger, run captures, export VCD or CSV, and save or open data and
+  configuration files, through the `dsview-ctl` command line tool
   or JSON-RPC on a local socket. DSView can run without a window
   (`--headless`). See [doc/control-interface.md](doc/control-interface.md).
 - Smaller fixes: no more busy-looping in the USB event thread (Windows), fewer redundant

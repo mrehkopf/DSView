@@ -2,9 +2,11 @@
 
 Scripts and AI agents can drive DSView through a local socket: select a
 device, set the sample rate, threshold voltage and other options, choose
-channels, set the trigger, run captures and export the data as VCD or CSV. Commands go through
-the same code paths as the toolbar, so a capture started this way behaves like
-one started with the Start button, and the GUI shows it.
+channels, set the trigger, run captures and export the data as VCD or CSV.
+They can also save and open DSView data files (`.dsl`), and save and load
+configuration files (`.dsc`). Commands go through the same code paths as the
+toolbar, so a capture started this way behaves like one started with the Start
+button, and the GUI shows it.
 
 There are two ways in:
 
@@ -57,6 +59,8 @@ dsview-ctl quit
 | `devices` | List devices |
 | `select INDEX\|NAME` | Switch device. NAME can be the device name, its unique id, or `name [id]` as the GUI shows it |
 | `config` | All options with their values and choices |
+| `config load FILE` | Load a configuration file. `--default` instead of FILE loads the device's default configuration |
+| `config save FILE` | Save the configuration to a file |
 | `get [KEY...]` | Current values |
 | `set KEY=VALUE...` | Change options |
 | `channels` | List channels |
@@ -64,11 +68,13 @@ dsview-ctl quit
 | `rename CH NAME` | Rename a channel, as in the channel header. The name appears in exports and saved files |
 | `trigger` | Show the trigger |
 | `trigger CH=COND...` | Set the simple trigger to exactly these conditions, e.g. `trigger 0=rising 3=high`. `--clear` removes all conditions, `--position PCT` sets the trigger position, `--mode MODE` switches between `simple`, `advanced` and `serial` |
-| `capture` | Capture and wait for the end. `--instant` ignores the trigger, `--no-wait` returns once it runs, `--timeout SEC` stops it after that long, `-o FILE` exports afterwards (`--format vcd\|csv\|gnuplot`) |
+| `capture` | Capture and wait for the end. `--instant` ignores the trigger, `--no-wait` returns once it runs, `--timeout SEC` stops it after that long, `-o FILE` exports afterwards (`--format vcd\|csv\|gnuplot\|dsl`) |
 | `status` | Capture state and data size |
 | `wait [--timeout SEC]` | Wait for a running capture to end |
 | `stop` | Stop the running capture |
-| `export FILE` | Export the data. `--format`, `--start N`, `--end N` |
+| `export FILE` | Export the data. `--format`, `--start N`, `--end N`. A `.dsl` file is DSView's own data file |
+| `open FILE` | Open a data file (`.dsl`) and load its data |
+| `close` | Close the open data file |
 | `call METHOD [JSON]` | Send any request |
 
 Global options go before the command: `-s NAME` (`--socket`) picks the socket and
@@ -206,8 +212,10 @@ where.
 - **Multi-channel warning:** DSView normally asks before it captures with a
   simple trigger on several channels. It doesn't for a trigger set through the
   control interface, as long as that DSView keeps running and the trigger
-  stays as it was set. A trigger that comes from the saved device profile still
-  brings up the warning; with `--non-interactive` it ends up in `messages`.
+  stays as it was set. The same goes for a trigger from a configuration file
+  loaded with `config.load`. A trigger that comes from the saved device profile
+  still brings up the warning; with `--non-interactive` it ends up in
+  `messages`.
 - **Demo device:** it accepts a simple trigger but ignores it, so `triggered`
   stays `false`.
 - **Measured on a DSLogic U3Pro32 at 100 MHz, using its internal test pattern:**
@@ -235,11 +243,11 @@ these fields:
 
 | Field | Meaning |
 | --- | --- |
-| `state` | `idle`, `running` or `exporting` |
+| `state` | `idle`, `running`, `loading` (a data file), `exporting` or `saving` |
 | `has_data` | Whether there is captured data |
 | `samples`, `samplerate`, `duration` | Size of the data |
-| `trigger_armed` | The capture waited for a trigger (not instant, and a trigger was set) |
-| `triggered`, `trigger_sample` | Whether and where the trigger hit; only with an armed trigger |
+| `trigger_armed` | The capture waited for a trigger (not instant, and a trigger was set). Left out for a data file |
+| `triggered`, `trigger_sample` | Whether and where the trigger hit; only with an armed trigger, or from a data file |
 | `stopped` | The capture was stopped before it was complete |
 | `error` | Why the last capture failed, if it did |
 | `progress` | Hardware only, while running: percentage |
@@ -253,9 +261,10 @@ these fields:
 | `vcd` | Value Change Dump. The default, also chosen for files ending in `.vcd` |
 | `csv` | CSV. Chosen by a `.csv` ending |
 | `gnuplot` | gnuplot data. Chosen by a `.gnuplot` ending |
+| `dsl` | DSView's own data file, which DSView can open again. Chosen by a `.dsl` ending. See [Data files](#data-files) |
 
 Only enabled channels are written, under their names. `start` and `end` select
-the samples `start` to `end - 1`. The range is widened to whole multiples of 8
+the samples `start` to `end - 1`, except for `dsl`. The range is widened to whole multiples of 8
 samples, and the result's `start` and `samples` give the actual range. The
 result also lists the channels and the file size.
 
@@ -270,6 +279,69 @@ Fast signals make big files. 67 million samples of a 32-bit counter take
 CSV output follows the **Original data** / **Compressed data** choice last made
 in the GUI's export dialog. Compressed data has one row per change; original data
 has one row per sample.
+
+## Data files
+
+DSView's data files (`.dsl`, File > Save and File > Open in the GUI) hold the
+captured data together with the device options, channels, trigger and
+protocol decoders of the capture.
+
+```bash
+dsview-ctl capture -o capture.dsl   # capture and save
+dsview-ctl open capture.dsl         # open it again later
+dsview-ctl export capture.vcd       # export it
+dsview-ctl close
+```
+
+- **Saving:** `export` with the format `dsl`, which a `.dsl` ending picks.
+  A data file always holds the whole capture, so `start` and `end` are refused.
+  Only enabled channels are saved.
+- **Opening:** `file.open` makes the file the current device, as File > Open
+  does, and replies once its data is loaded, with the device and the status.
+  Until then, commands that read or change the device fail with error 1.
+  `capture.status` gives the state `loading`, and `capture.stop` cuts the
+  loading short, which leaves part of the data and `stopped` in the status. Captured data that wasn't saved is dropped; DSView
+  doesn't ask, as it does in the GUI.
+- **The file as a device:** it shows up in `device.list` under its file name.
+  Its data can be exported, and its options, channels and trigger read but not
+  changed. It can't capture (error 3). Selecting it again with `device.select`
+  loads the data again, and the reply waits for that too.
+- **Trigger:** the status gives `triggered` and `trigger_sample` from the file
+  when the capture had triggered.
+- **Closing:** `file.close` closes the current data file and removes it from
+  the device list. DSView then selects the last device in the list, as when the
+  file is closed in the GUI. That may be another data file (the reply waits
+  until it has loaded) or an analyzer. Use `device.select` to go elsewhere.
+
+Every `file.open` adds a device, also for a file that is already open, so
+close files you are done with.
+
+## Configuration files
+
+Configuration files (`.dsc`, File > Config in the GUI, where its dialogs call
+them sessions) hold an analyzer's device options, channels, trigger and protocol
+decoders, but no data. DSView also keeps the configuration of each analyzer in
+its device profile and restores it when the analyzer is selected.
+
+```bash
+dsview-ctl config save i2c-setup.dsc
+dsview-ctl config load i2c-setup.dsc
+dsview-ctl config load --default    # DSView's default configuration for the device
+```
+
+- **Analyzers only:** as in the GUI, not for the demo device or a data file
+  (error 3).
+- **Checked first:** `config.load` refuses a file that isn't a DSView
+  configuration file, is in DSView's oldest format, or was saved for another
+  driver or mode, with error 9.
+  `data` then gives the file's `file_device` and `file_mode`. The driver is
+  `DSLogic` for every DSLogic model, so a configuration from another model is
+  accepted, as in the GUI.
+- **Loading** replaces the protocol decoders and sets the options, channels and
+  trigger from the file. The reply gives `values`, as `config.get` does. Set
+  options or the trigger afterwards to change them.
+- **Saving** writes what the GUI's File > Config > Store writes. The reply gives
+  `path` and `bytes`.
 
 ## Protocol
 
@@ -293,17 +365,21 @@ non-interactively, such as a hardware error. In an error reply they are in
 | `server.info` | | `name`, `version`, `protocol` (1), `pid`, `socket`, `headless`, `non_interactive`, `state`, `device` |
 | `server.quit` | | `quitting`. DSView exits after replying |
 | `device.list` | | `devices`: `index`, `name`, `unique_id`, `active` |
-| `device.select` | `index` or `name` | `device`: `name`, `driver`, `type` (`hardware`, `demo`, `file`), `mode`, `stacking` |
+| `device.select` | `index` or `name` | `device`: `name`, `driver`, `type` (`hardware`, `demo`, `file`), `mode`, `stacking`, `path` for a file. For a data file also `status`, once its data is loaded |
 | `config.list` | | `options`: `key`, `label`, `type`, `value`, `choices`, `unit`, `min`, `max`, `read_only` |
 | `config.get` | `keys` (optional list) | `values`: key → value |
 | `config.set` | key → value | `applied` (what was set, after rounding), `values` |
+| `config.load` | `path` (absolute), or `default`: `true` | `path`, `values` |
+| `config.save` | `path` (absolute) | `path`, `bytes` |
 | `channel.list` | | `channels`: `index`, `name`, `enabled`; `max_enabled`; `read_only` while stacking |
 | `channel.set` | `enabled`: list of indexes, or `index` with `enabled` and/or `name` | As `channel.list` |
 | `capture.start` | `instant`, `wait`, `timeout` (seconds) | Status |
 | `capture.wait` | `timeout` | Status |
 | `capture.status` | | Status |
 | `capture.stop` | | Status once the capture has ended |
-| `export` | `path` (absolute), `format`, `start`, `end` | `path`, `format`, `bytes`, `start`, `samples`, `samplerate`, `trigger_sample`, `channels` |
+| `export` | `path` (absolute), `format` (`vcd`, `csv`, `gnuplot`, `dsl`), `start`, `end` | `path`, `format`, `bytes`, `start`, `samples`, `samplerate`, `trigger_sample`, `channels` |
+| `file.open` | `path` (absolute) | `device`, `status`, once the data is loaded |
+| `file.close` | | `closed` (the file's path), `device`. Also `status` when the new device is a data file |
 | `trigger.get` | | `mode`, `active` (a capture waits for it), `position`, `position_max`, `modes` (available here), `usable_channels`, `channels`, `stages`, `serial` |
 | `trigger.set` | `mode`, `position`, `channels`, `stages` | As `trigger.get` |
 
@@ -314,21 +390,22 @@ non-interactively, such as a hardware error. In an error reply they are in
 | -32601 | Unknown method; `data.methods` lists them |
 | -32602 | Bad parameters; often with `data.keys`, `data.formats` or `data.applied` |
 | -32603 | Internal error, e.g. the device could not be opened |
-| 1 | Busy: a capture or export is running, or DSView is in the middle of something |
+| 1 | Busy: a capture, export or save is running, a data file is loading, or DSView is in the middle of something |
 | 2 | No device |
-| 3 | Not supported: not logic analyzer mode, a data file instead of a device, channels while stacking, an advanced or serial trigger here, or serial trigger settings |
+| 3 | Not supported: not logic analyzer mode, a data file instead of a device, channels while stacking, an advanced or serial trigger here, serial trigger settings, configuration files without an analyzer, or `file.close` without a data file |
 | 4 | Timed out; `data` is the status |
 | 5 | Capture failed; `data` is the status |
 | 6 | Export failed |
 | 7 | A dialog is open in DSView |
 | 8 | No captured data |
+| 9 | File: missing or unreadable, not a DSView file or in a format too old, a configuration for another device or mode, or writing it failed. `data.path` names the file |
 
 ## Limitations
 
 - **Modes:** logic analyzer mode only. With an oscilloscope, the info,
   device and status calls work and the rest return error 3.
-- **Not yet available:** serial trigger settings, protocol decoders, loading
-  and saving sessions (`.dsl`), and switching the device mode.
+- **Not yet available:** serial trigger settings, protocol decoders (though
+  data and configuration files carry them), and switching the device mode.
 - **Persistence:** settings changed through the control interface are kept
   in the device profile, as GUI changes are.
 - **AppImage:** `dsview-ctl` is not yet reachable from the AppImage. Use a

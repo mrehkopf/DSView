@@ -37,6 +37,7 @@
 #include <QTimer>
 #include <QStringList>
 #include "dstimer.h"
+#include "control/controlhost.h"
 
 class QAction;
 class QMenuBar;
@@ -88,7 +89,8 @@ class MainWindow :
     public ISessionCallback,
     public IMainForm,
     public ISessionDataGetter,
-    public IMessageListener
+    public IMessageListener,
+    public control::IControlHost
 {
 	Q_OBJECT
 
@@ -207,6 +209,13 @@ private:
 
     //IMessageListener
     void OnMessage(int msg) override;
+
+    //control::IControlHost
+    bool control_open_file(const QString &path) override;
+    bool control_load_config(const QString &path) override;
+    bool control_store_config(const QString &path) override;
+    QString control_default_config() override;
+    ISessionDataGetter *control_session_data() override;
 
 private: 
 	pv::view::View          *_view;
