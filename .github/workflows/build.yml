@@ -22,7 +22,7 @@ jobs:
             build-essential cmake git pkg-config \
             qt6-base-dev libqt6svg6-dev libgl1-mesa-dev libxkbcommon-dev libvulkan-dev \
             libglib2.0-dev zlib1g-dev libusb-1.0-0-dev libboost-dev libfftw3-dev \
-            python3-dev libudev-dev dpkg-dev rsync patchelf
+            python3-dev libudev-dev dpkg-dev rsync patchelf librsvg2-bin
 
       - name: Configure
         run: |
@@ -176,6 +176,16 @@ jobs:
           exec "\$HERE/AppRun.qt" "\$@"
           EOF
           chmod +x "${GITHUB_WORKSPACE}/AppDir/AppRun"
+
+          # appimagetool creates .DirIcon from <Icon=>.png (or .xpm) in the
+          # top level of the AppDir and warns without one (a future release
+          # will refuse to build). It ignores SVG, which is the only icon
+          # DSView installs and the one linuxdeploy put there. Render a PNG
+          # into the icon theme and link it into the top level.
+          ICONDIR="${GITHUB_WORKSPACE}/AppDir/usr/share/icons/hicolor/256x256/apps"
+          mkdir -p "${ICONDIR}"
+          rsvg-convert -w 256 -h 256 DSView/icons/logo.svg -o "${ICONDIR}/dsview.png"
+          ln -sf usr/share/icons/hicolor/256x256/apps/dsview.png "${GITHUB_WORKSPACE}/AppDir/dsview.png"
 
           wget -q -O appimagetool \
             "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
