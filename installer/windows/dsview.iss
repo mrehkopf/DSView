@@ -38,7 +38,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 Compression=lzma2
 SolidCompression=yes
 OutputDir=Output
-OutputBaseFilename=DSView-windows-x86_64-setup
+OutputBaseFilename=DSView-{#MyAppVersion}-windows-x86_64-setup
 UninstallDisplayIcon={app}\DSView.exe
 
 [Files]
