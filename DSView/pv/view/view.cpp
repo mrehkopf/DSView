@@ -948,32 +948,6 @@ void View::signals_changed(const Trace* eventTrace)
             // Apply the user-controlled vertical scaling so logic signals can
             // grow to use the full window height (see View::vzoom).
             _signalHeight = max((double)min_row_height, _signalHeight * _trace_height_factor);
-
-            // Round the row pitch so a whole number of rows tiles the pane
-            // exactly. Otherwise the pane height is an arbitrary multiple of
-            // the pitch and the unscrolled view ends on a trace that is cut
-            // off at the bottom edge. Fewer rows means taller ones, so walk
-            // down from the closest fit until they clear min_row_height - the
-            // nearest pitch is often a shrink the font minimum forbids. Below
-            // two rows the correction would be big enough to fight vzoom, so
-            // leave it alone there.
-            const double pane_height = get_time_pane_height() - actualMargin;
-            const double pitch = _signalHeight + 2 * actualMargin;
-
-            if (pane_height > 0 && pitch > 0)
-            {
-                for (int rows = (int)qRound(pane_height / pitch); rows >= 2; rows--)
-                {
-                    // Whole-pixel pitch: set_totalHeight() truncates to int,
-                    // so a fractional one would not tile exactly anyway.
-                    const double fitted = floor(pane_height / rows) - 2 * actualMargin;
-
-                    if (fitted >= min_row_height){
-                        _signalHeight = fitted;
-                        break;
-                    }
-                }
-            }
         }
         else if (_device_agent->get_work_mode() == DSO) {
             // The time pane already excludes the status strip and scrollbars,
@@ -1205,14 +1179,6 @@ int View::get_status_overlap()
         return 0;
 
     return max(_viewcenter->y() + _viewcenter->height() - _viewbottom->y(), 0);
-}
-
-int View::get_time_pane_height()
-{
-    const int height = (_fft_viewport->isVisible()
-        ? _time_viewport->height() : get_view_height()) - get_status_overlap();
-
-    return max(height, 0);
 }
 
 int View::snap_v_offset(int value, int from)

@@ -418,10 +418,6 @@ private:
     static bool compare_trace_v_offsets( const Trace *a, const Trace *b);
     void get_scroll_layout(int64_t &length, int64_t &offset);	
 	void update_scroll();
-    // Height of the scrollable time pane that is actually visible, i.e. clear
-    // of the status bar. LOGIC only - in DSO get_view_height() already
-    // reports the (overlap-free) grid height, so this would subtract twice.
-    int get_time_pane_height();
     // Nearest vertical scroll position at which the top edge of the time
     // pane lines up with the start of a trace band, so the topmost trace is
     // never shown sliced. The end of the scroll range is always a stop.
