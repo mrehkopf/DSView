@@ -254,6 +254,9 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     QCheckBox *ck_thickHighLevel = new QCheckBox();
     ck_thickHighLevel->setChecked(app.appOptions.logicThickHighLevel);
 
+    QCheckBox *ck_snapVScroll = new QCheckBox();
+    ck_snapVScroll->setChecked(app.appOptions.logicSnapVScroll);
+
     QCheckBox *ck_logicSampleDots = new QCheckBox();
     ck_logicSampleDots->setChecked(app.appOptions.logicSampleDots);
 
@@ -448,28 +451,30 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     logicLay->addWidget(ck_autoScrollLatestData, 2, 1, Qt::AlignRight);
     logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_VERTICAL_SCROLL_ACTION), "Vertical Scroll Action")), 3, 0, Qt::AlignLeft);
     logicLay->addLayout(hl_verticalScrollAction, 3, 1, Qt::AlignRight);
-    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_RULER_UNITS), "Ruler / Cursor units")), 4, 0, Qt::AlignLeft);
-    logicLay->addLayout(hl_units, 4, 1, Qt::AlignRight);
-    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SIGNAL_LINE_WIDTH), "Signal line width")), 5, 0, Qt::AlignLeft);
-    logicLay->addWidget(spinBox_lineWidth, 5, 1, Qt::AlignRight);
-    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_THICK_HIGH_LEVEL), "Thicker high level")), 6, 0, Qt::AlignLeft);
-    logicLay->addWidget(ck_thickHighLevel, 6, 1, Qt::AlignRight);
-    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SAMPLE_DOTS), "Show sample dots")), 7, 0, Qt::AlignLeft);
-    logicLay->addWidget(ck_logicSampleDots, 7, 1, Qt::AlignRight);
-    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_CHANNEL_DIVIDER), "Channel divider line")), 8, 0, Qt::AlignLeft);
-    logicLay->addWidget(ck_channelDivider, 8, 1, Qt::AlignRight);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SNAP_VSCROLL), "Snap scroll bar to channels")), 4, 0, Qt::AlignLeft);
+    logicLay->addWidget(ck_snapVScroll, 4, 1, Qt::AlignRight);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_RULER_UNITS), "Ruler / Cursor units")), 5, 0, Qt::AlignLeft);
+    logicLay->addLayout(hl_units, 5, 1, Qt::AlignRight);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SIGNAL_LINE_WIDTH), "Signal line width")), 6, 0, Qt::AlignLeft);
+    logicLay->addWidget(spinBox_lineWidth, 6, 1, Qt::AlignRight);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_THICK_HIGH_LEVEL), "Thicker high level")), 7, 0, Qt::AlignLeft);
+    logicLay->addWidget(ck_thickHighLevel, 7, 1, Qt::AlignRight);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SAMPLE_DOTS), "Show sample dots")), 8, 0, Qt::AlignLeft);
+    logicLay->addWidget(ck_logicSampleDots, 8, 1, Qt::AlignRight);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_CHANNEL_DIVIDER), "Channel divider line")), 9, 0, Qt::AlignLeft);
+    logicLay->addWidget(ck_channelDivider, 9, 1, Qt::AlignRight);
 
     // Add sliders to logic layout
-    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DECODER_DYNAMIC_FONT_WIDTH), "Decoder adaptive font width")), 9, 0, Qt::AlignLeft);
-    logicLay->addWidget(ck_decoderDynamicFontWidth, 9, 1, Qt::AlignRight);
-    logicLay->addWidget(label_minFontWidth, 10, 0, Qt::AlignLeft);
-    logicLay->addWidget(spinBox_minFontWidth, 10, 1, Qt::AlignRight);
-    logicLay->addWidget(slider_minFontWidth, 11, 0, Qt::AlignJustify);
-    logicLay->addWidget(label_minSample, 11, 1, Qt::AlignCenter);
-    logicLay->addWidget(label_maxFontWidth, 12, 0, Qt::AlignLeft);
-    logicLay->addWidget(spinBox_maxFontWidth, 12, 1, Qt::AlignRight);
-    logicLay->addWidget(slider_maxFontWidth, 13, 0, Qt::AlignJustify);
-    logicLay->addWidget(label_maxSample, 13, 1, Qt::AlignCenter);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DECODER_DYNAMIC_FONT_WIDTH), "Decoder adaptive font width")), 10, 0, Qt::AlignLeft);
+    logicLay->addWidget(ck_decoderDynamicFontWidth, 10, 1, Qt::AlignRight);
+    logicLay->addWidget(label_minFontWidth, 11, 0, Qt::AlignLeft);
+    logicLay->addWidget(spinBox_minFontWidth, 11, 1, Qt::AlignRight);
+    logicLay->addWidget(slider_minFontWidth, 12, 0, Qt::AlignJustify);
+    logicLay->addWidget(label_minSample, 12, 1, Qt::AlignCenter);
+    logicLay->addWidget(label_maxFontWidth, 13, 0, Qt::AlignLeft);
+    logicLay->addWidget(spinBox_maxFontWidth, 13, 1, Qt::AlignRight);
+    logicLay->addWidget(slider_maxFontWidth, 14, 0, Qt::AlignJustify);
+    logicLay->addWidget(label_maxSample, 14, 1, Qt::AlignCenter);
     logicLay->setColumnMinimumWidth(1, wfm.horizontalAdvance("Example")
         + logicLay->contentsMargins().left()
         + logicLay->contentsMargins().right()
@@ -612,6 +617,10 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
         }
         if (app.appOptions.logicThickHighLevel != ck_thickHighLevel->isChecked()) {
             app.appOptions.logicThickHighLevel = ck_thickHighLevel->isChecked();
+            bAppChanged = true;
+        }
+        if (app.appOptions.logicSnapVScroll != ck_snapVScroll->isChecked()) {
+            app.appOptions.logicSnapVScroll = ck_snapVScroll->isChecked();
             bAppChanged = true;
         }
         if (app.appOptions.logicSampleDots != ck_logicSampleDots->isChecked()) {

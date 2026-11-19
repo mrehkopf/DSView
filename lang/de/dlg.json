@@ -1142,5 +1142,9 @@
     {
         "id": "IDS_DLG_SAMPLE_DOTS",
         "text": "Samples als Punkte anzeigen"
+    },
+    {
+        "id": "IDS_DLG_SNAP_VSCROLL",
+        "text": "Scrollleiste an Kanälen einrasten"
     }
 ]

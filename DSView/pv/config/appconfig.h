@@ -96,6 +96,7 @@ struct AppOptions
     bool logicChannelDivider;
     bool logicThickHighLevel;
     bool logicSampleDots;   // dot at each sample when zoomed in far enough
+    bool logicSnapVScroll;  // snap to trace tops when the scroll bar is released
     bool dsoSplitChannels;
     float dsoSignalLineWidth;
     bool dsoSampleDots;
