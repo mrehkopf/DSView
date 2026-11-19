@@ -841,6 +841,13 @@ void View::signals_changed(const Trace* eventTrace)
 
     (void)eventTrace;
 
+    // The relayout below places every trace as if the time pane were not
+    // scrolled. Remember where it was scrolled to, so that it can be put back
+    // afterwards instead of jumping to the top on every resize.
+    const QScrollBar *vbar = verticalScrollBar();
+    const int old_v_scroll = vbar->value();
+    const int old_v_content = vbar->maximum() + vbar->pageStep();
+
     get_traces(ALL_VIEW, traces);
 
     for(auto t : traces) {
@@ -1025,10 +1032,35 @@ void View::signals_changed(const Trace* eventTrace)
         _session->update_dso_data_scale();
     }
 
+    // header_updated() sets the scroll range for the new layout. Scale the
+    // old position by the change in content height, so the same traces stay
+    // at the top when row heights follow the pane height, and the position
+    // is unchanged when they don't. Qt clamps it to the new range.
     header_updated();
-    normalize_layout();
+    restore_v_scroll(old_v_scroll, old_v_content);
     update_scale_offset();
     data_updated();
+}
+
+void View::restore_v_scroll(int old_value, int old_content)
+{
+    QScrollBar *vbar = verticalScrollBar();
+    int value = 0;
+
+    if (old_value > 0 && old_content > 0 && vbar->maximum() > 0) {
+        const int new_content = vbar->maximum() + vbar->pageStep();
+        value = qRound(old_value * (double)new_content / old_content);
+
+        // Scaling can land partway into a channel. Put it back on a
+        // channel boundary, as a scroll would.
+        if (v_snap_enabled())
+            value = snap_v_offset(min(value, vbar->maximum()));
+    }
+
+    vbar->setValue(value);
+    // setValue() emits nothing if the value is unchanged, but the relayout
+    // has reset each trace to its unscrolled offset.
+    v_scroll_value_changed(vbar->value());
 }
 
 bool View::eventFilter(QObject *object, QEvent *event)
@@ -1121,7 +1153,9 @@ void View::resizeEvent(QResizeEvent*)
     reconstruct();
     headerWidth();
     update_margins();
-    update_scroll();
+    // No update_scroll() here: it would clamp the scroll position against
+    // the new pane height with the old trace heights. signals_changed()
+    // updates the scroll bars after relaying out the traces.
     signals_changed(NULL);
 
     if (_device_agent->get_work_mode() == DSO){

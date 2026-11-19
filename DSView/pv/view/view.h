@@ -425,6 +425,7 @@ private:
     // step always reaches the next stop in its direction.
     int snap_v_offset(int value, int from = -1);
     bool v_snap_enabled();
+    void restore_v_scroll(int old_value, int old_content);
     void update_margins();
     void set_scale(double scale);
 
