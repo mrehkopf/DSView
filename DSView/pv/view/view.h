@@ -409,9 +409,9 @@ private:
     // of the status bar. LOGIC only - in DSO get_view_height() already
     // reports the (overlap-free) grid height, so this would subtract twice.
     int get_time_pane_height();
-    // Nearest vertical scroll position at which the bottom edge of the time
-    // pane lines up with the end of a trace band, so nothing overlapping the
-    // bottom of the pane can slice the lowest trace in half.
+    // Nearest vertical scroll position at which the top edge of the time
+    // pane lines up with the start of a trace band, so the topmost trace is
+    // never shown sliced. The end of the scroll range is always a stop.
     int snap_v_offset(int value);
     void update_margins();
     void set_scale(double scale);
@@ -533,7 +533,6 @@ private:
     WheelAccumulator _dso_zoom_accum{1.0};
     bool        _dso_split_channels;
     bool        _updating_scroll;
-    bool        _snapping_v_scroll;
 
     // trigger position fix
     double      _trig_hoff;

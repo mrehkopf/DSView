@@ -141,6 +141,7 @@ static void _loadApp(AppOptions &o, QSettings &st)
     getFiled("logicChannelDivider", st, o.logicChannelDivider, true);
     getFiled("logicThickHighLevel", st, o.logicThickHighLevel, false);
     getFiled("logicSampleDots", st, o.logicSampleDots, true);
+    getFiled("logicSnapVScroll", st, o.logicSnapVScroll, true);
     getFiled("dsoSplitChannels", st, o.dsoSplitChannels, false);
     getFiled("dsoSignalLineWidth", st, o.dsoSignalLineWidth, 1.0f);
     getFiled("dsoSampleDots", st, o.dsoSampleDots, true);
@@ -221,6 +222,7 @@ static void _saveApp(AppOptions &o, QSettings &st)
     setFiled("logicChannelDivider", st, o.logicChannelDivider);
     setFiled("logicThickHighLevel", st, o.logicThickHighLevel);
     setFiled("logicSampleDots", st, o.logicSampleDots);
+    setFiled("logicSnapVScroll", st, o.logicSnapVScroll);
     setFiled("dsoSplitChannels", st, o.dsoSplitChannels);
     setFiled("dsoSignalLineWidth", st, o.dsoSignalLineWidth);
     setFiled("dsoSampleDots", st, o.dsoSampleDots);

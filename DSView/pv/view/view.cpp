@@ -100,7 +100,6 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
     _y_offset(0),
     _preOffset(0),
 	_updating_scroll(false),
-    _snapping_v_scroll(false),
     _trig_hoff(0),
 	_show_cursors(false),
     _search_hit(false),
@@ -737,8 +736,12 @@ void View::update_scroll()
 
 void View::on_v_scroll_released()
 {
+    // Only after a scroll bar drag: snapping on every value change would turn
+    // each small wheel or touchpad step into a jump by a whole trace, and
+    // make a middle-button drag flip between two traces.
     if (_device_agent->have_instance() == false
-        || _device_agent->get_work_mode() != LOGIC)
+        || _device_agent->get_work_mode() != LOGIC
+        || AppConfig::Instance().appOptions.logicSnapVScroll == false)
         return;
 
     const int value = verticalScrollBar()->value();
@@ -1172,39 +1175,38 @@ int View::get_time_pane_height()
 
 int View::snap_v_offset(int value)
 {
-    const int pane_height = get_time_pane_height();
+    const int max_value = verticalScrollBar()->maximum();
 
-    if (pane_height <= 0)
-        return value;
+    if (max_value <= 0)
+        return 0;
 
     const int margin = get_signal_margin();
-    const int max_value = verticalScrollBar()->maximum();
 
     std::vector<Trace*> traces;
     get_traces(TIME_VIEW, traces);
 
-    // Scroll positions at which the pane's bottom edge coincides with the end
-    // of a trace band. 0 is always one of them: the row pitch is fitted to the
-    // pane (see signals_changed) so the unscrolled view ends on a boundary.
+    // Scroll positions at which the pane's top edge coincides with the start
+    // of a trace band, i.e. the trace's own top margin is the first thing
+    // shown. Aligning the bottom edge instead (as for a status bar painting
+    // over the pane) leaves the top edge partway into a band as soon as the
+    // bands differ in height, e.g. with decoder traces, and slices off the
+    // high level of the topmost trace. The end of the range stays a stop so
+    // the last trace can still be reached.
     std::vector<int> stops;
     stops.push_back(0);
+    stops.push_back(max_value);
 
     for (auto t : traces)
     {
         if (t->enabled() == false || t->get_totalHeight() == 0)
             continue;
 
-        const int band_bottom = t->get_v_offset_orig()
-                                + t->get_totalHeight() / 2 + margin;
+        const int band_top = t->get_v_offset_orig()
+                             - t->get_totalHeight() / 2 - margin;
 
-        stops.push_back(min(max(band_bottom - pane_height, 0), max_value));
+        if (band_top > 0 && band_top < max_value)
+            stops.push_back(band_top);
     }
-
-    sort(stops.begin(), stops.end());
-    stops.erase(unique(stops.begin(), stops.end()), stops.end());
-
-    if (stops.size() < 2)
-        return min(max(value, 0), max_value);
 
     int best = stops.front();
 
@@ -1213,54 +1215,11 @@ int View::snap_v_offset(int value)
             best = stop;
     }
 
-    // Always make progress in the direction of travel, otherwise a wheel step
-    // shorter than half a row would snap straight back to where it started.
-    if (best == _y_offset && value != _y_offset)
-    {
-        if (value > _y_offset) {
-            for (auto stop : stops) {
-                if (stop > _y_offset) {
-                    best = stop;
-                    break;
-                }
-            }
-        }
-        else {
-            for (auto it = stops.rbegin(); it != stops.rend(); ++it) {
-                if (*it < _y_offset) {
-                    best = *it;
-                    break;
-                }
-            }
-        }
-    }
-
     return best;
 }
 
 void View::v_scroll_value_changed(int value)
 {
-    // Keep the bottom of the pane on a trace boundary so the lowest trace is
-    // never shown sliced. Only LOGIC stacks rows this way; DSO sizes its
-    // channels to the pane and ANALOG is left alone. While the slider is held
-    // the snap is deferred to on_v_scroll_released(): moving the slider on
-    // every valueChanged pulls it out from under the pointer, and the drag
-    // then chases it around.
-    if (_snapping_v_scroll == false
-        && verticalScrollBar()->isSliderDown() == false
-        && _device_agent->have_instance()
-        && _device_agent->get_work_mode() == LOGIC)
-    {
-        const int snapped = snap_v_offset(value);
-
-        if (snapped != value) {
-            _snapping_v_scroll = true;
-            verticalScrollBar()->setValue(snapped);
-            _snapping_v_scroll = false;
-            value = snapped;
-        }
-    }
-
     // Track vertical offset
     _y_offset = value;
 

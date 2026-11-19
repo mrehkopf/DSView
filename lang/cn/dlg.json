@@ -1034,5 +1034,9 @@
     {
         "id": "IDS_DLG_SAMPLE_DOTS",
         "text": "显示采样点"
+    },
+    {
+        "id": "IDS_DLG_SNAP_VSCROLL",
+        "text": "滚动条对齐通道"
     }
 ]
