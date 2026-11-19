@@ -314,7 +314,7 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     spinBox_lineWidth->setValue(app.appOptions.logicSignalLineWidth);
     spinBox_lineWidth->setSuffix(" px");
 
-    QDoubleSpinBox *spinBox_dsoLineWidth = new QDoubleSpinBox();
+    QDoubleSpinBox *spinBox_dsoLineWidth = new XDoubleSpinBox();
     spinBox_dsoLineWidth->setDecimals(1);
     spinBox_dsoLineWidth->setSingleStep(0.5);
     spinBox_dsoLineWidth->setMinimum(1.0);
