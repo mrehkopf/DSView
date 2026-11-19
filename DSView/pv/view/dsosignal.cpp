@@ -1196,7 +1196,8 @@ void DsoSignal::paint_trace(QPainter &p,
         // Zoomed in far enough that samples are clearly apart: mark each
         // one. The last point is only an interpolated clip at the right edge
         // when the loop broke there, so it gets no dot.
-        if (pixels_per_sample >= SampleDotMinSpacing) {
+        if (AppConfig::Instance().appOptions.dsoSampleDots &&
+            pixels_per_sample >= SampleDotMinSpacing) {
             const QPointF *dots_end = point;
             if (clipped)
                 dots_end--;

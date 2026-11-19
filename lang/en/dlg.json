@@ -1138,5 +1138,9 @@
     {
         "id": "IDS_DLG_OFF",
         "text": "Off"
+    },
+    {
+        "id": "IDS_DLG_SAMPLE_DOTS",
+        "text": "Show sample dots"
     }
 ]
