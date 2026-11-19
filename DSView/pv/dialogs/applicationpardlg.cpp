@@ -451,7 +451,7 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     logicLay->addWidget(ck_autoScrollLatestData, 2, 1, Qt::AlignRight);
     logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_VERTICAL_SCROLL_ACTION), "Vertical Scroll Action")), 3, 0, Qt::AlignLeft);
     logicLay->addLayout(hl_verticalScrollAction, 3, 1, Qt::AlignRight);
-    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SNAP_VSCROLL), "Snap scroll bar to channels")), 4, 0, Qt::AlignLeft);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SNAP_VSCROLL), "Snap scrolling to channels")), 4, 0, Qt::AlignLeft);
     logicLay->addWidget(ck_snapVScroll, 4, 1, Qt::AlignRight);
     logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_RULER_UNITS), "Ruler / Cursor units")), 5, 0, Qt::AlignLeft);
     logicLay->addLayout(hl_units, 5, 1, Qt::AlignRight);
