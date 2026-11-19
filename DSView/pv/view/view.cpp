@@ -213,6 +213,12 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
 	connect(verticalScrollBar(), SIGNAL(valueChanged(int)), this, SLOT(v_scroll_value_changed(int)));
     connect(verticalScrollBar(), SIGNAL(sliderReleased()), this, SLOT(on_v_scroll_released()));
 
+    // Small wheel/touchpad steps arrive in bursts with no reliable end event
+    // (X11 and Windows report no scroll phases), so snap once they pause.
+    _v_snap_timer.setSingleShot(true);
+    _v_snap_timer.setInterval(VSnapIdleMs);
+    connect(&_v_snap_timer, &QTimer::timeout, this, [this]() { snap_v_scroll(); });
+
     connect(_time_viewport, SIGNAL(measure_updated()),this, SLOT(on_measure_updated()));
     connect(_time_viewport, SIGNAL(prgRate(int)), this, SIGNAL(prgRate(int)));
     connect(_fft_viewport, SIGNAL(measure_updated()), this, SLOT(on_measure_updated()));
@@ -736,12 +742,21 @@ void View::update_scroll()
 
 void View::on_v_scroll_released()
 {
-    // Only after a scroll bar drag: snapping on every value change would turn
-    // each small wheel or touchpad step into a jump by a whole trace, and
-    // make a middle-button drag flip between two traces.
-    if (_device_agent->have_instance() == false
-        || _device_agent->get_work_mode() != LOGIC
-        || AppConfig::Instance().appOptions.logicSnapVScroll == false)
+    snap_v_scroll();
+}
+
+bool View::v_snap_enabled()
+{
+    return _device_agent->have_instance()
+        && _device_agent->get_work_mode() == LOGIC
+        && AppConfig::Instance().appOptions.logicSnapVScroll;
+}
+
+void View::snap_v_scroll()
+{
+    _v_snap_timer.stop();
+
+    if (v_snap_enabled() == false)
         return;
 
     const int value = verticalScrollBar()->value();
@@ -749,6 +764,33 @@ void View::on_v_scroll_released()
 
     if (snapped != value)
         verticalScrollBar()->setValue(snapped);
+}
+
+void View::scroll_v_by_wheel(int delta)
+{
+    QScrollBar *bar = verticalScrollBar();
+    const int from = bar->value();
+    const int target = min(max(from - delta, bar->minimum()), bar->maximum());
+
+    if (v_snap_enabled() == false) {
+        bar->setValue(target);
+        return;
+    }
+
+    // A mouse wheel detent usually covers several channels; snapping each
+    // one keeps every channel on screen whole. Steps smaller than a channel
+    // (touchpads, high resolution wheels) would jump a whole channel each if
+    // snapped one by one, so they scroll freely and snap when they stop.
+    const int pitch = (int)_signalHeight + 2 * get_signal_margin();
+
+    if (qAbs(delta) >= pitch) {
+        _v_snap_timer.stop();
+        bar->setValue(snap_v_offset(target, from));
+    }
+    else {
+        bar->setValue(target);
+        _v_snap_timer.start();
+    }
 }
 
 void View::update_scale_offset()
@@ -1173,7 +1215,7 @@ int View::get_time_pane_height()
     return max(height, 0);
 }
 
-int View::snap_v_offset(int value)
+int View::snap_v_offset(int value, int from)
 {
     const int max_value = verticalScrollBar()->maximum();
 
@@ -1208,11 +1250,32 @@ int View::snap_v_offset(int value)
             stops.push_back(band_top);
     }
 
+    sort(stops.begin(), stops.end());
+
     int best = stops.front();
 
     for (auto stop : stops) {
         if (qAbs(stop - value) < qAbs(best - value))
             best = stop;
+    }
+
+    // Never undo a step: if the nearest stop is not past the starting
+    // position, take the first one that is.
+    if (from >= 0 && value > from && best <= from) {
+        for (auto stop : stops) {
+            if (stop > from) {
+                best = stop;
+                break;
+            }
+        }
+    }
+    else if (from >= 0 && value < from && best >= from) {
+        for (auto it = stops.rbegin(); it != stops.rend(); ++it) {
+            if (*it < from) {
+                best = *it;
+                break;
+            }
+        }
     }
 
     return best;

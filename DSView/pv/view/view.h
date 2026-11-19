@@ -34,6 +34,7 @@
 #include <QDateTime>
 #include <QSplitter>
 #include <QVBoxLayout>
+#include <QTimer>
 
  
 #include "../toolbars/samplingbar.h"
@@ -108,6 +109,8 @@ public:
 
     static const int StatusHeight = 20;
     static const int DsoStatusHeight = 55;
+    // Pause after the last small scroll step before snapping to a channel.
+    static const int VSnapIdleMs = 200;
 
     static const int ForeAlpha = 255;
     static const int BackAlpha = 100;
@@ -124,6 +127,16 @@ public:
     explicit View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget *parent = 0);
 
     ~View();
+
+    // Scroll the time pane vertically by a wheel or touchpad delta. With
+    // channel snapping on (logic mode), a step of at least a channel's height
+    // lands on the next channel in its direction right away; smaller steps
+    // scroll freely and snap once the scrolling has stopped.
+    void scroll_v_by_wheel(int delta);
+    // Snap the vertical scroll position to the nearest channel now, e.g. when
+    // a scroll bar or middle-button drag ends. Does nothing unless channel
+    // snapping applies.
+    void snap_v_scroll();
 
 	inline SigSession& session(){
         return *_session;
@@ -412,7 +425,10 @@ private:
     // Nearest vertical scroll position at which the top edge of the time
     // pane lines up with the start of a trace band, so the topmost trace is
     // never shown sliced. The end of the scroll range is always a stop.
-    int snap_v_offset(int value);
+    // With from >= 0, the result never falls back to or behind from, so a
+    // step always reaches the next stop in its direction.
+    int snap_v_offset(int value, int from = -1);
+    bool v_snap_enabled();
     void update_margins();
     void set_scale(double scale);
 
@@ -533,6 +549,8 @@ private:
     WheelAccumulator _dso_zoom_accum{1.0};
     bool        _dso_split_channels;
     bool        _updating_scroll;
+    // Snaps the vertical scroll position once small scroll steps stop.
+    QTimer      _v_snap_timer;
 
     // trigger position fix
     double      _trig_hoff;
