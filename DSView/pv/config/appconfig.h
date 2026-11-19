@@ -95,8 +95,10 @@ struct AppOptions
     float logicSignalLineWidth;
     bool logicChannelDivider;
     bool logicThickHighLevel;
+    bool logicSampleDots;   // dot at each sample when zoomed in far enough
     bool dsoSplitChannels;
     float dsoSignalLineWidth;
+    bool dsoSampleDots;
     int dsoPersistenceMs; // 0 = off; fade-out time of previous scope frames
     std::vector<StringPair> m_protocolFormats;
 };

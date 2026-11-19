@@ -1030,5 +1030,9 @@
     {
         "id": "IDS_DLG_OFF",
         "text": "关"
+    },
+    {
+        "id": "IDS_DLG_SAMPLE_DOTS",
+        "text": "显示采样点"
     }
 ]

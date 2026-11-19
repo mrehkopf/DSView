@@ -254,6 +254,12 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     QCheckBox *ck_thickHighLevel = new QCheckBox();
     ck_thickHighLevel->setChecked(app.appOptions.logicThickHighLevel);
 
+    QCheckBox *ck_logicSampleDots = new QCheckBox();
+    ck_logicSampleDots->setChecked(app.appOptions.logicSampleDots);
+
+    QCheckBox *ck_dsoSampleDots = new QCheckBox();
+    ck_dsoSampleDots->setChecked(app.appOptions.dsoSampleDots);
+
     QHBoxLayout *hl_verticalScrollAction = new QHBoxLayout();
     QButtonGroup *bg_verticalScrollAction = new QButtonGroup();
     QRadioButton *rb_zoom = new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_VERTICAL_SCROLL_ACTION_SMOOTH_ZOOM), "Zoom"));
@@ -448,20 +454,22 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     logicLay->addWidget(spinBox_lineWidth, 5, 1, Qt::AlignRight);
     logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_THICK_HIGH_LEVEL), "Thicker high level")), 6, 0, Qt::AlignLeft);
     logicLay->addWidget(ck_thickHighLevel, 6, 1, Qt::AlignRight);
-    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_CHANNEL_DIVIDER), "Channel divider line")), 7, 0, Qt::AlignLeft);
-    logicLay->addWidget(ck_channelDivider, 7, 1, Qt::AlignRight);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SAMPLE_DOTS), "Show sample dots")), 7, 0, Qt::AlignLeft);
+    logicLay->addWidget(ck_logicSampleDots, 7, 1, Qt::AlignRight);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_CHANNEL_DIVIDER), "Channel divider line")), 8, 0, Qt::AlignLeft);
+    logicLay->addWidget(ck_channelDivider, 8, 1, Qt::AlignRight);
 
     // Add sliders to logic layout
-    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DECODER_DYNAMIC_FONT_WIDTH), "Decoder adaptive font width")), 8, 0, Qt::AlignLeft);
-    logicLay->addWidget(ck_decoderDynamicFontWidth, 8, 1, Qt::AlignRight);
-    logicLay->addWidget(label_minFontWidth, 9, 0, Qt::AlignLeft);
-    logicLay->addWidget(spinBox_minFontWidth, 9, 1, Qt::AlignRight);
-    logicLay->addWidget(slider_minFontWidth, 10, 0, Qt::AlignJustify);
-    logicLay->addWidget(label_minSample, 10, 1, Qt::AlignCenter);
-    logicLay->addWidget(label_maxFontWidth, 11, 0, Qt::AlignLeft);
-    logicLay->addWidget(spinBox_maxFontWidth, 11, 1, Qt::AlignRight);
-    logicLay->addWidget(slider_maxFontWidth, 12, 0, Qt::AlignJustify);
-    logicLay->addWidget(label_maxSample, 12, 1, Qt::AlignCenter);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DECODER_DYNAMIC_FONT_WIDTH), "Decoder adaptive font width")), 9, 0, Qt::AlignLeft);
+    logicLay->addWidget(ck_decoderDynamicFontWidth, 9, 1, Qt::AlignRight);
+    logicLay->addWidget(label_minFontWidth, 10, 0, Qt::AlignLeft);
+    logicLay->addWidget(spinBox_minFontWidth, 10, 1, Qt::AlignRight);
+    logicLay->addWidget(slider_minFontWidth, 11, 0, Qt::AlignJustify);
+    logicLay->addWidget(label_minSample, 11, 1, Qt::AlignCenter);
+    logicLay->addWidget(label_maxFontWidth, 12, 0, Qt::AlignLeft);
+    logicLay->addWidget(spinBox_maxFontWidth, 12, 1, Qt::AlignRight);
+    logicLay->addWidget(slider_maxFontWidth, 13, 0, Qt::AlignJustify);
+    logicLay->addWidget(label_maxSample, 13, 1, Qt::AlignCenter);
     logicLay->setColumnMinimumWidth(1, wfm.horizontalAdvance("Example")
         + logicLay->contentsMargins().left()
         + logicLay->contentsMargins().right()
@@ -479,8 +487,10 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     dsoLay->addWidget(ck_trigInMid, 0, 1, Qt::AlignRight);
     dsoLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SIGNAL_LINE_WIDTH), "Signal line width")), 1, 0, Qt::AlignLeft);
     dsoLay->addWidget(spinBox_dsoLineWidth, 1, 1, Qt::AlignRight);
-    dsoLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DSO_PERSISTENCE), "Persistence (fade-out time)")), 2, 0, Qt::AlignLeft);
-    dsoLay->addWidget(spinBox_dsoPersistence, 2, 1, Qt::AlignRight);
+    dsoLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SAMPLE_DOTS), "Show sample dots")), 2, 0, Qt::AlignLeft);
+    dsoLay->addWidget(ck_dsoSampleDots, 2, 1, Qt::AlignRight);
+    dsoLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DSO_PERSISTENCE), "Persistence (fade-out time)")), 3, 0, Qt::AlignLeft);
+    dsoLay->addWidget(spinBox_dsoPersistence, 3, 1, Qt::AlignRight);
     lay->addWidget(dsoGroup);
 
     //UI
@@ -602,6 +612,14 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
         }
         if (app.appOptions.logicThickHighLevel != ck_thickHighLevel->isChecked()) {
             app.appOptions.logicThickHighLevel = ck_thickHighLevel->isChecked();
+            bAppChanged = true;
+        }
+        if (app.appOptions.logicSampleDots != ck_logicSampleDots->isChecked()) {
+            app.appOptions.logicSampleDots = ck_logicSampleDots->isChecked();
+            bAppChanged = true;
+        }
+        if (app.appOptions.dsoSampleDots != ck_dsoSampleDots->isChecked()) {
+            app.appOptions.dsoSampleDots = ck_dsoSampleDots->isChecked();
             bAppChanged = true;
         }
         if (bAppChanged){

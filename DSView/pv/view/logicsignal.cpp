@@ -257,7 +257,8 @@ void LogicSignal::paint_mid_align(QPainter &p, int left, int right, QColor fore,
     // so the actual sample points are visible along the waveform. Size the
     // dots from the widest pen in use, so they stand out from a thick high
     // level as much as from the low level.
-    if (1.0 / samples_per_pixel >= SampleDotMinSpacing) {
+    if (AppConfig::Instance().appOptions.logicSampleDots &&
+        1.0 / samples_per_pixel >= SampleDotMinSpacing) {
         const double pen_width = thick_high ? line_width + 1 : line_width;
         const double dot = std::max(4.0, pen_width + SampleDotGrow);
         p.setPen(Qt::NoPen);
