@@ -2448,6 +2448,10 @@ namespace pv
             return p;
         }
 
+        // The thread ends. Clear the flag under the same lock as
+        // add_decode_task, which starts no new thread while it is set: a
+        // task added after this check would otherwise never run.
+        _is_decoding = false;
         return NULL;
     }
 
@@ -2482,7 +2486,6 @@ namespace pv
         _view_data->get_logic()->decode_end();
 
         dsv_info("------->decode thread end");
-        _is_decoding = false;        
     }
 
     Snapshot *SigSession::get_signal_snapshot()

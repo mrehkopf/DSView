@@ -1423,7 +1423,9 @@ bool StoreSession::load_decoders(dock::ProtocolDock *widget, QJsonArray &dec_arr
         return false;
     }
 
-    int dec_index = -1;
+    // Index of the last decoder added. Counted from the decoders there
+    // already: the control interface adds to them.
+    int dec_index = (int)_session->get_decode_signals().size() - 1;
     
     for (const QJsonValue &dec_value : dec_array)
     {
