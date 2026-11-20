@@ -30,7 +30,7 @@ enum class BusValueError {
 };
 
 // Untriggerable channels exist but can't be trigger sources (the secondary
-// analyzer's while stacking). Bits on them are left out of assignments,
+// analyzers' while stacking). Bits on them are left out of assignments,
 // whatever their level, instead of failing as unavailable.
 // On failure, assignments is left unchanged. No trigger state is changed here.
 BusValueError compile_bus_value(const BusMapping &mapping, const QString &text,

@@ -62,6 +62,9 @@
 #include "ui/langresource.h"
 #include <qelapsedtimer.h>
 
+static_assert(pv::LogicStackingMaxAnalyzers * pv::LogicStackingChannelsPerAnalyzer <= CHANNEL_MAX_COUNT,
+              "LogicSnapshot can't hold every stacked analyzer's channels");
+
 namespace pv
 {
     namespace {
@@ -688,7 +691,7 @@ namespace pv
         {
             MsgBox::Show(L_S(STR_PAGE_MSG,
                              S_ID(IDS_MSG_STACKING_REMAP_REQUIRED_START),
-                             "Stacking mode needs two mapped DSLogic U3Pro32 analyzers. Open Stacking settings and select the master and secondary devices."));
+                             "Stacking mode needs a connected DSLogic U3Pro32 for each stacked analyzer. Open Stacking settings and select the master and secondary devices."));
             return false;
         }
 

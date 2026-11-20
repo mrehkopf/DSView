@@ -31,7 +31,8 @@
 #include <vector>
 #include <map>
 
-#define CHANNEL_MAX_COUNT 64
+// Room for eight stacked 32-channel analyzers (LogicStackingMaxAnalyzers)
+#define CHANNEL_MAX_COUNT 256
 
 namespace LogicSnapshotTest {
 class Pow2;

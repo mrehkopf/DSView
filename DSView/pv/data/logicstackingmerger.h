@@ -48,9 +48,14 @@ public:
     QString warning() const;
 
 private:
+    // One analyzer's captured data; [0] is the master. For a secondary it
+    // also holds the mapping from merged (master) samples to its own samples.
     struct SourceBuffer
     {
         ds_device_handle handle = NULL_HANDLE;
+        int analyzer = 0;
+        int64_t manual_shift_ps = 0;
+        int reference_channel = 0;
         std::vector<uint8_t> bytes;
         std::vector<int> enabled_phys;
         int order_by_phys[64];
@@ -59,7 +64,17 @@ private:
         bool have_trigger = false;
         uint64_t trigger_pos = 0;
 
-        void reset(ds_device_handle h);
+        // Base alignment: trigger positions plus manual shift
+        bool shift_ready = false;
+        int64_t shift = 0;
+        // source sample = anchor_source + (dest sample - anchor_dest) / scale
+        bool drift_applied = false;
+        long double scale = 1.0L;
+        int64_t anchor_dest = 0;
+        long double anchor_source = 0.0L;
+
+        void reset(ds_device_handle h, int analyzer_index);
+        QString label() const;
     };
 
     // master sample, secondary sample
@@ -84,8 +99,19 @@ private:
         double slope_error_at(int64_t pivot, int64_t x) const;
     };
 
+    // The master's reference edges, shared by every secondary's fit
+    struct MasterReference
+    {
+        bool ready = false;
+        // [0] rising, [1] falling, thinned out if dense
+        std::vector<int64_t> edges[2];
+        int64_t pair_window = 0;
+        int64_t first_edge = 0;
+        int64_t last_edge = 0;
+    };
+
     SourceBuffer* source_for_handle(ds_device_handle handle);
-    const SourceBuffer* source_for_analyzer(int analyzer) const;
+    const SourceBuffer& master() const;
     bool ensure_channel_order(SourceBuffer &source);
     uint64_t read_word(const SourceBuffer &source, int physical_index, uint64_t block) const;
     uint64_t shifted_word(const SourceBuffer &source, int physical_index, int64_t source_start) const;
@@ -95,14 +121,18 @@ private:
                           const std::vector<LogicStackingChannel> &visible_map) const;
     void append_warning(const QString &message);
     void append_coverage_warnings(const std::vector<LogicStackingChannel> &visible_map);
-    int64_t manual_shift_samples() const;
-    int64_t secondary_shift_samples();
+    bool triggers_aligned(const SourceBuffer &secondary) const;
+    int64_t manual_shift_samples(const SourceBuffer &secondary) const;
+    int64_t shift_samples(SourceBuffer &secondary);
     void collect_reference_edges(const SourceBuffer &source,
                                  int physical_index,
                                  std::vector<int64_t> *rising,
                                  std::vector<int64_t> *falling,
                                  std::vector<int64_t> *gaps) const;
     int64_t reference_pair_window(std::vector<int64_t> &gaps) const;
+    bool use_rising_edges() const;
+    bool use_falling_edges() const;
+    const MasterReference& master_reference();
     void pair_reference_edges(const std::vector<int64_t> master_edges[2],
                               const std::vector<int64_t> secondary_edges[2],
                               const ReferenceFit &model,
@@ -114,16 +144,19 @@ private:
     void refine_reference_model(const std::vector<ReferencePair> &pairs,
                                 int64_t span,
                                 ReferenceFit &model) const;
-    bool fit_reference_timing(int64_t alignment_shift, ReferenceFit &fit);
-    void apply_reference_alignment(const ReferenceFit &fit);
-    int64_t reference_anchor() const;
-    void update_secondary_anchor();
+    bool fit_reference_timing(const SourceBuffer &secondary,
+                              int64_t alignment_shift,
+                              ReferenceFit &fit);
+    void apply_reference_alignment(SourceBuffer &secondary, const ReferenceFit &fit);
+    int64_t reference_anchor(const SourceBuffer &secondary) const;
+    void update_anchor(SourceBuffer &secondary);
     void ensure_reference_correction();
-    long double secondary_source_for_dest(uint64_t dest_sample) const;
-    int64_t rounded_secondary_source(uint64_t dest_sample) const;
-    uint64_t scaled_secondary_word(const SourceBuffer &source,
-                                   int physical_index,
-                                   uint64_t dest_sample) const;
+    void correct_secondary(SourceBuffer &secondary);
+    long double source_for_dest(const SourceBuffer &secondary, uint64_t dest_sample) const;
+    int64_t rounded_source(const SourceBuffer &secondary, uint64_t dest_sample) const;
+    uint64_t scaled_word(const SourceBuffer &secondary,
+                         int physical_index,
+                         uint64_t dest_sample) const;
     bool build_chunk(uint64_t start_sample,
                      uint64_t sample_count,
                      const std::vector<LogicStackingChannel> &visible_map,
@@ -131,18 +164,12 @@ private:
 
 private:
     LogicStackingConfig _config;
-    SourceBuffer _master;
-    SourceBuffer _secondary;
+    std::vector<SourceBuffer> _sources;
     uint64_t _total_sample_count;
     uint64_t _samplerate;
     bool _instant;
-    bool _secondary_shift_ready;
-    int64_t _secondary_shift;
     bool _reference_correction_ready;
-    bool _secondary_drift_applied;
-    long double _secondary_scale;
-    int64_t _secondary_anchor_dest;
-    long double _secondary_anchor_source;
+    MasterReference _master_reference;
     QString _warning;
 };
 

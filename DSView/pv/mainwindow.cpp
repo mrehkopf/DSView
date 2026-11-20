@@ -118,6 +118,82 @@ namespace pv
         // saved under an older layout is not restored over the new one.
         const int DOCK_LAYOUT_VERSION = 1;
 
+        // A stacked analyzer as saved in a session, to find it again on load
+        struct SavedStackingAnalyzer
+        {
+            ds_device_handle handle = NULL_HANDLE;
+            QString name;
+            QString unique_id;
+        };
+
+        // Finds a connected device for each saved analyzer, NULL_HANDLE where
+        // there is none. Analyzers of one model share a name, so each device is
+        // claimed by at most one analyzer: by unique id first, then by handle
+        // (still valid within one run), then by name for analyzers saved
+        // without a unique id.
+        std::vector<ds_device_handle> match_stacking_analyzers(const std::vector<SavedStackingAnalyzer> &saved)
+        {
+            std::vector<ds_device_handle> matched(saved.size(), NULL_HANDLE);
+
+            ds_device_base_info *devices = NULL;
+            int device_count = 0;
+            if (ds_get_device_list(&devices, &device_count) != SR_OK || devices == NULL)
+                return matched;
+
+            std::vector<bool> claimed(device_count, false);
+            for (int pass = 0; pass < 3; pass++){
+                for (size_t a = 0; a < saved.size(); a++){
+                    if (matched[a] != NULL_HANDLE)
+                        continue;
+
+                    for (int i = 0; i < device_count; i++){
+                        if (claimed[i])
+                            continue;
+
+                        const ds_device_base_info *dev = devices + i;
+                        bool match = false;
+                        if (pass == 0)
+                            match = !saved[a].unique_id.isEmpty() &&
+                                    QString::fromLocal8Bit(dev->unique_id) == saved[a].unique_id;
+                        else if (pass == 1)
+                            match = saved[a].handle != NULL_HANDLE && dev->handle == saved[a].handle;
+                        else
+                            match = saved[a].unique_id.isEmpty() &&
+                                    QString::fromLocal8Bit(dev->name) == saved[a].name;
+
+                        if (match){
+                            matched[a] = dev->handle;
+                            claimed[i] = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            g_free(devices);
+            return matched;
+        }
+
+        // Stores a device's name and unique id under the given keys
+        void save_stacking_identity(const ds_device_base_info *devices,
+                                    int device_count,
+                                    ds_device_handle handle,
+                                    QJsonObject &obj,
+                                    const QString &name_key,
+                                    const QString &unique_id_key)
+        {
+            if (devices == NULL || handle == NULL_HANDLE)
+                return;
+
+            for (int i = 0; i < device_count; i++){
+                if (devices[i].handle == handle){
+                    obj[name_key] = QString::fromLocal8Bit(devices[i].name);
+                    obj[unique_id_key] = QString::fromLocal8Bit(devices[i].unique_id);
+                    return;
+                }
+            }
+        }
+
         // Apply a session's per-channel analog settings, but only those the
         // session actually stores. The same sr_channel objects are shared by
         // every work mode, so a LOGIC session (which has no vdiv/vfactor/...)
@@ -758,32 +834,46 @@ namespace pv
             const LogicStackingConfig &stacking = _session->logic_stacking_config();
             stackingObj["enabled"] = stacking.enabled;
             stackingObj["master_handle"] = QString::number((qulonglong)stacking.master_handle);
-            stackingObj["secondary_handle"] = QString::number((qulonglong)stacking.secondary_handle);
-            stackingObj["secondary_sync_channel"] = stacking.secondary_sync_channel;
             stackingObj["show_sync_channel"] = stacking.show_sync_channel;
-            stackingObj["secondary_manual_shift_ps"] = QString::number((qlonglong)stacking.secondary_manual_shift_ps);
             stackingObj["reference_alignment_enabled"] = stacking.reference_alignment_enabled;
             stackingObj["drift_correction_enabled"] = stacking.drift_correction_enabled;
-            stackingObj["drift_master_channel"] = stacking.drift_master_channel;
-            stackingObj["drift_secondary_channel"] = stacking.drift_secondary_channel;
+            stackingObj["drift_master_channel"] = stacking.master_reference_channel;
             stackingObj["reference_edge_mode"] = stacking.reference_edge_mode;
 
             ds_device_base_info *devices = NULL;
             int device_count = 0;
-            if (ds_get_device_list(&devices, &device_count) == SR_OK && devices != NULL){
-                for (int i = 0; i < device_count; i++){
-                    const ds_device_base_info *dev = devices + i;
-                    if (dev->handle == stacking.master_handle){
-                        stackingObj["master_name"] = QString::fromLocal8Bit(dev->name);
-                        stackingObj["master_unique_id"] = QString::fromLocal8Bit(dev->unique_id);
-                    }
-                    else if (dev->handle == stacking.secondary_handle){
-                        stackingObj["secondary_name"] = QString::fromLocal8Bit(dev->name);
-                        stackingObj["secondary_unique_id"] = QString::fromLocal8Bit(dev->unique_id);
-                    }
-                }
-                g_free(devices);
+            if (ds_get_device_list(&devices, &device_count) != SR_OK)
+                devices = NULL;
+
+            save_stacking_identity(devices, device_count, stacking.master_handle,
+                                   stackingObj, "master_name", "master_unique_id");
+
+            QJsonArray secondariesArray;
+            for (const LogicStackingSecondary &secondary : stacking.secondaries){
+                QJsonObject secondaryObj;
+                secondaryObj["handle"] = QString::number((qulonglong)secondary.handle);
+                secondaryObj["sync_channel"] = secondary.sync_channel;
+                secondaryObj["manual_shift_ps"] = QString::number((qlonglong)secondary.manual_shift_ps);
+                secondaryObj["reference_channel"] = secondary.reference_channel;
+                save_stacking_identity(devices, device_count, secondary.handle,
+                                       secondaryObj, "name", "unique_id");
+                secondariesArray.append(secondaryObj);
             }
+            stackingObj["secondaries"] = secondariesArray;
+
+            // Builds without multi-analyzer stacking read one secondary from these keys
+            if (!stacking.secondaries.empty()){
+                const LogicStackingSecondary &secondary = stacking.secondaries.front();
+                stackingObj["secondary_handle"] = QString::number((qulonglong)secondary.handle);
+                stackingObj["secondary_sync_channel"] = secondary.sync_channel;
+                stackingObj["secondary_manual_shift_ps"] = QString::number((qlonglong)secondary.manual_shift_ps);
+                stackingObj["drift_secondary_channel"] = secondary.reference_channel;
+                save_stacking_identity(devices, device_count, secondary.handle,
+                                       stackingObj, "secondary_name", "secondary_unique_id");
+            }
+
+            if (devices != NULL)
+                g_free(devices);
 
             sessionVar["LogicStacking"] = stackingObj;
         }
@@ -945,55 +1035,69 @@ namespace pv
                 QJsonObject stackingObj = sessionObj["LogicStacking"].toObject();
                 stacking.enabled = stackingObj["enabled"].toBool();
                 stacking.master_handle = (ds_device_handle)stackingObj["master_handle"].toString().toULongLong();
-                stacking.secondary_handle = (ds_device_handle)stackingObj["secondary_handle"].toString().toULongLong();
-                stacking.secondary_sync_channel = stackingObj["secondary_sync_channel"].toInt();
+                stacking.master_reference_channel = stackingObj["drift_master_channel"].toInt();
                 stacking.show_sync_channel = stackingObj["show_sync_channel"].toBool();
-                stacking.secondary_manual_shift_ps = stackingObj["secondary_manual_shift_ps"].toString().toLongLong();
                 stacking.reference_alignment_enabled = stackingObj["reference_alignment_enabled"].toBool();
                 stacking.drift_correction_enabled = stackingObj["drift_correction_enabled"].toBool();
-                stacking.drift_master_channel = stackingObj["drift_master_channel"].toInt();
-                stacking.drift_secondary_channel = stackingObj["drift_secondary_channel"].toInt();
                 stacking.reference_edge_mode = stackingObj.contains("reference_edge_mode") ?
                     stackingObj["reference_edge_mode"].toInt(LogicStackingReferenceRising) :
                     LogicStackingReferenceRising;
                 if (!LogicStackingConfig::reference_edge_mode_valid(stacking.reference_edge_mode))
                     stacking.reference_edge_mode = LogicStackingReferenceRising;
 
-                if (stacking.enabled){
-                    const QString master_uid = stackingObj["master_unique_id"].toString();
-                    const QString secondary_uid = stackingObj["secondary_unique_id"].toString();
-                    const QString master_name = stackingObj["master_name"].toString();
-                    const QString secondary_name = stackingObj["secondary_name"].toString();
-                    ds_device_handle matched_master = NULL_HANDLE;
-                    ds_device_handle matched_secondary = NULL_HANDLE;
+                std::vector<SavedStackingAnalyzer> saved(1);
+                saved[0].handle = stacking.master_handle;
+                saved[0].name = stackingObj["master_name"].toString();
+                saved[0].unique_id = stackingObj["master_unique_id"].toString();
 
-                    ds_device_base_info *devices = NULL;
-                    int device_count = 0;
-                    if (ds_get_device_list(&devices, &device_count) == SR_OK && devices != NULL){
-                        for (int i = 0; i < device_count; i++){
-                            const ds_device_base_info *dev = devices + i;
-                            const QString name = QString::fromLocal8Bit(dev->name);
-                            const QString uid = QString::fromLocal8Bit(dev->unique_id);
+                if (stackingObj["secondaries"].isArray()){
+                    const QJsonArray secondariesArray = stackingObj["secondaries"].toArray();
+                    for (const QJsonValue &value : secondariesArray){
+                        if (stacking.analyzer_count() >= LogicStackingMaxAnalyzers)
+                            break;
 
-                            if (matched_master == NULL_HANDLE &&
-                                ((!master_uid.isEmpty() && uid == master_uid) ||
-                                 (master_uid.isEmpty() && name == master_name) ||
-                                 dev->handle == stacking.master_handle)){
-                                matched_master = dev->handle;
-                            }
+                        const QJsonObject secondaryObj = value.toObject();
+                        LogicStackingSecondary secondary;
+                        secondary.handle = (ds_device_handle)secondaryObj["handle"].toString().toULongLong();
+                        secondary.sync_channel = secondaryObj["sync_channel"].toInt();
+                        secondary.manual_shift_ps = secondaryObj["manual_shift_ps"].toString().toLongLong();
+                        secondary.reference_channel = secondaryObj["reference_channel"].toInt();
+                        stacking.secondaries.push_back(secondary);
 
-                            if (matched_secondary == NULL_HANDLE &&
-                                ((!secondary_uid.isEmpty() && uid == secondary_uid) ||
-                                 (secondary_uid.isEmpty() && name == secondary_name) ||
-                                 dev->handle == stacking.secondary_handle)){
-                                matched_secondary = dev->handle;
-                            }
-                        }
-                        g_free(devices);
+                        SavedStackingAnalyzer analyzer;
+                        analyzer.handle = secondary.handle;
+                        analyzer.name = secondaryObj["name"].toString();
+                        analyzer.unique_id = secondaryObj["unique_id"].toString();
+                        saved.push_back(analyzer);
                     }
+                }
+                else if (stackingObj.contains("secondary_handle")){
+                    // Sessions saved before multi-analyzer stacking have one secondary
+                    LogicStackingSecondary secondary;
+                    secondary.handle = (ds_device_handle)stackingObj["secondary_handle"].toString().toULongLong();
+                    secondary.sync_channel = stackingObj["secondary_sync_channel"].toInt();
+                    secondary.manual_shift_ps = stackingObj["secondary_manual_shift_ps"].toString().toLongLong();
+                    secondary.reference_channel = stackingObj["drift_secondary_channel"].toInt();
+                    stacking.secondaries.push_back(secondary);
 
-                    stacking.master_handle = matched_master;
-                    stacking.secondary_handle = matched_secondary;
+                    SavedStackingAnalyzer analyzer;
+                    analyzer.handle = secondary.handle;
+                    analyzer.name = stackingObj["secondary_name"].toString();
+                    analyzer.unique_id = stackingObj["secondary_unique_id"].toString();
+                    saved.push_back(analyzer);
+                }
+
+                if (stacking.enabled && !stacking.has_channel_model()){
+                    dsv_warn("Ignoring an invalid logic stacking setup in the session.");
+                    stacking.enabled = false;
+                }
+
+                if (stacking.enabled){
+                    const std::vector<ds_device_handle> matched = match_stacking_analyzers(saved);
+                    stacking.master_handle = matched[0];
+                    for (size_t i = 0; i < stacking.secondaries.size(); i++)
+                        stacking.secondaries[i].handle = matched[i + 1];
+
                     // Keep the virtual stacking setup alive so channel names/decoders can restore.
                     stacking_remap_required = !stacking.is_valid();
                 }

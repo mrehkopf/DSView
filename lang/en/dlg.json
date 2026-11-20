@@ -901,11 +901,11 @@
     },
     {
         "id": "IDS_DLG_BUS_PARTIAL",
-        "text": "The secondary analyzer can't trigger, so the trigger ignores %1 and fires whatever the levels there. The hex value shows 0 for ignored bits."
+        "text": "Only the master analyzer can trigger, so the trigger ignores %1 and fires whatever the levels there. The hex value shows 0 for ignored bits."
     },
     {
         "id": "IDS_DLG_BUS_NO_TRIGGER",
-        "text": "All of this bus's channels are on the secondary analyzer, which can't trigger."
+        "text": "All of this bus's channels are on secondary analyzers, which can't trigger."
     },
     {
         "id": "IDS_DLG_BUS_CONFLICT",
@@ -969,11 +969,11 @@
     },
     {
         "id": "IDS_DLG_ENABLE_TWO_ANALYZER_STACKING",
-        "text": "Enable two-analyzer stacking"
+        "text": "Enable analyzer stacking"
     },
     {
         "id": "IDS_DLG_SHOW_SECONDARY_SYNC_CHANNEL",
-        "text": "Show secondary sync channel"
+        "text": "Show secondary sync channels"
     },
     {
         "id": "IDS_DLG_NS",
@@ -989,11 +989,23 @@
     },
     {
         "id": "IDS_DLG_SECONDARY_SYNC_INPUT",
-        "text": "Secondary sync input"
+        "text": "Sync input"
     },
     {
         "id": "IDS_DLG_SECONDARY_MANUAL_SHIFT",
-        "text": "Secondary manual alignment"
+        "text": "Manual alignment"
+    },
+    {
+        "id": "IDS_DLG_STACKING_ANALYZER_COUNT",
+        "text": "Number of analyzers"
+    },
+    {
+        "id": "IDS_DLG_STACKING_DEVICE",
+        "text": "Device"
+    },
+    {
+        "id": "IDS_DLG_STACKING_REFERENCE_INPUT",
+        "text": "Reference input"
     },
     {
         "id": "IDS_DLG_STACKING_DRIFT_CORRECTION",
@@ -1002,14 +1014,6 @@
     {
         "id": "IDS_DLG_STACKING_REFERENCE_ALIGNMENT",
         "text": "Align using reference signal"
-    },
-    {
-        "id": "IDS_DLG_STACKING_MASTER_REFERENCE",
-        "text": "Master reference input"
-    },
-    {
-        "id": "IDS_DLG_STACKING_SECONDARY_REFERENCE",
-        "text": "Secondary reference input"
     },
     {
         "id": "IDS_DLG_STACKING_REFERENCE_EDGE",

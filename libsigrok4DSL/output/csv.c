@@ -45,8 +45,9 @@ struct context {
     double *channel_mmax;
     uint32_t ref_min;
     uint32_t ref_max;
-    uint64_t mask;
-    uint64_t pre_data;
+    /* The previous logic sample, to skip unchanged rows */
+    uint8_t *pre_sample;
+    unsigned int sample_bytes;
     uint64_t index;
     int type;
 };
@@ -83,7 +84,6 @@ static int init(struct sr_output *o, GHashTable *options)
 
 	o->priv = ctx;
 	ctx->separator = ',';
-    ctx->mask = 0;
     ctx->index = 0;
     ctx->type = g_variant_get_int16(g_hash_table_lookup(options, "type"));
 
@@ -108,7 +108,11 @@ static int init(struct sr_output *o, GHashTable *options)
     ctx->channel_mmax = g_try_malloc0(sizeof(double) * ctx->num_enabled_channels);
     ctx->channel_mmin = g_try_malloc0(sizeof(double) * ctx->num_enabled_channels);
 
-    if (ctx->channel_index == NULL || ctx->channel_mmin == NULL){
+    /* Logic samples carry one bit per enabled channel, in channel order */
+    ctx->sample_bytes = (ctx->num_enabled_channels + 7) / 8;
+    ctx->pre_sample = g_try_malloc0(ctx->sample_bytes > 0 ? ctx->sample_bytes : 1);
+
+    if (ctx->channel_index == NULL || ctx->channel_mmin == NULL || ctx->pre_sample == NULL){
         sr_err("%s,ERROR:failed to alloc memory.", __func__);
         return SR_ERR;
     }
@@ -123,9 +127,6 @@ static int init(struct sr_output *o, GHashTable *options)
 		if (!ch->enabled)
 			continue;
         ctx->channel_index[i] = ch->index;
-        //ctx->mask |= (1 << ch->index);
-        if (i < 64)
-            ctx->mask |= ((uint64_t)1 << i);
         range = ch->vdiv * ch->vfactor * DS_CONF_DSO_VDIVS;
         ctx->channel_unit[i] = (range >= 5000000) ? 1000000 :
                                 (range >= 5000) ? 1000 : 1;
@@ -209,6 +210,33 @@ static GString *gen_header(const struct sr_output *o)
 	return header;
 }
 
+/* Compares the enabled channels' bits of a logic sample with the previous one */
+static gboolean same_logic_sample(const struct context *ctx, const uint8_t *sample,
+		unsigned int unitsize)
+{
+	unsigned int bytes;
+	unsigned int full;
+	unsigned int rest;
+
+	bytes = ctx->sample_bytes < unitsize ? ctx->sample_bytes : unitsize;
+	full = ctx->num_enabled_channels / 8;
+	rest = ctx->num_enabled_channels % 8;
+	if (full > bytes) {
+		full = bytes;
+		rest = 0;
+	}
+	else if (full == bytes) {
+		rest = 0;
+	}
+
+	if (full > 0 && memcmp(sample, ctx->pre_sample, full) != 0)
+		return FALSE;
+	if (rest > 0 && ((sample[full] ^ ctx->pre_sample[full]) & ((1 << rest) - 1)) != 0)
+		return FALSE;
+
+	return TRUE;
+}
+
 static int receive(const struct sr_output *o, const struct sr_datafeed_packet *packet,
 		GString **out)
 {
@@ -274,7 +302,7 @@ static int receive(const struct sr_output *o, const struct sr_datafeed_packet *p
             ctx->index++;
 
             if (packet->bExportOriginalData == 0){
-                if (ctx->index > 1 && (*(uint64_t *)(logic->data + i) & ctx->mask) == ctx->pre_data)
+                if (ctx->index > 1 && same_logic_sample(ctx, (const uint8_t *)logic->data + i, logic->unitsize))
                    continue;
             } 
             
@@ -306,7 +334,8 @@ static int receive(const struct sr_output *o, const struct sr_datafeed_packet *p
                 g_string_append_c(*out, c ? '1' : '0');
 			}
 			g_string_append_printf(*out, "\n");
-            ctx->pre_data = (*(uint64_t *)(logic->data + i) & ctx->mask);
+            memcpy(ctx->pre_sample, (const uint8_t *)logic->data + i,
+                   ctx->sample_bytes < logic->unitsize ? ctx->sample_bytes : logic->unitsize);
 		}
 		break;
      case SR_DF_DSO:
@@ -402,6 +431,12 @@ static int cleanup(struct sr_output *o)
 	if (o->priv) {
 		ctx = o->priv;
 		g_free(ctx->channel_index);
+		g_free(ctx->channel_unit);
+		g_free(ctx->channel_scale);
+		g_free(ctx->channel_offset);
+		g_free(ctx->channel_mmax);
+		g_free(ctx->channel_mmin);
+		g_free(ctx->pre_sample);
 		g_free(o->priv);
 		o->priv = NULL;
 	}

@@ -12,19 +12,19 @@
  * LogicStackingMerger:
  * ====================
  * 
- * Take captured logic data from two DSLogic analyzers and combine them into
- * one logic snapshot. Supplementary signals are used to:
+ * Take captured logic data from two or more DSLogic analyzers and combine
+ * them into one logic snapshot. Supplementary signals are used to:
  *
- *  - Trigger the secondary analyzer to start its capture when the primary's
- *    trigger condition is met. Due to design limitations only the primary
- *    analyzer's channels may be used to set up the trigger.
+ *  - Trigger the secondary analyzers to start their captures when the
+ *    master's trigger condition is met. Due to design limitations only the
+ *    master analyzer's channels may be used to set up the trigger.
  * 
- *  - Align and synchronize the two captures; since there is a small delay for
- *    the secondary analyzer to get triggered, and the two analyzers each have
+ *  - Align and synchronize the captures; since there is a small delay for
+ *    each secondary analyzer to get triggered, and the analyzers each have
  *    unrelated clock generators which will drift apart, a common signal can be
- *    supplied to both analyzers to properly align the captures and keep them
+ *    supplied to all analyzers to properly align the captures and keep them
  *    from drifting apart (correction is applied to the captured data after
- *    recording).
+ *    recording). Each secondary is aligned to the master on its own.
  *    Reference edges are paired starting at the trigger point and tracked
  *    outwards, so the drift may add up to many edge periods over a capture.
  *    For this to work properly, the common synchronization signal should have
@@ -119,10 +119,13 @@ bool fit_affine(const std::vector<std::pair<int64_t, int64_t> > &pairs,
 
 }
 
-void LogicStackingMerger::SourceBuffer::reset(ds_device_handle h)
+void LogicStackingMerger::SourceBuffer::reset(ds_device_handle h, int analyzer_index)
 {
     handle = h;
-    bytes.clear();
+    analyzer = analyzer_index;
+    manual_shift_ps = 0;
+    reference_channel = 0;
+    std::vector<uint8_t>().swap(bytes);
     enabled_phys.clear();
     for (int i = 0; i < 64; i++)
         order_by_phys[i] = -1;
@@ -130,6 +133,17 @@ void LogicStackingMerger::SourceBuffer::reset(ds_device_handle h)
     ended = false;
     have_trigger = false;
     trigger_pos = 0;
+    shift_ready = false;
+    shift = 0;
+    drift_applied = false;
+    scale = 1.0L;
+    anchor_dest = 0;
+    anchor_source = 0.0L;
+}
+
+QString LogicStackingMerger::SourceBuffer::label() const
+{
+    return LogicStackingConfig::analyzer_label(analyzer);
 }
 
 LogicStackingMerger::LogicStackingMerger()
@@ -143,33 +157,43 @@ void LogicStackingMerger::reset(const LogicStackingConfig &config,
                                 bool instant)
 {
     _config = config;
-    _master.reset(config.master_handle);
-    _secondary.reset(config.secondary_handle);
+
+    // Release the previous capture's buffers before sizing for this one
+    std::vector<SourceBuffer>().swap(_sources);
+    _sources.resize(config.analyzer_count());
+    _sources[0].reset(config.master_handle, 0);
+    _sources[0].reference_channel = config.master_reference_channel;
+    for (size_t i = 0; i < config.secondaries.size(); i++){
+        SourceBuffer &source = _sources[i + 1];
+        source.reset(config.secondaries[i].handle, (int)i + 1);
+        source.manual_shift_ps = config.secondaries[i].manual_shift_ps;
+        source.reference_channel = config.secondaries[i].reference_channel;
+    }
+
     _total_sample_count = total_sample_count;
     _samplerate = samplerate;
     _instant = instant;
-    _secondary_shift_ready = false;
-    _secondary_shift = 0;
     _reference_correction_ready = false;
-    _secondary_drift_applied = false;
-    _secondary_scale = 1.0L;
-    _secondary_anchor_dest = 0;
-    _secondary_anchor_source = 0.0L;
+    _master_reference = MasterReference();
     _warning.clear();
 }
 
 LogicStackingMerger::SourceBuffer* LogicStackingMerger::source_for_handle(ds_device_handle handle)
 {
-    if (handle == _master.handle)
-        return &_master;
-    if (handle == _secondary.handle)
-        return &_secondary;
+    if (handle == NULL_HANDLE)
+        return NULL;
+
+    for (SourceBuffer &source : _sources){
+        if (source.handle == handle)
+            return &source;
+    }
+
     return NULL;
 }
 
-const LogicStackingMerger::SourceBuffer* LogicStackingMerger::source_for_analyzer(int analyzer) const
+const LogicStackingMerger::SourceBuffer& LogicStackingMerger::master() const
 {
-    return analyzer == 0 ? &_master : &_secondary;
+    return _sources[0];
 }
 
 bool LogicStackingMerger::ensure_channel_order(SourceBuffer &source)
@@ -238,12 +262,17 @@ bool LogicStackingMerger::mark_end(ds_device_handle handle)
 
 bool LogicStackingMerger::complete() const
 {
-    return _master.ended && _secondary.ended;
+    for (const SourceBuffer &source : _sources){
+        if (!source.ended)
+            return false;
+    }
+
+    return true;
 }
 
 uint64_t LogicStackingMerger::master_trigger_pos() const
 {
-    return _master.have_trigger ? _master.trigger_pos : 0;
+    return master().have_trigger ? master().trigger_pos : 0;
 }
 
 QString LogicStackingMerger::warning() const
@@ -283,82 +312,88 @@ bool LogicStackingMerger::analyzer_visible(int analyzer,
 
 void LogicStackingMerger::append_coverage_warnings(const std::vector<LogicStackingChannel> &visible_map)
 {
-    const uint64_t master_samples = source_sample_count(_master);
-    const uint64_t secondary_samples = source_sample_count(_secondary);
     ensure_reference_correction();
-    const int64_t secondary_shift = secondary_shift_samples();
 
+    const uint64_t master_samples = source_sample_count(master());
     if (analyzer_visible(0, visible_map) && master_samples < _total_sample_count){
         append_warning(QString(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_MASTER_INCOMPLETE), "Stacking master only provided %1 of %2 requested samples."))
                        .arg(master_samples)
                        .arg(_total_sample_count));
     }
 
-    if (!analyzer_visible(1, visible_map))
-        return;
+    for (size_t i = 1; i < _sources.size(); i++){
+        SourceBuffer &secondary = _sources[i];
+        if (!analyzer_visible(secondary.analyzer, visible_map))
+            continue;
 
-    // Required secondary source range after alignment; out-of-range parts become zero-fill.
-    int64_t first_required = -secondary_shift;
-    int64_t last_required = (int64_t)_total_sample_count - 1 - secondary_shift;
-    if (_total_sample_count == 0){
-        first_required = 0;
-        last_required = -1;
-    }
-    else if (_secondary_drift_applied){
-        const long double source_a = secondary_source_for_dest(0);
-        const long double source_b = secondary_source_for_dest(_total_sample_count - 1);
-        first_required = (int64_t)floor(std::min(source_a, source_b));
-        last_required = (int64_t)ceil(std::max(source_a, source_b));
-    }
+        const uint64_t secondary_samples = source_sample_count(secondary);
+        const int64_t secondary_shift = shift_samples(secondary);
 
-    if (first_required < 0 || last_required >= (int64_t)secondary_samples){
-        append_warning(QString(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_SECONDARY_INCOMPLETE),
-                                   "Stacking secondary coverage is incomplete: shift=%1 samples, source=%2 samples, required=%3 / %4."))
-                       .arg(secondary_shift)
-                       .arg(secondary_samples)
-                       .arg(first_required)
-                       .arg(last_required));
+        // Required secondary source range after alignment; out-of-range parts become zero-fill.
+        int64_t first_required = -secondary_shift;
+        int64_t last_required = (int64_t)_total_sample_count - 1 - secondary_shift;
+        if (_total_sample_count == 0){
+            first_required = 0;
+            last_required = -1;
+        }
+        else if (secondary.drift_applied){
+            const long double source_a = source_for_dest(secondary, 0);
+            const long double source_b = source_for_dest(secondary, _total_sample_count - 1);
+            first_required = (int64_t)floor(std::min(source_a, source_b));
+            last_required = (int64_t)ceil(std::max(source_a, source_b));
+        }
+
+        if (first_required < 0 || last_required >= (int64_t)secondary_samples){
+            append_warning(QString(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_SECONDARY_INCOMPLETE),
+                                       "Stacking coverage of %1 is incomplete: shift=%2 samples, source=%3 samples, required=[%4,%5]."))
+                           .arg(secondary.label())
+                           .arg(secondary_shift)
+                           .arg(secondary_samples)
+                           .arg(first_required)
+                           .arg(last_required));
+        }
     }
 }
 
-// apply manually set shift to the secondary analyzer's samples
-int64_t LogicStackingMerger::manual_shift_samples() const
+// The trigger positions line up a secondary with the master
+bool LogicStackingMerger::triggers_aligned(const SourceBuffer &secondary) const
 {
-    if (_samplerate == 0 || _config.secondary_manual_shift_ps == 0)
+    return !_instant && master().have_trigger && secondary.have_trigger;
+}
+
+// apply manually set shift to a secondary analyzer's samples
+int64_t LogicStackingMerger::manual_shift_samples(const SourceBuffer &secondary) const
+{
+    if (_samplerate == 0 || secondary.manual_shift_ps == 0)
         return 0;
 
-    const long double scaled = (long double)_config.secondary_manual_shift_ps *
+    const long double scaled = (long double)secondary.manual_shift_ps *
                                (long double)_samplerate / 1000000000000.0L;
     return (int64_t)llround(scaled);
 }
 
 // Base alignment: trigger positions plus manually entered shift
 // Drift correction may replace this offset and change scale
-int64_t LogicStackingMerger::secondary_shift_samples()
+int64_t LogicStackingMerger::shift_samples(SourceBuffer &secondary)
 {
-    if (_secondary_shift_ready)
-        return _secondary_shift;
+    if (secondary.shift_ready)
+        return secondary.shift;
 
-    _secondary_shift = manual_shift_samples();
+    secondary.shift = manual_shift_samples(secondary);
 
-    // instant capture has limited usability...
-    if (_instant){
-        if (!_config.reference_alignment_enabled)
-            append_warning(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_INSTANT_MANUAL_SHIFT),
-                               "Instant capture used manual alignment only. Trigger point alignment was skipped."));
+    // align captures to the corresponding reported trigger points from the analyzers;
+    // instant captures have none, ensure_reference_correction() reports that once
+    if (triggers_aligned(secondary)){
+        secondary.shift += (int64_t)master().trigger_pos - (int64_t)secondary.trigger_pos;
     }
-    // align captures to the corresponding reported trigger points from the analyzers
-    else if (_master.have_trigger && _secondary.have_trigger){
-        _secondary_shift += (int64_t)_master.trigger_pos - (int64_t)_secondary.trigger_pos;
-    }
-    else{
-        if (!_config.reference_alignment_enabled)
-            append_warning(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_SYNC_TRIGGER_MISSING),
-                               "Sync trigger was not reported by both analyzers. Only manual alignment applied."));
+    else if (!_instant && !_config.reference_alignment_enabled){
+        append_warning(QString(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_SYNC_TRIGGER_MISSING),
+                                   "Sync trigger was not reported by both the master and %1. Only manual alignment applied to %1."))
+                       .arg(secondary.label()));
     }
 
-    _secondary_shift_ready = true;
-    return _secondary_shift;
+    secondary.shift_ready = true;
+    return secondary.shift;
 }
 
 uint64_t LogicStackingMerger::read_word(const SourceBuffer &source,
@@ -471,6 +506,60 @@ int64_t LogicStackingMerger::reference_pair_window(std::vector<int64_t> &gaps) c
         return std::max<int64_t>(16, (int64_t)(_total_sample_count / 1000));
 
     return std::max<int64_t>(16, median_in_place(gaps) / 4);
+}
+
+bool LogicStackingMerger::use_rising_edges() const
+{
+    return _config.reference_edge_mode != LogicStackingReferenceFalling;
+}
+
+bool LogicStackingMerger::use_falling_edges() const
+{
+    return _config.reference_edge_mode == LogicStackingReferenceFalling ||
+           _config.reference_edge_mode == LogicStackingReferenceBoth;
+}
+
+// The master's reference edges are scanned once and shared by every secondary
+const LogicStackingMerger::MasterReference& LogicStackingMerger::master_reference()
+{
+    MasterReference &reference = _master_reference;
+    if (reference.ready)
+        return reference;
+
+    reference.ready = true;
+
+    std::vector<int64_t> gaps;
+    collect_reference_edges(master(), _config.master_reference_channel,
+                            use_rising_edges() ? &reference.edges[0] : NULL,
+                            use_falling_edges() ? &reference.edges[1] : NULL,
+                            &gaps);
+    reference.pair_window = reference_pair_window(gaps);
+    std::vector<int64_t>().swap(gaps);
+
+    // A subset pins down offset and drift just as well; thin out dense references
+    for (int polarity = 0; polarity < 2; polarity++){
+        std::vector<int64_t> &edges = reference.edges[polarity];
+        const size_t stride = (edges.size() + kMaxReferenceEdges - 1) / kMaxReferenceEdges;
+        if (stride <= 1)
+            continue;
+
+        size_t kept = 0;
+        for (size_t i = 0; i < edges.size(); i += stride)
+            edges[kept++] = edges[i];
+        edges.resize(kept);
+    }
+
+    reference.first_edge = std::numeric_limits<int64_t>::max();
+    reference.last_edge = std::numeric_limits<int64_t>::min();
+    for (int polarity = 0; polarity < 2; polarity++){
+        if (reference.edges[polarity].empty())
+            continue;
+
+        reference.first_edge = std::min(reference.first_edge, reference.edges[polarity].front());
+        reference.last_edge = std::max(reference.last_edge, reference.edges[polarity].back());
+    }
+
+    return reference;
 }
 
 // Pair each master edge in [first, last] with the nearest unused secondary edge
@@ -634,63 +723,33 @@ void LogicStackingMerger::refine_reference_model(const std::vector<ReferencePair
 // Pair reference edges outwards from the trigger anchor, widening the span step by
 // step and predicting edge positions with the model fitted so far. The drift may
 // add up to many edge periods over the capture without breaking the pairing.
-bool LogicStackingMerger::fit_reference_timing(int64_t alignment_shift, ReferenceFit &fit)
+bool LogicStackingMerger::fit_reference_timing(const SourceBuffer &secondary,
+                                               int64_t alignment_shift,
+                                               ReferenceFit &fit)
 {
     fit = ReferenceFit();
 
-    if (!LogicStackingConfig::channel_index_valid(_config.drift_master_channel) ||
-        !LogicStackingConfig::channel_index_valid(_config.drift_secondary_channel))
+    if (!LogicStackingConfig::channel_index_valid(_config.master_reference_channel) ||
+        !LogicStackingConfig::channel_index_valid(secondary.reference_channel))
         return false;
 
-    const bool use_rising = _config.reference_edge_mode != LogicStackingReferenceFalling;
-    const bool use_falling = _config.reference_edge_mode == LogicStackingReferenceFalling ||
-                             _config.reference_edge_mode == LogicStackingReferenceBoth;
+    const MasterReference &reference = master_reference();
 
     // [0] rising, [1] falling
-    std::vector<int64_t> master_edges[2];
     std::vector<int64_t> secondary_edges[2];
-    std::vector<int64_t> gaps;
-    collect_reference_edges(_master, _config.drift_master_channel,
-                            use_rising ? &master_edges[0] : NULL,
-                            use_falling ? &master_edges[1] : NULL,
-                            &gaps);
-    collect_reference_edges(_secondary, _config.drift_secondary_channel,
-                            use_rising ? &secondary_edges[0] : NULL,
-                            use_falling ? &secondary_edges[1] : NULL,
+    collect_reference_edges(secondary, secondary.reference_channel,
+                            use_rising_edges() ? &secondary_edges[0] : NULL,
+                            use_falling_edges() ? &secondary_edges[1] : NULL,
                             NULL);
 
-    if (master_edges[0].size() + master_edges[1].size() < 2 ||
+    if (reference.edges[0].size() + reference.edges[1].size() < 2 ||
         secondary_edges[0].size() + secondary_edges[1].size() < 2)
         return false;
 
-    const int64_t pair_window = reference_pair_window(gaps);
-    std::vector<int64_t>().swap(gaps);
-
-    // A subset pins down offset and drift just as well; thin out dense references
-    for (int polarity = 0; polarity < 2; polarity++){
-        std::vector<int64_t> &edges = master_edges[polarity];
-        const size_t stride = (edges.size() + kMaxReferenceEdges - 1) / kMaxReferenceEdges;
-        if (stride <= 1)
-            continue;
-
-        size_t kept = 0;
-        for (size_t i = 0; i < edges.size(); i += stride)
-            edges[kept++] = edges[i];
-        edges.resize(kept);
-    }
-
-    int64_t first_edge = std::numeric_limits<int64_t>::max();
-    int64_t last_edge = std::numeric_limits<int64_t>::min();
-    for (int polarity = 0; polarity < 2; polarity++){
-        if (master_edges[polarity].empty())
-            continue;
-
-        first_edge = std::min(first_edge, master_edges[polarity].front());
-        last_edge = std::max(last_edge, master_edges[polarity].back());
-    }
+    const int64_t pair_window = reference.pair_window;
 
     // Start where even the largest accepted drift stays within half the pair window
-    const int64_t anchor = reference_anchor();
+    const int64_t anchor = reference_anchor(secondary);
     int64_t half_span = std::max<int64_t>(pair_window,
         (int64_t)((long double)pair_window * 1000000.0L / (2.0L * kMaxDriftPpm)));
 
@@ -702,12 +761,14 @@ bool LogicStackingMerger::fit_reference_timing(int64_t alignment_shift, Referenc
         const int64_t first = anchor - half_span;
         const int64_t last = anchor + half_span;
         pairs.clear();
-        pair_reference_edges(master_edges, secondary_edges, model, first, last, pair_window, pairs);
+        pair_reference_edges(reference.edges, secondary_edges, model, first, last, pair_window, pairs);
 
-        if (first <= first_edge && last >= last_edge)
+        if (first <= reference.first_edge && last >= reference.last_edge)
             break;
 
-        refine_reference_model(pairs, std::min(last, last_edge) - std::max(first, first_edge), model);
+        refine_reference_model(pairs,
+                               std::min(last, reference.last_edge) - std::max(first, reference.first_edge),
+                               model);
         half_span *= 2;
     }
 
@@ -716,43 +777,44 @@ bool LogicStackingMerger::fit_reference_timing(int64_t alignment_shift, Referenc
 
 // Constant secondary offset: the fitted reference timing at the trigger anchor,
 // or the pairs' median offset when the fit cannot be extrapolated that far
-void LogicStackingMerger::apply_reference_alignment(const ReferenceFit &fit)
+void LogicStackingMerger::apply_reference_alignment(SourceBuffer &secondary, const ReferenceFit &fit)
 {
-    const int64_t anchor = reference_anchor();
+    const int64_t anchor = reference_anchor(secondary);
     long double reference_shift = fit.median_offset;
     if (fit.error_at(anchor) <= kMaxTimingError)
         reference_shift = (long double)anchor - ((long double)anchor - fit.offset) / fit.scale;
 
-    _secondary_shift = (int64_t)llround(reference_shift) + manual_shift_samples();
-    _secondary_shift_ready = true;
+    secondary.shift = (int64_t)llround(reference_shift) + manual_shift_samples(secondary);
+    secondary.shift_ready = true;
 
     const double shift_ns = _samplerate == 0 ? 0.0 :
-        (double)_secondary_shift * 1000000000.0 / (double)_samplerate;
+        (double)secondary.shift * 1000000000.0 / (double)_samplerate;
     append_warning(QString(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_ALIGNMENT_APPLIED),
-                               "Stacking reference alignment applied: secondary offset %1 samples (%2 ns) from %3 reference edges."))
-                   .arg(_secondary_shift)
+                               "Stacking reference alignment applied: %1 offset %2 samples (%3 ns) from %4 reference edges."))
+                   .arg(secondary.label())
+                   .arg(secondary.shift)
                    .arg(shift_ns, 0, 'f', 3)
                    .arg((qulonglong)fit.inlier_count));
 }
 
 // Master sample where the trigger alignment holds; reference tracking starts there
-int64_t LogicStackingMerger::reference_anchor() const
+int64_t LogicStackingMerger::reference_anchor(const SourceBuffer &secondary) const
 {
-    if (!_instant && _master.have_trigger && _secondary.have_trigger)
-        return (int64_t)_master.trigger_pos;
+    if (triggers_aligned(secondary))
+        return (int64_t)master().trigger_pos;
 
     return (int64_t)(_total_sample_count / 2);
 }
 
-void LogicStackingMerger::update_secondary_anchor()
+void LogicStackingMerger::update_anchor(SourceBuffer &secondary)
 {
-    const int64_t manual_shift = manual_shift_samples();
-    _secondary_anchor_dest = (int64_t)(_total_sample_count / 2);
-    if (!_instant && _master.have_trigger && _secondary.have_trigger)
-        _secondary_anchor_dest = (int64_t)_master.trigger_pos + manual_shift;
+    const int64_t manual_shift = manual_shift_samples(secondary);
+    secondary.anchor_dest = (int64_t)(_total_sample_count / 2);
+    if (triggers_aligned(secondary))
+        secondary.anchor_dest = (int64_t)master().trigger_pos + manual_shift;
 
-    _secondary_anchor_source = (long double)_secondary_anchor_dest -
-                               (long double)secondary_shift_samples();
+    secondary.anchor_source = (long double)secondary.anchor_dest -
+                              (long double)shift_samples(secondary);
 }
 
 void LogicStackingMerger::ensure_reference_correction()
@@ -761,24 +823,41 @@ void LogicStackingMerger::ensure_reference_correction()
         return;
 
     _reference_correction_ready = true;
-    _secondary_drift_applied = false;
-    _secondary_scale = 1.0L;
 
-    const int64_t base_shift = secondary_shift_samples();
-    const int64_t manual_shift = manual_shift_samples();
-    update_secondary_anchor();
+    // instant capture has limited usability...
+    if (_instant && !_config.reference_alignment_enabled)
+        append_warning(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_INSTANT_MANUAL_SHIFT),
+                           "Instant capture used manual alignment only. Trigger point alignment was skipped."));
 
-    if (!_config.reference_alignment_enabled && !_config.drift_correction_enabled)
+    for (size_t i = 1; i < _sources.size(); i++)
+        correct_secondary(_sources[i]);
+}
+
+// Each secondary is aligned to the master on its own; secondaries never
+// reference each other, so one bad reference input only affects its analyzer
+void LogicStackingMerger::correct_secondary(SourceBuffer &secondary)
+{
+    secondary.drift_applied = false;
+    secondary.scale = 1.0L;
+
+    const int64_t base_shift = shift_samples(secondary);
+    const int64_t manual_shift = manual_shift_samples(secondary);
+    update_anchor(secondary);
+
+    if (!_config.uses_reference())
         return;
 
+    const QString label = secondary.label();
     ReferenceFit fit;
-    if (!fit_reference_timing(base_shift - manual_shift, fit)){
+    if (!fit_reference_timing(secondary, base_shift - manual_shift, fit)){
         if (_config.reference_alignment_enabled)
-            append_warning(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_ALIGNMENT_FAILED),
-                               "Stacking reference alignment skipped: not enough matching reference edges on the selected channels."));
+            append_warning(QString(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_ALIGNMENT_FAILED),
+                                       "Stacking reference alignment skipped for %1: not enough matching reference edges on the selected channels."))
+                           .arg(label));
         if (_config.drift_correction_enabled)
-            append_warning(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_DRIFT_FAILED),
-                               "Stacking drift correction skipped: not enough matching reference edges on the selected channels."));
+            append_warning(QString(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_DRIFT_FAILED),
+                                       "Stacking drift correction skipped for %1: not enough matching reference edges on the selected channels."))
+                           .arg(label));
         return;
     }
 
@@ -786,84 +865,90 @@ void LogicStackingMerger::ensure_reference_correction()
     if (fit.median_residual > kMaxMedianResidual){
         if (_config.reference_alignment_enabled)
             append_warning(QString(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_ALIGNMENT_REJECTED),
-                                       "Stacking reference alignment skipped: reference edge timing is inconsistent (typical deviation %1 samples)."))
+                                       "Stacking reference alignment skipped for %1: reference edge timing is inconsistent (typical deviation %2 samples)."))
+                           .arg(label)
                            .arg(fit.median_residual, 0, 'f', 1));
         if (_config.drift_correction_enabled)
             append_warning(QString(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_DRIFT_INCONSISTENT),
-                                       "Stacking drift correction skipped: reference edge timing is inconsistent (typical deviation %1 samples)."))
+                                       "Stacking drift correction skipped for %1: reference edge timing is inconsistent (typical deviation %2 samples)."))
+                           .arg(label)
                            .arg(fit.median_residual, 0, 'f', 1));
         return;
     }
 
     if (_config.reference_alignment_enabled){
-        apply_reference_alignment(fit);
-        update_secondary_anchor();
+        apply_reference_alignment(secondary, fit);
+        update_anchor(secondary);
     }
 
     if (!_config.drift_correction_enabled)
         return;
 
     const int64_t last_sample = (int64_t)_total_sample_count - 1;
+    const int64_t anchor = reference_anchor(secondary);
     const double drift_error = _config.reference_alignment_enabled ?
         std::max(fit.error_at(0), fit.error_at(last_sample)) :
-        std::max(fit.slope_error_at(reference_anchor(), 0),
-                 fit.slope_error_at(reference_anchor(), last_sample));
+        std::max(fit.slope_error_at(anchor, 0),
+                 fit.slope_error_at(anchor, last_sample));
     if (drift_error > kMaxTimingError){
-        append_warning(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_DRIFT_FAILED),
-                           "Stacking drift correction skipped: not enough matching reference edges on the selected channels."));
+        append_warning(QString(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_DRIFT_FAILED),
+                                   "Stacking drift correction skipped for %1: not enough matching reference edges on the selected channels."))
+                       .arg(label));
         return;
     }
 
     const long double ppm = (fit.scale - 1.0L) * 1000000.0L;
     if (fit.scale <= 0.0L || std::fabs((double)ppm) > kMaxDriftPpm){
         append_warning(QString(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_DRIFT_REJECTED),
-                                   "Stacking drift correction skipped: estimated drift %1 ppm is outside the expected range."))
+                                   "Stacking drift correction skipped for %1: estimated drift %2 ppm is outside the expected range."))
+                       .arg(label)
                        .arg((double)ppm, 0, 'f', 3));
         return;
     }
 
-    _secondary_scale = fit.scale;
+    secondary.scale = fit.scale;
     if (_config.reference_alignment_enabled){
-        // Alignment+drift means the reference signal determines the whole A2 time mapping
-        _secondary_anchor_dest = 0;
-        _secondary_anchor_source = -((long double)manual_shift + fit.offset) / fit.scale;
+        // Alignment+drift means the reference signal determines the whole time mapping
+        secondary.anchor_dest = 0;
+        secondary.anchor_source = -((long double)manual_shift + fit.offset) / fit.scale;
     }
     // Drift-only correction keeps the trigger+manual shift at the anchor and only
     // takes the slope; the fit's offset is free, so a reference-signal offset
     // cannot contribute to false drift correction
 
-    _secondary_drift_applied = true;
+    secondary.drift_applied = true;
     append_warning(QString(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_DRIFT_APPLIED),
-                               "Stacking drift correction applied: secondary drift %1 ppm from %2 reference edges."))
+                               "Stacking drift correction applied: %1 drift %2 ppm from %3 reference edges."))
+                   .arg(label)
                    .arg((double)ppm, 0, 'f', 3)
                    .arg((qulonglong)fit.inlier_count));
 }
 
-long double LogicStackingMerger::secondary_source_for_dest(uint64_t dest_sample) const
+long double LogicStackingMerger::source_for_dest(const SourceBuffer &secondary, uint64_t dest_sample) const
 {
-    return _secondary_anchor_source +
-           ((long double)dest_sample - (long double)_secondary_anchor_dest) /
-           _secondary_scale;
+    return secondary.anchor_source +
+           ((long double)dest_sample - (long double)secondary.anchor_dest) /
+           secondary.scale;
 }
 
-int64_t LogicStackingMerger::rounded_secondary_source(uint64_t dest_sample) const
+int64_t LogicStackingMerger::rounded_source(const SourceBuffer &secondary, uint64_t dest_sample) const
 {
-    return (int64_t)llround(secondary_source_for_dest(dest_sample));
+    return (int64_t)llround(source_for_dest(secondary, dest_sample));
 }
 
-uint64_t LogicStackingMerger::scaled_secondary_word(const SourceBuffer &source,
-                                                   int physical_index,
-                                                   uint64_t dest_sample) const
+uint64_t LogicStackingMerger::scaled_word(const SourceBuffer &secondary,
+                                          int physical_index,
+                                          uint64_t dest_sample) const
 {
-    const int64_t first = rounded_secondary_source(dest_sample);
-    const int64_t last = rounded_secondary_source(dest_sample + 63);
+    const int64_t first = rounded_source(secondary, dest_sample);
+    const int64_t last = rounded_source(secondary, dest_sample + 63);
 
     if (last - first == 63)
-        return shifted_word(source, physical_index, first);
+        return shifted_word(secondary, physical_index, first);
 
     uint64_t word = 0;
     for (unsigned int bit = 0; bit < 64; bit++){
-        if (bit_at(source, physical_index, rounded_secondary_source(dest_sample + bit)))
+        if (bit_at(secondary, physical_index, rounded_source(secondary, dest_sample + bit)))
             word |= 1ULL << bit;
     }
 
@@ -881,23 +966,27 @@ bool LogicStackingMerger::build_chunk(uint64_t start_sample,
     const uint64_t blocks = (sample_count + 63) / 64;
     words.assign((size_t)(blocks * visible_map.size()), 0);
     ensure_reference_correction();
-    const int64_t secondary_shift = secondary_shift_samples();
 
     // LogicSnapshot stores data in 64-sample words, one word per visible channel
     for (uint64_t block = 0; block < blocks; block++){
         for (size_t ch = 0; ch < visible_map.size(); ch++){
             const LogicStackingChannel &mapped = visible_map[ch];
-            const SourceBuffer *source = source_for_analyzer(mapped.analyzer);
-            const int64_t source_shift = mapped.analyzer == 0 ? 0 : secondary_shift;
+            if (mapped.analyzer < 0 || mapped.analyzer >= (int)_sources.size())
+                continue;
+
+            SourceBuffer &source = _sources[(size_t)mapped.analyzer];
             const uint64_t dest_sample = start_sample + block * 64;
             uint64_t word = 0;
-            if (mapped.analyzer == 1 && _secondary_drift_applied){
-                word = scaled_secondary_word(*source, mapped.physical_index, dest_sample);
+            if (mapped.analyzer == 0){
+                word = shifted_word(source, mapped.physical_index, (int64_t)dest_sample);
+            }
+            else if (source.drift_applied){
+                word = scaled_word(source, mapped.physical_index, dest_sample);
             }
             else{
-                word = shifted_word(*source,
+                word = shifted_word(source,
                                     mapped.physical_index,
-                                    (int64_t)dest_sample - source_shift);
+                                    (int64_t)dest_sample - shift_samples(source));
             }
 
             const uint64_t remaining = _total_sample_count - dest_sample;
@@ -921,11 +1010,14 @@ bool LogicStackingMerger::flush_to_snapshot(LogicSnapshot *snapshot,
     if (snapshot == NULL || visible_channels == NULL || visible_map.empty())
         return false;
 
-    if (!_config.is_valid() || _total_sample_count == 0)
+    if (!_config.is_valid() || _total_sample_count == 0 ||
+        (int)_sources.size() != _config.analyzer_count())
         return false;
 
-    if (!ensure_channel_order(_master) || !ensure_channel_order(_secondary))
-        return false;
+    for (SourceBuffer &source : _sources){
+        if (!ensure_channel_order(source))
+            return false;
+    }
 
     append_coverage_warnings(visible_map);
 

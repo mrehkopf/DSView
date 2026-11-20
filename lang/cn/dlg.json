@@ -905,7 +905,7 @@
     },
     {
         "id": "IDS_DLG_BUS_PARTIAL",
-        "text": "次分析仪无法触发，因此触发条件忽略 %1，无论这些位的电平如何都会触发。十六进制值中被忽略的位显示为 0。"
+        "text": "只有主分析仪可以触发，因此触发条件忽略 %1，无论这些位的电平如何都会触发。十六进制值中被忽略的位显示为 0。"
     },
     {
         "id": "IDS_DLG_BUS_NO_TRIGGER",
@@ -973,7 +973,7 @@
     },
     {
         "id": "IDS_DLG_ENABLE_TWO_ANALYZER_STACKING",
-        "text": "启用双分析仪堆叠"
+        "text": "启用分析仪堆叠"
     },
     {
         "id": "IDS_DLG_SHOW_SECONDARY_SYNC_CHANNEL",
@@ -993,11 +993,23 @@
     },
     {
         "id": "IDS_DLG_SECONDARY_SYNC_INPUT",
-        "text": "次分析仪同步输入"
+        "text": "同步输入"
     },
     {
         "id": "IDS_DLG_SECONDARY_MANUAL_SHIFT",
-        "text": "次分析仪手动对齐"
+        "text": "手动对齐"
+    },
+    {
+        "id": "IDS_DLG_STACKING_ANALYZER_COUNT",
+        "text": "分析仪数量"
+    },
+    {
+        "id": "IDS_DLG_STACKING_DEVICE",
+        "text": "设备"
+    },
+    {
+        "id": "IDS_DLG_STACKING_REFERENCE_INPUT",
+        "text": "参考输入"
     },
     {
         "id": "IDS_DLG_STACKING_DRIFT_CORRECTION",
@@ -1006,14 +1018,6 @@
     {
         "id": "IDS_DLG_STACKING_REFERENCE_ALIGNMENT",
         "text": "使用参考信号对齐"
-    },
-    {
-        "id": "IDS_DLG_STACKING_MASTER_REFERENCE",
-        "text": "主分析仪参考输入"
-    },
-    {
-        "id": "IDS_DLG_STACKING_SECONDARY_REFERENCE",
-        "text": "次分析仪参考输入"
     },
     {
         "id": "IDS_DLG_STACKING_REFERENCE_EDGE",

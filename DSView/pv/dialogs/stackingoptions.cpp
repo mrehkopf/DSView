@@ -15,7 +15,7 @@
 #include <QAbstractItemView>
 #include <QDialogButtonBox>
 #include <QFormLayout>
-#include <QLabel>
+#include <QGridLayout>
 #include <QMessageBox>
 #include <QVBoxLayout>
 
@@ -43,28 +43,14 @@ StackingOptions::StackingOptions(QWidget *parent, SigSession *session) :
     dialog_font.setPointSizeF(AppConfig::Instance().appOptions.fontSize);
     setFont(dialog_font);
 
-    _enable = new QCheckBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_ENABLE_TWO_ANALYZER_STACKING), "Enable two-analyzer stacking"), this);
-    _master = new DsComboBox(this);
-    _secondary = new DsComboBox(this);
-    _sync_channel = new DsComboBox(this);
-    _show_sync = new QCheckBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SHOW_SECONDARY_SYNC_CHANNEL), "Show secondary sync channel"), this);
-    _manual_shift_ns = new XDoubleSpinBox(this);
+    _enable = new QCheckBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_ENABLE_TWO_ANALYZER_STACKING), "Enable analyzer stacking"), this);
+    _analyzer_count = new QSpinBox(this);
+    _show_sync = new QCheckBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SHOW_SECONDARY_SYNC_CHANNEL), "Show secondary sync channels"), this);
     _reference_alignment = new QCheckBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_REFERENCE_ALIGNMENT), "Align using reference signal"), this);
     _drift_correction = new QCheckBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_DRIFT_CORRECTION), "Correct clock drift using reference signal"), this);
-    _drift_master_channel = new DsComboBox(this);
-    _drift_secondary_channel = new DsComboBox(this);
     _reference_edge_mode = new DsComboBox(this);
 
-    _manual_shift_ns->setRange(-1000000000.0, 1000000000.0);
-    _manual_shift_ns->setDecimals(3);
-    _manual_shift_ns->setSuffix(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_NS), " ns"));
-    _manual_shift_ns->setSingleStep(1.0);
-
-    for (int i = 0; i < 32; i++){
-        _sync_channel->addItem(QString(), i);
-        _drift_master_channel->addItem(QString(), i);
-        _drift_secondary_channel->addItem(QString(), i);
-    }
+    _analyzer_count->setRange(2, LogicStackingMaxAnalyzers);
 
     _reference_edge_mode->addItem(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_REFERENCE_RISING), "Rising"),
                                   LogicStackingReferenceRising);
@@ -73,17 +59,48 @@ StackingOptions::StackingOptions(QWidget *parent, SigSession *session) :
     _reference_edge_mode->addItem(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_REFERENCE_BOTH), "Both"),
                                   LogicStackingReferenceBoth);
 
-    QFormLayout *form = new QFormLayout;
-    form->addRow(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_MASTER), "Master"), _master);
-    form->addRow(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SECONDARY), "Secondary"), _secondary);
-    form->addRow(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SECONDARY_SYNC_INPUT), "Secondary sync input"), _sync_channel);
-    form->addRow(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SECONDARY_MANUAL_SHIFT), "Secondary manual alignment"), _manual_shift_ns);
-    form->addRow(QString(), _show_sync);
-    form->addRow(QString(), _reference_alignment);
-    form->addRow(QString(), _drift_correction);
-    form->addRow(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_MASTER_REFERENCE), "Master reference input"), _drift_master_channel);
-    form->addRow(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_SECONDARY_REFERENCE), "Secondary reference input"), _drift_secondary_channel);
-    form->addRow(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_REFERENCE_EDGE), "Reference edge"), _reference_edge_mode);
+    // One row per analyzer; rows past the analyzer count are hidden
+    QGridLayout *grid = new QGridLayout;
+    grid->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_DEVICE), "Device"), this), 0, 1);
+    grid->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SECONDARY_SYNC_INPUT), "Sync input"), this), 0, 2);
+    grid->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SECONDARY_MANUAL_SHIFT), "Manual alignment"), this), 0, 3);
+    grid->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_REFERENCE_INPUT), "Reference input"), this), 0, 4);
+
+    const QString master_role = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_MASTER), "Master");
+    const QString secondary_role = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SECONDARY), "Secondary");
+
+    _rows.resize(LogicStackingMaxAnalyzers);
+    for (int analyzer = 0; analyzer < LogicStackingMaxAnalyzers; analyzer++){
+        AnalyzerRow &row = _rows[analyzer];
+        row.label = new QLabel(QString("%1 (%2)").arg(LogicStackingConfig::analyzer_label(analyzer),
+                                                      analyzer == 0 ? master_role : secondary_role), this);
+        row.device = new DsComboBox(this);
+        row.reference_channel = new_channel_combo();
+
+        grid->addWidget(row.label, analyzer + 1, 0);
+        grid->addWidget(row.device, analyzer + 1, 1);
+        grid->addWidget(row.reference_channel, analyzer + 1, 4);
+
+        if (analyzer == 0)
+            continue;
+
+        row.sync_channel = new_channel_combo();
+        row.manual_shift_ns = new XDoubleSpinBox(this);
+        row.manual_shift_ns->setRange(-1000000000.0, 1000000000.0);
+        row.manual_shift_ns->setDecimals(3);
+        row.manual_shift_ns->setSuffix(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_NS), " ns"));
+        row.manual_shift_ns->setSingleStep(1.0);
+
+        grid->addWidget(row.sync_channel, analyzer + 1, 2);
+        grid->addWidget(row.manual_shift_ns, analyzer + 1, 3);
+    }
+    grid->setColumnStretch(1, 1);
+
+    QFormLayout *count_form = new QFormLayout;
+    count_form->addRow(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_ANALYZER_COUNT), "Number of analyzers"), _analyzer_count);
+
+    QFormLayout *reference_form = new QFormLayout;
+    reference_form->addRow(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_REFERENCE_EDGE), "Reference edge"), _reference_edge_mode);
 
     QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     connect(buttons, SIGNAL(accepted()), this, SLOT(accept()));
@@ -94,7 +111,12 @@ StackingOptions::StackingOptions(QWidget *parent, SigSession *session) :
 
     QVBoxLayout *content_layout = new QVBoxLayout;
     content_layout->addWidget(_enable);
-    content_layout->addLayout(form);
+    content_layout->addLayout(count_form);
+    content_layout->addLayout(grid);
+    content_layout->addWidget(_show_sync);
+    content_layout->addWidget(_reference_alignment);
+    content_layout->addWidget(_drift_correction);
+    content_layout->addLayout(reference_form);
     content_layout->addWidget(buttons);
     layout()->addLayout(content_layout);
 
@@ -103,7 +125,16 @@ StackingOptions::StackingOptions(QWidget *parent, SigSession *session) :
     populate_devices();
     populate_channel_labels();
     load_config();
-    on_enabled_changed(_enable->isChecked());
+
+    connect(_analyzer_count, SIGNAL(valueChanged(int)), this, SLOT(on_analyzer_count_changed(int)));
+}
+
+QComboBox* StackingOptions::new_channel_combo()
+{
+    QComboBox *combo = new DsComboBox(this);
+    for (int i = 0; i < LogicStackingChannelsPerAnalyzer; i++)
+        combo->addItem(QString(), i);
+    return combo;
 }
 
 void StackingOptions::populate_devices()
@@ -127,8 +158,8 @@ void StackingOptions::populate_devices()
         _devices.push_back(analyzer);
 
         const QVariant handle = QVariant::fromValue((unsigned long long)info->handle);
-        _master->addItem(analyzer.display_name(), handle);
-        _secondary->addItem(analyzer.display_name(), handle);
+        for (AnalyzerRow &row : _rows)
+            row.device->addItem(analyzer.display_name(), handle);
     }
 
     g_free(array);
@@ -136,14 +167,14 @@ void StackingOptions::populate_devices()
 
 QString StackingOptions::channel_label(int analyzer, int physical_index) const
 {
-    const int global_index = analyzer == 0 ? physical_index : 32 + physical_index;
+    const int global_index = LogicStackingConfig::global_channel_index(analyzer, physical_index);
     view::Signal *signal = _session != NULL ? _session->get_signal_by_index(global_index) : NULL;
 
     // During cold-start remapping the synthetic traces may not exist yet.
     if (signal != NULL && !signal->get_name().trimmed().isEmpty())
         return signal->get_name();
 
-    return QString("A%1-D%2").arg(analyzer + 1).arg(physical_index);
+    return QString("%1-D%2").arg(LogicStackingConfig::analyzer_label(analyzer)).arg(physical_index);
 }
 
 void StackingOptions::set_channel_combo_label(QComboBox *combo, int index, const QString &label)
@@ -166,15 +197,19 @@ void StackingOptions::update_channel_combo_popup_width(QComboBox *combo) const
 
 void StackingOptions::populate_channel_labels()
 {
-    for (int i = 0; i < 32; i++){
-        set_channel_combo_label(_sync_channel, i, channel_label(1, i));
-        set_channel_combo_label(_drift_master_channel, i, channel_label(0, i));
-        set_channel_combo_label(_drift_secondary_channel, i, channel_label(1, i));
-    }
+    for (int analyzer = 0; analyzer < _rows.size(); analyzer++){
+        const AnalyzerRow &row = _rows[analyzer];
+        QComboBox *combos[2] = {row.reference_channel, row.sync_channel};
 
-    update_channel_combo_popup_width(_sync_channel);
-    update_channel_combo_popup_width(_drift_master_channel);
-    update_channel_combo_popup_width(_drift_secondary_channel);
+        for (QComboBox *combo : combos){
+            if (combo == NULL)
+                continue;
+
+            for (int i = 0; i < LogicStackingChannelsPerAnalyzer; i++)
+                set_channel_combo_label(combo, i, channel_label(analyzer, i));
+            update_channel_combo_popup_width(combo);
+        }
+    }
 }
 
 void StackingOptions::load_config()
@@ -184,39 +219,131 @@ void StackingOptions::load_config()
     _enable->setChecked(config.enabled);
 
     const ds_device_handle active = _session->get_device()->handle();
-    const ds_device_handle master = config.master_handle != NULL_HANDLE ? config.master_handle : active;
-    const ds_device_handle secondary = config.secondary_handle;
+    const int count = LogicStackingConfig::analyzer_count_valid(config.analyzer_count()) ?
+                      config.analyzer_count() : 2;
 
-    for (int i = 0; i < _master->count(); i++){
-        if ((ds_device_handle)_master->itemData(i).toULongLong() == master)
-            _master->setCurrentIndex(i);
-        if ((ds_device_handle)_secondary->itemData(i).toULongLong() == secondary)
-            _secondary->setCurrentIndex(i);
+    // Rows past the saved secondaries start out wired like the last one
+    LogicStackingSecondary pattern;
+    if (!config.secondaries.empty()){
+        pattern = config.secondaries.back();
+        pattern.manual_shift_ps = 0;
+    }
+    else{
+        pattern.reference_channel = config.master_reference_channel;
     }
 
-    if (secondary == NULL_HANDLE && _secondary->count() > 1){
-        int secondary_index = _master->currentIndex() == 0 ? 1 : 0;
-        _secondary->setCurrentIndex(secondary_index);
+    for (int analyzer = 0; analyzer < _rows.size(); analyzer++){
+        AnalyzerRow &row = _rows[analyzer];
+        ds_device_handle handle = NULL_HANDLE;
+        int reference_channel = config.master_reference_channel;
+
+        if (analyzer == 0){
+            handle = config.master_handle != NULL_HANDLE ? config.master_handle : active;
+        }
+        else{
+            const bool saved = analyzer - 1 < (int)config.secondaries.size();
+            const LogicStackingSecondary &secondary = saved ? config.secondaries[analyzer - 1] : pattern;
+            if (saved)
+                handle = secondary.handle;
+
+            reference_channel = secondary.reference_channel;
+            row.sync_channel->setCurrentIndex(qBound(0, secondary.sync_channel, LogicStackingChannelsPerAnalyzer - 1));
+            row.manual_shift_ns->setValue(secondary.manual_shift_ps / 1000.0);
+        }
+
+        row.reference_channel->setCurrentIndex(qBound(0, reference_channel, LogicStackingChannelsPerAnalyzer - 1));
+
+        row.device->setCurrentIndex(-1);
+        for (int i = 0; handle != NULL_HANDLE && i < row.device->count(); i++){
+            if ((ds_device_handle)row.device->itemData(i).toULongLong() == handle)
+                row.device->setCurrentIndex(i);
+        }
     }
 
-    _sync_channel->setCurrentIndex(qBound(0, config.secondary_sync_channel, 31));
+    _analyzer_count->setValue(count);
+    for (int analyzer = 0; analyzer < count; analyzer++){
+        if (_rows[analyzer].device->currentIndex() < 0)
+            select_unused_device(analyzer);
+    }
+
     _show_sync->setChecked(config.show_sync_channel);
-    _manual_shift_ns->setValue(config.secondary_manual_shift_ps / 1000.0);
     _reference_alignment->setChecked(config.reference_alignment_enabled);
     _drift_correction->setChecked(config.drift_correction_enabled);
-    _drift_master_channel->setCurrentIndex(qBound(0, config.drift_master_channel, 31));
-    _drift_secondary_channel->setCurrentIndex(qBound(0, config.drift_secondary_channel, 31));
     const int edge_index = _reference_edge_mode->findData(config.reference_edge_mode);
     _reference_edge_mode->setCurrentIndex(edge_index >= 0 ? edge_index : 0);
+
+    update_rows();
+}
+
+int StackingOptions::analyzer_count() const
+{
+    return qBound(2, _analyzer_count->value(), (int)_rows.size());
+}
+
+// Picks the first device no other shown row uses, or none if all are taken
+void StackingOptions::select_unused_device(int analyzer)
+{
+    QComboBox *combo = _rows[analyzer].device;
+    const int count = analyzer_count();
+
+    for (int i = 0; i < combo->count(); i++){
+        const ds_device_handle handle = (ds_device_handle)combo->itemData(i).toULongLong();
+        bool used = false;
+        for (int other = 0; other < count && !used; other++){
+            if (other != analyzer && selected_handle(_rows[other].device) == handle)
+                used = true;
+        }
+
+        if (!used){
+            combo->setCurrentIndex(i);
+            return;
+        }
+    }
+
+    combo->setCurrentIndex(-1);
+}
+
+void StackingOptions::update_rows()
+{
+    const int count = analyzer_count();
+    for (int analyzer = 0; analyzer < _rows.size(); analyzer++){
+        const AnalyzerRow &row = _rows[analyzer];
+        const bool shown = analyzer < count;
+        QWidget *widgets[5] = {row.label, row.device, row.sync_channel,
+                               row.manual_shift_ns, row.reference_channel};
+        for (QWidget *widget : widgets){
+            if (widget != NULL)
+                widget->setVisible(shown);
+        }
+    }
+
+    on_enabled_changed(_enable->isChecked());
+    adjustSize();
+}
+
+void StackingOptions::on_analyzer_count_changed(int count)
+{
+    (void)count;
+
+    for (int analyzer = 0; analyzer < analyzer_count(); analyzer++){
+        if (_rows[analyzer].device->currentIndex() < 0)
+            select_unused_device(analyzer);
+    }
+
+    update_rows();
 }
 
 void StackingOptions::on_enabled_changed(bool enabled)
 {
-    _master->setEnabled(enabled);
-    _secondary->setEnabled(enabled);
-    _sync_channel->setEnabled(enabled);
+    _analyzer_count->setEnabled(enabled);
+    for (const AnalyzerRow &row : _rows){
+        row.device->setEnabled(enabled);
+        if (row.sync_channel != NULL)
+            row.sync_channel->setEnabled(enabled);
+        if (row.manual_shift_ns != NULL)
+            row.manual_shift_ns->setEnabled(enabled);
+    }
     _show_sync->setEnabled(enabled);
-    _manual_shift_ns->setEnabled(enabled);
     _reference_alignment->setEnabled(enabled);
     _drift_correction->setEnabled(enabled);
     on_reference_changed();
@@ -227,8 +354,8 @@ void StackingOptions::on_reference_changed()
     const bool enabled = _enable->isChecked() &&
                          (_reference_alignment->isChecked() ||
                           _drift_correction->isChecked());
-    _drift_master_channel->setEnabled(enabled);
-    _drift_secondary_channel->setEnabled(enabled);
+    for (const AnalyzerRow &row : _rows)
+        row.reference_channel->setEnabled(enabled);
     _reference_edge_mode->setEnabled(enabled);
 }
 
@@ -242,31 +369,39 @@ ds_device_handle StackingOptions::selected_handle(const QComboBox *combo) const
 
 void StackingOptions::accept()
 {
+    const int count = analyzer_count();
+
     LogicStackingConfig config;
     config.enabled = _enable->isChecked();
-    config.master_handle = selected_handle(_master);
-    config.secondary_handle = selected_handle(_secondary);
-    config.secondary_sync_channel = _sync_channel->currentData().toInt();
+    config.master_handle = selected_handle(_rows[0].device);
+    config.master_reference_channel = _rows[0].reference_channel->currentData().toInt();
+    for (int analyzer = 1; analyzer < count; analyzer++){
+        const AnalyzerRow &row = _rows[analyzer];
+        LogicStackingSecondary secondary;
+        secondary.handle = selected_handle(row.device);
+        secondary.sync_channel = row.sync_channel->currentData().toInt();
+        secondary.manual_shift_ps = (int64_t)llround(row.manual_shift_ns->value() * 1000.0);
+        secondary.reference_channel = row.reference_channel->currentData().toInt();
+        config.secondaries.push_back(secondary);
+    }
     config.show_sync_channel = _show_sync->isChecked();
-    config.secondary_manual_shift_ps = (int64_t)llround(_manual_shift_ns->value() * 1000.0);
     config.reference_alignment_enabled = _reference_alignment->isChecked();
     config.drift_correction_enabled = _drift_correction->isChecked();
-    config.drift_master_channel = _drift_master_channel->currentData().toInt();
-    config.drift_secondary_channel = _drift_secondary_channel->currentData().toInt();
     config.reference_edge_mode = _reference_edge_mode->currentData().toInt();
 
     if (config.enabled){
-        if (_devices.size() < 2){
+        if (_devices.size() < count){
             QMessageBox::warning(this,
                                  L_S(STR_PAGE_DLG, S_ID(IDS_DLG_LOGIC_STACKING), "Logic Stacking"),
-                                 L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_CONNECT_TWO_ANALYZERS), "Connect two DSLogic U3Pro32 analyzers first."));
+                                 QString(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_CONNECT_TWO_ANALYZERS), "Connect %1 DSLogic U3Pro32 analyzers first."))
+                                     .arg(count));
             return;
         }
 
         if (!config.is_valid()){
             QMessageBox::warning(this,
                                  L_S(STR_PAGE_DLG, S_ID(IDS_DLG_LOGIC_STACKING), "Logic Stacking"),
-                                 L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_SELECT_DIFFERENT_ANALYZERS), "Select two different DSLogic U3Pro32 analyzers."));
+                                 L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_SELECT_DIFFERENT_ANALYZERS), "Select a different DSLogic U3Pro32 for each analyzer."));
             return;
         }
     }

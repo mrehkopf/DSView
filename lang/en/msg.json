@@ -393,11 +393,11 @@
     },
     {
         "id": "IDS_MSG_STACKING_CONNECT_TWO_ANALYZERS",
-        "text": "Connect two DSLogic U3Pro32 analyzers first."
+        "text": "Connect %1 DSLogic U3Pro32 analyzers first."
     },
     {
         "id": "IDS_MSG_STACKING_SELECT_DIFFERENT_ANALYZERS",
-        "text": "Select two different DSLogic U3Pro32 analyzers."
+        "text": "Select a different DSLogic U3Pro32 for each analyzer."
     },
     {
         "id": "IDS_MSG_STACKING_SESSION_BUSY",
@@ -409,7 +409,7 @@
     },
     {
         "id": "IDS_MSG_STACKING_SECONDARY_INCOMPLETE",
-        "text": "Stacking secondary coverage is incomplete: shift=%1 samples, source=%2 samples, required=[%3,%4]."
+        "text": "Stacking coverage of %1 is incomplete: shift=%2 samples, source=%3 samples, required=[%4,%5]."
     },
     {
         "id": "IDS_MSG_STACKING_INSTANT_MANUAL_SHIFT",
@@ -417,7 +417,7 @@
     },
     {
         "id": "IDS_MSG_STACKING_SYNC_TRIGGER_MISSING",
-        "text": "Sync trigger was not reported by both analyzers. Only manual alignment applied."
+        "text": "Sync trigger was not reported by both the master and %1. Only manual alignment applied to %1."
     },
     {
         "id": "IDS_MSG_STACKING_REMAP_REQUIRED_LOAD",
@@ -425,35 +425,35 @@
     },
     {
         "id": "IDS_MSG_STACKING_REMAP_REQUIRED_START",
-        "text": "Stacking mode needs two mapped DSLogic U3Pro32 analyzers. Open Stacking settings and select the master and secondary devices."
+        "text": "Stacking mode needs a connected DSLogic U3Pro32 for each stacked analyzer. Open Stacking settings and select the master and secondary devices."
     },
     {
         "id": "IDS_MSG_STACKING_DRIFT_APPLIED",
-        "text": "Stacking drift correction applied: secondary drift %1 ppm from %2 reference edges."
+        "text": "Stacking drift correction applied: %1 drift %2 ppm from %3 reference edges."
     },
     {
         "id": "IDS_MSG_STACKING_DRIFT_FAILED",
-        "text": "Stacking drift correction skipped: not enough matching reference edges on the selected channels."
+        "text": "Stacking drift correction skipped for %1: not enough matching reference edges on the selected channels."
     },
     {
         "id": "IDS_MSG_STACKING_DRIFT_REJECTED",
-        "text": "Stacking drift correction skipped: estimated drift %1 ppm is outside the expected range."
+        "text": "Stacking drift correction skipped for %1: estimated drift %2 ppm is outside the expected range."
     },
     {
         "id": "IDS_MSG_STACKING_DRIFT_INCONSISTENT",
-        "text": "Stacking drift correction skipped: reference edge timing is inconsistent (typical deviation %1 samples)."
+        "text": "Stacking drift correction skipped for %1: reference edge timing is inconsistent (typical deviation %2 samples)."
     },
     {
         "id": "IDS_MSG_STACKING_ALIGNMENT_APPLIED",
-        "text": "Stacking reference alignment applied: secondary offset %1 samples (%2 ns) from %3 reference edges."
+        "text": "Stacking reference alignment applied: %1 offset %2 samples (%3 ns) from %4 reference edges."
     },
     {
         "id": "IDS_MSG_STACKING_ALIGNMENT_FAILED",
-        "text": "Stacking reference alignment skipped: not enough matching reference edges on the selected channels."
+        "text": "Stacking reference alignment skipped for %1: not enough matching reference edges on the selected channels."
     },
     {
         "id": "IDS_MSG_STACKING_ALIGNMENT_REJECTED",
-        "text": "Stacking reference alignment skipped: reference edge timing is inconsistent (typical deviation %1 samples)."
+        "text": "Stacking reference alignment skipped for %1: reference edge timing is inconsistent (typical deviation %2 samples)."
     },
     {
         "id": "IDS_MSG_DRIVER_HINT_TITLE",

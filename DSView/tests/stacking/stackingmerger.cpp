@@ -1,8 +1,8 @@
 /* Regression tests for logic stacking reference alignment and drift correction.
  *
- * Two simulated analyzers sample the same signals. The secondary's clock runs at
- * a known ppm offset and its sync trigger fires with a latency. After merging,
- * the secondary's copy of an independent data signal must line up with the
+ * Simulated analyzers sample the same signals. Each secondary's clock runs at a
+ * known ppm offset and its sync trigger fires with a latency. After merging,
+ * every secondary's copy of an independent data signal must line up with the
  * master's copy across the whole capture. */
 #include "pv/data/logicstackingmerger.h"
 #include "pv/data/logicsnapshot.h"
@@ -27,6 +27,7 @@ const int kDataChannel = 5;
 const uint64_t kSamplerate = 250000000ULL;
 const uint64_t kSamples = 1ULL << 24;
 const ds_device_handle kMaster = 1;
+// Secondary k (A{k+2}) has handle kSecondary + k
 const ds_device_handle kSecondary = 2;
 
 sr_channel channels[2];
@@ -49,30 +50,46 @@ struct Signal
     double period;
 };
 
-struct Scenario
+struct Secondary
+{
+    double ppm = 30;              // the secondary's clock runs faster by this much
+    double latency = 0;           // sync trigger latency in master samples
+    int64_t manual_shift_ps = 0;
+    double phase = -1;            // secondary sample phase, random if negative
+    bool unrelated = false;       // the secondary's reference carries another signal
+};
+
+// The Secondary fields describe A2; `more` adds A3, A4, ...
+struct Scenario : Secondary
 {
     explicit Scenario(const char *n) : name(n) {}
 
     std::string name;
     Signal reference = {RandomBits, 250};
-    double ppm = 30;              // the secondary's clock runs faster by this much
     double trigger_fraction = 0.5;
-    double latency = 0;           // sync trigger latency in master samples
-    int64_t manual_shift_ps = 0;
-    double phase = -1;            // secondary sample phase, random if negative
     bool align = true;
     bool drift = true;
+    bool instant = false;
     int edge_mode = LogicStackingReferenceRising;
     int glitches = 0;             // 1-sample pulses on the master's reference only
-    bool unrelated = false;       // the secondary's reference carries another signal
+    std::vector<Secondary> more;
+
+    std::vector<Secondary> secondaries() const
+    {
+        std::vector<Secondary> all(1, *this);
+        all.insert(all.end(), more.begin(), more.end());
+        return all;
+    }
 };
+
+typedef std::vector<std::pair<int64_t, int64_t> > Errors;
 
 struct Result
 {
     bool merged = false;
     QString warning;
-    // master data edge, offset of the matching secondary edge in the merged output
-    std::vector<std::pair<int64_t, int64_t> > errors;
+    // per secondary: master data edge, offset of the matching secondary edge in the merged output
+    std::vector<Errors> errors;
 };
 
 std::vector<long double> make_edges(const Signal &signal, long double t0, long double t1, std::mt19937_64 &rng)
@@ -162,21 +179,24 @@ void feed(LogicStackingMerger &merger, ds_device_handle handle, std::vector<uint
     }
 }
 
-std::vector<std::pair<int64_t, int64_t> > data_errors(const std::vector<uint64_t> &words)
+// Compares merged channel `column` with the master's copy in column 0
+Errors data_errors(const std::vector<uint64_t> &words, size_t columns, size_t column)
 {
-    // [channel][level after the edge]
+    // [master, secondary][level after the edge]
     std::vector<int64_t> edges[2][2];
+    const size_t compared[2] = {0, column};
     for (int ch = 0; ch < 2; ch++) {
-        int previous = (int)(words[ch] & 1);
+        const size_t col = compared[ch];
+        int previous = (int)(words[col] & 1);
         for (uint64_t i = 1; i < kSamples; i++) {
-            const int level = (int)((words[i / 64 * 2 + ch] >> (i & 63)) & 1);
+            const int level = (int)((words[i / 64 * columns + col] >> (i & 63)) & 1);
             if (level != previous)
                 edges[ch][level].push_back((int64_t)i);
             previous = level;
         }
     }
 
-    std::vector<std::pair<int64_t, int64_t> > errors;
+    Errors errors;
     for (int polarity = 0; polarity < 2; polarity++) {
         const std::vector<int64_t> &secondary = edges[1][polarity];
         for (int64_t edge : edges[0][polarity]) {
@@ -201,20 +221,36 @@ Result run(const Scenario &s)
 {
     std::mt19937_64 rng(1);
     std::uniform_real_distribution<double> uniform(0.0, 1.0);
+    const std::vector<Secondary> secondaries = s.secondaries();
+    const size_t count = secondaries.size();
     const uint64_t master_trigger = (uint64_t)(kSamples * s.trigger_fraction);
-    const uint64_t secondary_trigger = master_trigger + 4096;
-    const uint64_t secondary_samples = kSamples + 8192;
-    const long double rate = 1.0L + s.ppm * 1e-6L;
     const long double random_phase = uniform(rng);
-    const long double phase = s.phase < 0 ? random_phase : s.phase;
 
-    // The secondary's sync trigger fires `latency` master samples after the master's trigger
-    auto secondary_time = [&](uint64_t j) {
-        return (long double)master_trigger + s.latency + ((long double)j - secondary_trigger + phase) / rate;
+    std::vector<uint64_t> secondary_trigger(count);
+    std::vector<uint64_t> secondary_samples(count);
+    std::vector<long double> rate(count);
+    std::vector<long double> phase(count);
+    for (size_t k = 0; k < count; k++) {
+        // Later analyzers buffer a little more pre-trigger data
+        secondary_trigger[k] = master_trigger + 4096 + 512 * k;
+        secondary_samples[k] = kSamples + 8192 + 512 * k;
+        rate[k] = 1.0L + secondaries[k].ppm * 1e-6L;
+        const long double drawn = k == 0 ? random_phase : uniform(rng);
+        phase[k] = secondaries[k].phase < 0 ? drawn : secondaries[k].phase;
+    }
+
+    // Secondary k's sync trigger fires `latency` master samples after the master's trigger
+    auto secondary_time = [&](size_t k, uint64_t j) {
+        return (long double)master_trigger + secondaries[k].latency +
+               ((long double)j - secondary_trigger[k] + phase[k]) / rate[k];
     };
 
-    const long double t0 = std::min<long double>(0, secondary_time(0)) - 10;
-    const long double t1 = std::max<long double>(kSamples, secondary_time(secondary_samples)) + 10;
+    long double t0 = -10;
+    long double t1 = (long double)kSamples + 10;
+    for (size_t k = 0; k < count; k++) {
+        t0 = std::min(t0, secondary_time(k, 0) - 10);
+        t1 = std::max(t1, secondary_time(k, secondary_samples[k]) + 10);
+    }
     const std::vector<long double> reference = make_edges(s.reference, t0, t1, rng);
     const Signal data_signal = {RandomGaps, 2000};
     const std::vector<long double> data = make_edges(data_signal, t0, t1, rng);
@@ -227,84 +263,120 @@ Result run(const Scenario &s)
     }
     std::sort(master_reference.begin(), master_reference.end());
 
-    std::vector<long double> secondary_reference = reference;
-    if (s.unrelated) {
-        const Signal other = {RandomGaps, s.reference.period};
-        secondary_reference = make_edges(other, t0, t1, rng);
+    std::vector<std::vector<long double> > secondary_reference(count, reference);
+    for (size_t k = 0; k < count; k++) {
+        if (secondaries[k].unrelated) {
+            const Signal other = {RandomGaps, s.reference.period};
+            secondary_reference[k] = make_edges(other, t0, t1, rng);
+        }
     }
-
-    std::vector<uint64_t> master_words =
-        sample(master_reference, data, kSamples, [](uint64_t i) { return (long double)i; });
-    std::vector<uint64_t> secondary_words =
-        sample(secondary_reference, data, secondary_samples, secondary_time);
 
     LogicStackingConfig config;
     config.enabled = true;
     config.master_handle = kMaster;
-    config.secondary_handle = kSecondary;
-    config.secondary_sync_channel = 0;
-    config.secondary_manual_shift_ps = s.manual_shift_ps;
+    config.master_reference_channel = kReferenceChannel;
     config.reference_alignment_enabled = s.align;
     config.drift_correction_enabled = s.drift;
-    config.drift_master_channel = kReferenceChannel;
-    config.drift_secondary_channel = kReferenceChannel;
     config.reference_edge_mode = s.edge_mode;
+    for (size_t k = 0; k < count; k++) {
+        LogicStackingSecondary secondary;
+        secondary.handle = kSecondary + (ds_device_handle)k;
+        secondary.sync_channel = 0;
+        secondary.manual_shift_ps = secondaries[k].manual_shift_ps;
+        secondary.reference_channel = kReferenceChannel;
+        config.secondaries.push_back(secondary);
+    }
 
     LogicStackingMerger merger;
-    merger.reset(config, kSamples, kSamplerate, false);
-    feed(merger, kMaster, master_words);
-    feed(merger, kSecondary, secondary_words);
+    merger.reset(config, kSamples, kSamplerate, s.instant);
+
+    {
+        std::vector<uint64_t> master_words =
+            sample(master_reference, data, kSamples, [](uint64_t i) { return (long double)i; });
+        feed(merger, kMaster, master_words);
+    }
+    for (size_t k = 0; k < count; k++) {
+        std::vector<uint64_t> secondary_words =
+            sample(secondary_reference[k], data, secondary_samples[k],
+                   [&](uint64_t j) { return secondary_time(k, j); });
+        feed(merger, kSecondary + (ds_device_handle)k, secondary_words);
+    }
 
     ds_trigger_pos trigger;
     memset(&trigger, 0, sizeof(trigger));
     trigger.status = 1;
     trigger.real_pos = (uint32_t)master_trigger;
     merger.set_trigger(kMaster, trigger);
-    trigger.real_pos = (uint32_t)secondary_trigger;
-    merger.set_trigger(kSecondary, trigger);
     merger.mark_end(kMaster);
-    merger.mark_end(kSecondary);
+    for (size_t k = 0; k < count; k++) {
+        trigger.real_pos = (uint32_t)secondary_trigger[k];
+        merger.set_trigger(kSecondary + (ds_device_handle)k, trigger);
+        merger.mark_end(kSecondary + (ds_device_handle)k);
+    }
 
-    std::vector<LogicStackingChannel> visible(2);
-    visible[0].analyzer = 0;
-    visible[0].physical_index = kDataChannel;
-    visible[0].global_index = kDataChannel;
-    visible[1].analyzer = 1;
-    visible[1].physical_index = kDataChannel;
-    visible[1].global_index = 32 + kDataChannel;
+    std::vector<LogicStackingChannel> visible(count + 1);
+    for (size_t a = 0; a <= count; a++) {
+        visible[a].analyzer = (int)a;
+        visible[a].physical_index = kDataChannel;
+        visible[a].global_index = LogicStackingConfig::global_channel_index((int)a, kDataChannel);
+    }
 
     LogicSnapshot snapshot;
     Result result;
     result.merged = merger.complete() && merger.flush_to_snapshot(&snapshot, channel_list, visible);
     result.warning = merger.warning();
-    if (result.merged)
-        result.errors = data_errors(snapshot.words());
+    if (result.merged) {
+        for (size_t k = 0; k < count; k++)
+            result.errors.push_back(data_errors(snapshot.words(), visible.size(), k + 1));
+    }
 
     return result;
 }
 
-int64_t max_abs_error(const Result &r,
+int64_t max_abs_error(const Errors &errors,
                       int64_t first = std::numeric_limits<int64_t>::min(),
                       int64_t last = std::numeric_limits<int64_t>::max())
 {
-    int64_t worst = r.errors.empty() ? std::numeric_limits<int64_t>::max() : 0;
-    for (const std::pair<int64_t, int64_t> &e : r.errors) {
+    int64_t worst = errors.empty() ? std::numeric_limits<int64_t>::max() : 0;
+    for (const std::pair<int64_t, int64_t> &e : errors) {
         if (e.first >= first && e.first <= last)
             worst = std::max<int64_t>(worst, std::llabs(e.second));
     }
     return worst;
 }
 
-double reported_ppm(const QString &warning)
+// Worst error over all secondaries
+int64_t max_abs_error(const Result &r,
+                      int64_t first = std::numeric_limits<int64_t>::min(),
+                      int64_t last = std::numeric_limits<int64_t>::max())
+{
+    int64_t worst = r.errors.empty() ? std::numeric_limits<int64_t>::max() : 0;
+    for (const Errors &errors : r.errors)
+        worst = std::max(worst, max_abs_error(errors, first, last));
+    return worst;
+}
+
+// Secondary k is analyzer A{k+2}
+std::string label(size_t k)
+{
+    return "A" + std::to_string(k + 2);
+}
+
+double reported_ppm(const QString &warning, size_t k = 0)
 {
     const QRegularExpressionMatch match =
-        QRegularExpression("secondary drift (-?[0-9.]+) ppm").match(warning);
+        QRegularExpression(QString::fromStdString(label(k)) + " drift (-?[0-9.]+) ppm").match(warning);
     return match.hasMatch() ? match.captured(1).toDouble() : NAN;
 }
 
-bool mentions(const Result &r, const char *text)
+bool mentions(const Result &r, const std::string &text)
 {
-    return r.warning.contains(text);
+    return r.warning.contains(QString::fromStdString(text));
+}
+
+int occurrences(const Result &r, const std::string &text)
+{
+    return r.warning.count(QString::fromStdString(text));
 }
 
 std::string describe(const Scenario &s, const Result &r, const char *what)
@@ -320,9 +392,14 @@ void check_aligned(const Scenario &s, int64_t tolerance = 1)
     check(r.merged, describe(s, r, "merge succeeds"));
     check(max_abs_error(r) <= tolerance, describe(s, r, "data aligned over the whole capture"));
     if (s.drift) {
-        check(mentions(r, "drift correction applied"), describe(s, r, "drift correction applied"));
-        // The merger reports master relative to secondary
-        check(std::fabs(reported_ppm(r.warning) + s.ppm) < 0.2, describe(s, r, "drift estimate"));
+        const std::vector<Secondary> secondaries = s.secondaries();
+        for (size_t k = 0; k < secondaries.size(); k++) {
+            check(mentions(r, "drift correction applied: " + label(k)),
+                  describe(s, r, ("drift correction applied to " + label(k)).c_str()));
+            // The merger reports master relative to secondary
+            check(std::fabs(reported_ppm(r.warning, k) + secondaries[k].ppm) < 0.2,
+                  describe(s, r, ("drift estimate of " + label(k)).c_str()));
+        }
     }
 }
 
@@ -406,7 +483,7 @@ int main()
         const Result r = run(s);
         check(r.merged, describe(s, r, "merge succeeds"));
         check(mentions(r, "reference alignment applied"), describe(s, r, "alignment applied"));
-        check(mentions(r, "drift correction skipped: not enough matching reference edges"),
+        check(mentions(r, "drift correction skipped for A2: not enough matching reference edges"),
               describe(s, r, "drift correction skipped"));
         check(max_abs_error(r) <= 1, describe(s, r, "data aligned over the whole capture"));
     }
@@ -415,9 +492,9 @@ int main()
         Scenario s("unrelated reference signals");
         s.unrelated = true;
         const Result r = run(s);
-        check(mentions(r, "reference alignment skipped: reference edge timing is inconsistent"),
+        check(mentions(r, "reference alignment skipped for A2: reference edge timing is inconsistent"),
               describe(s, r, "alignment rejected as inconsistent"));
-        check(mentions(r, "drift correction skipped: reference edge timing is inconsistent"),
+        check(mentions(r, "drift correction skipped for A2: reference edge timing is inconsistent"),
               describe(s, r, "drift correction rejected as inconsistent"));
         check(!mentions(r, "applied"), describe(s, r, "nothing applied"));
     }
@@ -426,9 +503,9 @@ int main()
         Scenario s("reference without edges");
         s.reference = {Constant, 0};
         const Result r = run(s);
-        check(mentions(r, "reference alignment skipped: not enough matching reference edges"),
+        check(mentions(r, "reference alignment skipped for A2: not enough matching reference edges"),
               describe(s, r, "alignment reports missing edges"));
-        check(mentions(r, "drift correction skipped: not enough matching reference edges"),
+        check(mentions(r, "drift correction skipped for A2: not enough matching reference edges"),
               describe(s, r, "drift correction reports missing edges"));
     }
 
@@ -437,6 +514,124 @@ int main()
         s.ppm = 3000;
         const Result r = run(s);
         check(!mentions(r, "drift correction applied"), describe(s, r, "drift correction not applied"));
+    }
+
+    {
+        // Without a reference each secondary is aligned by its own trigger position
+        Scenario s("four analyzers, trigger alignment only");
+        s.ppm = 0;
+        s.phase = 0;
+        s.align = false;
+        s.drift = false;
+        s.more.resize(2);
+        s.more[0].ppm = 0;
+        s.more[0].phase = 0;
+        s.more[1].ppm = 0;
+        s.more[1].phase = 0;
+        check_aligned(s, 0);
+    }
+
+    // Four analyzers: every secondary has its own drift, trigger latency and
+    // sample phase, and is aligned to the master on its own
+    Scenario four("four analyzers, alignment and drift");
+    four.ppm = 45;
+    four.latency = 4;
+    four.more.resize(2);
+    four.more[0].ppm = -55;
+    four.more[0].latency = 7;
+    four.more[1].ppm = 80;
+    four.more[1].latency = 2;
+    four.more[1].phase = 0.25;
+    check_aligned(four);
+
+    Scenario four_drift("four analyzers, drift only with manual alignment");
+    four_drift.reference = {Clock, 250};
+    four_drift.align = false;
+    four_drift.ppm = -35;
+    four_drift.latency = 4;
+    four_drift.manual_shift_ps = 16000;
+    four_drift.more.resize(2);
+    four_drift.more[0].ppm = 20;
+    four_drift.more[0].latency = 6;
+    four_drift.more[0].manual_shift_ps = 24000;
+    four_drift.more[1].ppm = 65;
+    four_drift.more[1].latency = 3;
+    four_drift.more[1].manual_shift_ps = 12000;
+    check_aligned(four_drift);
+
+    {
+        // A miswired reference on A3 must not affect A2 or A4
+        Scenario s("one secondary with an unrelated reference");
+        s.latency = 4;
+        s.more.resize(2);
+        s.more[0].unrelated = true;
+        s.more[1].ppm = -40;
+        s.more[1].latency = 5;
+        const Result r = run(s);
+        check(r.merged, describe(s, r, "merge succeeds"));
+        check(mentions(r, "reference alignment skipped for A3: reference edge timing is inconsistent"),
+              describe(s, r, "A3 alignment rejected"));
+        check(mentions(r, "drift correction skipped for A3: reference edge timing is inconsistent"),
+              describe(s, r, "A3 drift correction rejected"));
+        check(mentions(r, "drift correction applied: A2") && mentions(r, "drift correction applied: A4"),
+              describe(s, r, "A2 and A4 corrected"));
+        check(r.errors.size() == 3 && max_abs_error(r.errors[0]) <= 1 && max_abs_error(r.errors[2]) <= 1,
+              describe(s, r, "A2 and A4 aligned"));
+        // Every analyzer samples the same data signal, so only A3's uncorrected
+        // drift (30 ppm, about 250 samples at the capture ends) shows that its
+        // columns really come from A3
+        check(r.errors.size() == 3 && max_abs_error(r.errors[1]) > 50,
+              describe(s, r, "A3 keeps its drift"));
+    }
+
+    {
+        // Instant captures report the skipped trigger alignment once, not per secondary
+        Scenario s("instant capture with three secondaries");
+        s.instant = true;
+        s.align = false;
+        s.drift = false;
+        s.more.resize(2);
+        const Result r = run(s);
+        check(r.merged, describe(s, r, "merge succeeds"));
+        check(occurrences(r, "Instant capture used manual alignment only") == 1,
+              describe(s, r, "instant warning once"));
+        check(!mentions(r, "Sync trigger"), describe(s, r, "no missing trigger warning"));
+    }
+
+    {
+        // The merge waits for every analyzer's END
+        LogicStackingConfig config;
+        config.enabled = true;
+        config.master_handle = kMaster;
+        config.secondaries.resize(2);
+        config.secondaries[0].handle = kSecondary;
+        config.secondaries[1].handle = kSecondary + 1;
+        LogicStackingMerger merger;
+        merger.reset(config, kSamples, kSamplerate, false);
+        check(!merger.mark_end(kSecondary + 2), "END from an unknown analyzer is ignored");
+        merger.mark_end(kSecondary + 1);
+        merger.mark_end(kMaster);
+        check(!merger.complete(), "merge waits for the remaining secondary");
+        merger.mark_end(kSecondary);
+        check(merger.complete(), "merge completes once every analyzer ended");
+
+        LogicStackingConfig duplicate = config;
+        duplicate.secondaries[1].handle = kSecondary;
+        check(!duplicate.is_valid(), "the same analyzer can't be stacked twice");
+        check(duplicate.has_channel_model(), "duplicate handles keep the channel model");
+        check(config.has_same_channel_model(duplicate), "handles are not part of the channel model");
+        LogicStackingConfig more = config;
+        more.secondaries.push_back(more.secondaries[0]);
+        check(!config.has_same_channel_model(more), "adding an analyzer changes the channel model");
+
+        // A profile that saved a disabled setup must not look like a model change
+        LogicStackingConfig off;
+        LogicStackingConfig saved_off = more;
+        saved_off.enabled = false;
+        saved_off.secondaries[0].sync_channel = 5;
+        check(off.has_same_channel_model(saved_off) && saved_off.has_same_channel_model(off),
+              "disabled setups share the (empty) channel model");
+        check(!off.has_same_channel_model(config), "enabling stacking changes the channel model");
     }
 
     if (failures == 0)

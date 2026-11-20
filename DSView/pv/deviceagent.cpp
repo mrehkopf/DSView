@@ -22,6 +22,7 @@
 #include "deviceagent.h"
 #include <assert.h>
 #include <string.h>
+#include <vector>
 #include "log.h"
 
 namespace {
@@ -309,19 +310,25 @@ bool DeviceAgent::start(bool instant)
         if (!configure_stacking_capture(instant, &secondary_trigger_percent))
             return false;
 
-        ds_collect_target targets[2];
-        memset(targets, 0, sizeof(targets));
+        // The secondaries are armed first, so they all wait for the master's trigger-out
+        const std::vector<pv::LogicStackingSecondary> &secondaries =
+            _logic_stacking_config.secondaries;
+        std::vector<ds_collect_target> targets(secondaries.size() + 1);
+        memset(targets.data(), 0, sizeof(ds_collect_target) * targets.size());
 
-        targets[0].handle = _logic_stacking_config.secondary_handle;
-        targets[0].role = instant ? DS_COLLECT_TARGET_INSTANT : DS_COLLECT_TARGET_SECONDARY_SYNC_RISING;
-        targets[0].sync_channel = _logic_stacking_config.secondary_sync_channel;
-        targets[0].trigger_pos_percent = secondary_trigger_percent;
+        for (size_t i = 0; i < secondaries.size(); i++){
+            targets[i].handle = secondaries[i].handle;
+            targets[i].role = instant ? DS_COLLECT_TARGET_INSTANT : DS_COLLECT_TARGET_SECONDARY_SYNC_RISING;
+            targets[i].sync_channel = secondaries[i].sync_channel;
+            targets[i].trigger_pos_percent = secondary_trigger_percent;
+        }
 
-        targets[1].handle = _logic_stacking_config.master_handle;
-        targets[1].role = instant ? DS_COLLECT_TARGET_INSTANT : DS_COLLECT_TARGET_MASTER_CURRENT_TRIGGER;
-        targets[1].sync_channel = 0;
+        ds_collect_target &master = targets.back();
+        master.handle = _logic_stacking_config.master_handle;
+        master.role = instant ? DS_COLLECT_TARGET_INSTANT : DS_COLLECT_TARGET_MASTER_CURRENT_TRIGGER;
+        master.sync_channel = 0;
 
-        if (ds_start_collect_multi(targets, 2) == SR_OK)
+        if (ds_start_collect_multi(targets.data(), (int)targets.size()) == SR_OK)
             return true;
 
         return false;
@@ -505,8 +512,10 @@ sr_channel* DeviceAgent::make_stacking_channel(int analyzer, int physical_index)
     if (ch == NULL)
         return NULL;
 
-    const int global_index = analyzer == 0 ? physical_index : 32 + physical_index;
-    QString name = QString("A%1-D%2").arg(analyzer + 1).arg(physical_index);
+    const int global_index = pv::LogicStackingConfig::global_channel_index(analyzer, physical_index);
+    QString name = QString("%1-D%2")
+                       .arg(pv::LogicStackingConfig::analyzer_label(analyzer))
+                       .arg(physical_index);
 
     ch->index = global_index;
     ch->type = SR_CHANNEL_LOGIC;
@@ -526,16 +535,17 @@ void DeviceAgent::rebuild_stacking_channels()
     if (!_logic_stacking_config.has_channel_model())
         return;
 
-    for (int analyzer = 0; analyzer < 2; analyzer++){
-        for (int physical = 0; physical < 32; physical++){
-            const bool is_sync = analyzer == 1 &&
-                                 physical == _logic_stacking_config.secondary_sync_channel;
+    const int analyzers = _logic_stacking_config.analyzer_count();
+    for (int analyzer = 0; analyzer < analyzers; analyzer++){
+        for (int physical = 0; physical < pv::LogicStackingChannelsPerAnalyzer; physical++){
+            const bool is_sync = analyzer > 0 &&
+                                 physical == _logic_stacking_config.secondaries[analyzer - 1].sync_channel;
             const bool visible = _logic_stacking_config.show_sync_channel || !is_sync;
 
             pv::LogicStackingChannel mapped;
             mapped.analyzer = analyzer;
             mapped.physical_index = physical;
-            mapped.global_index = analyzer == 0 ? physical : 32 + physical;
+            mapped.global_index = pv::LogicStackingConfig::global_channel_index(analyzer, physical);
             mapped.visible = visible;
             mapped.sync = is_sync;
 
@@ -608,55 +618,62 @@ bool DeviceAgent::configure_stacking_capture(bool instant, uint16_t *secondary_t
     ok = set_config_int16(SR_CONF_BUFFER_OPTIONS, SR_BUF_UPLOAD) && ok;
     ok = set_config_int16(SR_CONF_CHANNEL_MODE, DSL_BUFFER250x32) && ok;
 
-    ok = set_handle_config_bool(_logic_stacking_config.secondary_handle, SR_CONF_INSTANT, instant) && ok;
-    ok = set_handle_config_bool(_logic_stacking_config.secondary_handle, SR_CONF_RLE, false) && ok;
-    ok = set_handle_config_bool(_logic_stacking_config.secondary_handle, SR_CONF_LOOP_MODE, false) && ok;
-    ok = set_handle_config_int16(_logic_stacking_config.secondary_handle, SR_CONF_OPERATION_MODE, LO_OP_BUFFER) && ok;
-    ok = set_handle_config_int16(_logic_stacking_config.secondary_handle, SR_CONF_BUFFER_OPTIONS, SR_BUF_UPLOAD) && ok;
-    ok = set_handle_config_int16(_logic_stacking_config.secondary_handle, SR_CONF_CHANNEL_MODE, DSL_BUFFER250x32) && ok;
+    for (const pv::LogicStackingSecondary &secondary : _logic_stacking_config.secondaries){
+        const ds_device_handle handle = secondary.handle;
+        ok = set_handle_config_bool(handle, SR_CONF_INSTANT, instant) && ok;
+        ok = set_handle_config_bool(handle, SR_CONF_RLE, false) && ok;
+        ok = set_handle_config_bool(handle, SR_CONF_LOOP_MODE, false) && ok;
+        ok = set_handle_config_int16(handle, SR_CONF_OPERATION_MODE, LO_OP_BUFFER) && ok;
+        ok = set_handle_config_int16(handle, SR_CONF_BUFFER_OPTIONS, SR_BUF_UPLOAD) && ok;
+        ok = set_handle_config_int16(handle, SR_CONF_CHANNEL_MODE, DSL_BUFFER250x32) && ok;
+    }
 
     // Hidden sync inputs still need to be sampled so the merger can align the streams.
-    for (int i = 0; i < 32; i++){
+    for (int i = 0; i < pv::LogicStackingChannelsPerAnalyzer; i++){
         ok = enable_probe(i, true) && ok;
-        ok = enable_handle_probe(_logic_stacking_config.secondary_handle, i, true) && ok;
+        for (const pv::LogicStackingSecondary &secondary : _logic_stacking_config.secondaries)
+            ok = enable_handle_probe(secondary.handle, i, true) && ok;
     }
 
     if (!ok)
         return false;
 
-    // Give the secondary enough post-trigger data when early master triggers shift A1 left.
+    // Give the secondaries enough post-trigger data when early master triggers shift A1 left.
     if (!instant && get_config_uint64(SR_CONF_HW_DEPTH, hw_depth))
         secondary_timing = stacking_secondary_timing(samplelimit,
                                                     master_trigger_percent,
                                                     hw_depth);
 
-    ok = set_handle_config_uint64(_logic_stacking_config.secondary_handle, SR_CONF_SAMPLERATE, samplerate) && ok;
-    ok = set_handle_config_uint64(_logic_stacking_config.secondary_handle,
-                                  SR_CONF_LIMIT_SAMPLES,
-                                  secondary_timing.samplelimit) && ok;
     if (secondary_trigger_percent != NULL)
         *secondary_trigger_percent = secondary_timing.trigger_percent;
 
-    bool clock_bool = false;
-    if (get_config_bool(SR_CONF_CLOCK_TYPE, clock_bool))
-        ok = set_handle_config_bool(_logic_stacking_config.secondary_handle, SR_CONF_CLOCK_TYPE, clock_bool) && ok;
-
-    if (get_config_bool(SR_CONF_CLOCK_EDGE, clock_bool))
-        ok = set_handle_config_bool(_logic_stacking_config.secondary_handle, SR_CONF_CLOCK_EDGE, clock_bool) && ok;
-
+    bool clock_type = false;
+    const bool have_clock_type = get_config_bool(SR_CONF_CLOCK_TYPE, clock_type);
+    bool clock_edge = false;
+    const bool have_clock_edge = get_config_bool(SR_CONF_CLOCK_EDGE, clock_edge);
     double v_th = 0;
-    if (get_config_double(SR_CONF_VTH, v_th))
-        ok = set_handle_config_double(_logic_stacking_config.secondary_handle, SR_CONF_VTH, v_th) && ok;
-
+    const bool have_v_th = get_config_double(SR_CONF_VTH, v_th);
     int filter = 0;
-    if (get_config_int16(SR_CONF_FILTER, filter))
-        ok = set_handle_config_int16(_logic_stacking_config.secondary_handle, SR_CONF_FILTER, filter) && ok;
-
+    const bool have_filter = get_config_int16(SR_CONF_FILTER, filter);
     uint64_t ext_samplerate = 0;
-    if (get_config_uint64(SR_CONF_EXT_SAMPLERATE, ext_samplerate))
-        ok = set_handle_config_uint64(_logic_stacking_config.secondary_handle,
-                                      SR_CONF_EXT_SAMPLERATE,
-                                      ext_samplerate) && ok;
+    const bool have_ext_samplerate = get_config_uint64(SR_CONF_EXT_SAMPLERATE, ext_samplerate);
+
+    for (const pv::LogicStackingSecondary &secondary : _logic_stacking_config.secondaries){
+        const ds_device_handle handle = secondary.handle;
+        ok = set_handle_config_uint64(handle, SR_CONF_SAMPLERATE, samplerate) && ok;
+        ok = set_handle_config_uint64(handle, SR_CONF_LIMIT_SAMPLES, secondary_timing.samplelimit) && ok;
+
+        if (have_clock_type)
+            ok = set_handle_config_bool(handle, SR_CONF_CLOCK_TYPE, clock_type) && ok;
+        if (have_clock_edge)
+            ok = set_handle_config_bool(handle, SR_CONF_CLOCK_EDGE, clock_edge) && ok;
+        if (have_v_th)
+            ok = set_handle_config_double(handle, SR_CONF_VTH, v_th) && ok;
+        if (have_filter)
+            ok = set_handle_config_int16(handle, SR_CONF_FILTER, filter) && ok;
+        if (have_ext_samplerate)
+            ok = set_handle_config_uint64(handle, SR_CONF_EXT_SAMPLERATE, ext_samplerate) && ok;
+    }
 
     return ok;
 }
@@ -786,22 +803,19 @@ bool DeviceAgent::set_stacking_shared_config(int key, GVariant *data)
         return false;
     }
 
-    ret = ds_set_device_config_by_handle(_logic_stacking_config.secondary_handle,
-                                         NULL,
-                                         NULL,
-                                         key,
-                                         data);
+    bool ok = true;
+    for (const pv::LogicStackingSecondary &secondary : _logic_stacking_config.secondaries){
+        ret = ds_set_device_config_by_handle(secondary.handle, NULL, NULL, key, data);
+        if (ret != SR_OK){
+            if (ret != SR_ERR_NA)
+                dsv_err("%s%d", "ERROR:DeviceAgent::set_stacking_shared_config, Failed to set secondary config id:", key);
+            ok = false;
+        }
+    }
     g_variant_unref(data);
 
-    if (ret != SR_OK){
-        if (ret != SR_ERR_NA)
-            dsv_err("%s%d", "ERROR:DeviceAgent::set_stacking_shared_config, Failed to set secondary config id:", key);
-        config_changed();
-        return false;
-    }
-
     config_changed();
-    return true;
+    return ok;
 }
 
  bool DeviceAgent::get_config_int32(int key, int &value, const sr_channel *ch, const sr_channel_group *cg)

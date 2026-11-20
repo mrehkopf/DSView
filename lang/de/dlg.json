@@ -901,11 +901,11 @@
     },
     {
         "id": "IDS_DLG_BUS_PARTIAL",
-        "text": "Das Zweitgerät kann nicht triggern. Der Trigger ignoriert daher %1 und löst unabhängig von den dortigen Pegeln aus. Der Hexwert zeigt ignorierte Bits als 0."
+        "text": "Nur das Hauptgerät kann triggern. Der Trigger ignoriert daher %1 und löst unabhängig von den dortigen Pegeln aus. Der Hexwert zeigt ignorierte Bits als 0."
     },
     {
         "id": "IDS_DLG_BUS_NO_TRIGGER",
-        "text": "Alle Kanäle dieses Busses liegen auf dem Zweitgerät, das nicht triggern kann."
+        "text": "Alle Kanäle dieses Busses liegen auf Zweitgeräten, die nicht triggern können."
     },
     {
         "id": "IDS_DLG_BUS_CONFLICT",
@@ -969,11 +969,11 @@
     },
     {
         "id": "IDS_DLG_ENABLE_TWO_ANALYZER_STACKING",
-        "text": "Stacking mit zwei Analysatoren aktivieren"
+        "text": "Stacking aktivieren"
     },
     {
         "id": "IDS_DLG_SHOW_SECONDARY_SYNC_CHANNEL",
-        "text": "Sync-Kanal des Zweitgeräts anzeigen"
+        "text": "Sync-Kanäle der Zweitgeräte anzeigen"
     },
     {
         "id": "IDS_DLG_NS",
@@ -989,11 +989,23 @@
     },
     {
         "id": "IDS_DLG_SECONDARY_SYNC_INPUT",
-        "text": "Sync-Eingang des Zweitgeräts"
+        "text": "Sync-Eingang"
     },
     {
         "id": "IDS_DLG_SECONDARY_MANUAL_SHIFT",
-        "text": "Manuelle Ausrichtung des Zweitgeräts"
+        "text": "Manuelle Ausrichtung"
+    },
+    {
+        "id": "IDS_DLG_STACKING_ANALYZER_COUNT",
+        "text": "Anzahl der Analysatoren"
+    },
+    {
+        "id": "IDS_DLG_STACKING_DEVICE",
+        "text": "Gerät"
+    },
+    {
+        "id": "IDS_DLG_STACKING_REFERENCE_INPUT",
+        "text": "Referenzeingang"
     },
     {
         "id": "IDS_DLG_STACKING_DRIFT_CORRECTION",
@@ -1002,14 +1014,6 @@
     {
         "id": "IDS_DLG_STACKING_REFERENCE_ALIGNMENT",
         "text": "Anhand des Referenzsignals ausrichten"
-    },
-    {
-        "id": "IDS_DLG_STACKING_MASTER_REFERENCE",
-        "text": "Referenzeingang des Hauptgeräts"
-    },
-    {
-        "id": "IDS_DLG_STACKING_SECONDARY_REFERENCE",
-        "text": "Referenzeingang des Zweitgeräts"
     },
     {
         "id": "IDS_DLG_STACKING_REFERENCE_EDGE",
