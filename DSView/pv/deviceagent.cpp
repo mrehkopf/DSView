@@ -680,9 +680,14 @@ bool DeviceAgent::configure_stacking_capture(bool instant, uint16_t *secondary_t
             ok = set_handle_config_bool(handle, SR_CONF_CLOCK_TYPE, clock_type) && ok;
         if (have_clock_edge)
             ok = set_handle_config_bool(handle, SR_CONF_CLOCK_EDGE, clock_edge) && ok;
-        if (have_v_th)
+        // Each secondary has its own threshold and filter, or the master's if unset
+        if (secondary.threshold >= 0.0)
+            ok = set_handle_config_double(handle, SR_CONF_VTH, secondary.threshold) && ok;
+        else if (have_v_th)
             ok = set_handle_config_double(handle, SR_CONF_VTH, v_th) && ok;
-        if (have_filter)
+        if (secondary.filter >= 0)
+            ok = set_handle_config_int16(handle, SR_CONF_FILTER, secondary.filter) && ok;
+        else if (have_filter)
             ok = set_handle_config_int16(handle, SR_CONF_FILTER, filter) && ok;
         if (have_ext_samplerate)
             ok = set_handle_config_uint64(handle, SR_CONF_EXT_SAMPLERATE, ext_samplerate) && ok;

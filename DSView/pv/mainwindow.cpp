@@ -855,6 +855,8 @@ namespace pv
                 secondaryObj["sync_channel"] = secondary.sync_channel;
                 secondaryObj["manual_shift_ps"] = QString::number((qlonglong)secondary.manual_shift_ps);
                 secondaryObj["reference_channel"] = secondary.reference_channel;
+                secondaryObj["threshold"] = secondary.threshold;
+                secondaryObj["filter"] = secondary.filter;
                 save_stacking_identity(devices, device_count, secondary.handle,
                                        secondaryObj, "name", "unique_id");
                 secondariesArray.append(secondaryObj);
@@ -1062,6 +1064,9 @@ namespace pv
                         secondary.sync_channel = secondaryObj["sync_channel"].toInt();
                         secondary.manual_shift_ps = secondaryObj["manual_shift_ps"].toString().toLongLong();
                         secondary.reference_channel = secondaryObj["reference_channel"].toInt();
+                        // Negative or missing: the master's threshold and filter
+                        secondary.threshold = secondaryObj["threshold"].toDouble(-1.0);
+                        secondary.filter = secondaryObj["filter"].toInt(-1);
                         stacking.secondaries.push_back(secondary);
 
                         SavedStackingAnalyzer analyzer;

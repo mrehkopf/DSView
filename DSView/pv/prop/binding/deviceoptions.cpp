@@ -43,11 +43,11 @@ namespace pv {
 namespace prop {
 namespace binding {
 
+// Options every stacked analyzer shares; threshold and filter are set per
+// analyzer in the Stacking dialog
 bool DeviceOptions::stacking_shared_option(int key)
 {
-    return key == SR_CONF_VTH ||
-           key == SR_CONF_FILTER ||
-           key == SR_CONF_CLOCK_TYPE ||
+    return key == SR_CONF_CLOCK_TYPE ||
            key == SR_CONF_CLOCK_EDGE ||
            key == SR_CONF_EXT_SAMPLERATE;
 }

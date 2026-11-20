@@ -41,13 +41,19 @@ struct LogicStackingSecondary
     int sync_channel = 0;
     int64_t manual_shift_ps = 0;
     int reference_channel = 0;
+    // Input threshold in V and SR_FILTER_* filter; negative uses the
+    // master's, as sessions from before per-analyzer settings do
+    double threshold = -1.0;
+    int filter = -1;
 
     bool operator==(const LogicStackingSecondary &other) const
     {
         return handle == other.handle &&
                sync_channel == other.sync_channel &&
                manual_shift_ps == other.manual_shift_ps &&
-               reference_channel == other.reference_channel;
+               reference_channel == other.reference_channel &&
+               threshold == other.threshold &&
+               filter == other.filter;
     }
 };
 

@@ -50,6 +50,8 @@ private:
     {
         QLabel *label = NULL;
         QComboBox *device = NULL;
+        QDoubleSpinBox *threshold = NULL;
+        QComboBox *filter = NULL;
         QComboBox *sync_channel = NULL;
         QDoubleSpinBox *manual_shift_ns = NULL;
         QComboBox *reference_channel = NULL;
@@ -64,6 +66,8 @@ private:
     ds_device_handle selected_handle(const QComboBox *combo) const;
     QString channel_label(int analyzer, int physical_index) const;
     QComboBox* new_channel_combo();
+    QComboBox* new_filter_combo();
+    void set_filter(QComboBox *combo, int filter);
     void set_channel_combo_label(QComboBox *combo, int index, const QString &label);
     void update_channel_combo_popup_width(QComboBox *combo) const;
 
@@ -78,6 +82,14 @@ private:
     QCheckBox *_reference_alignment;
     QCheckBox *_drift_correction;
     QComboBox *_reference_edge_mode;
+
+    // The master's threshold and filter are its own device settings
+    bool _have_threshold;
+    bool _have_filter;
+    double _master_threshold;
+    int _master_filter;
+    // SR_CONF_FILTER choices: id, untranslated driver name
+    QVector<QPair<int, QString> > _filter_items;
 };
 
 }

@@ -32,9 +32,24 @@
 namespace pv {
 namespace dialogs {
 
+namespace {
+
+// A driver option label or value, translated like the device options show it
+QString dsl_text(const QString &text)
+{
+    const QByteArray bytes = text.toLocal8Bit();
+    return QString(LangResource::Instance()->get_lang_text(STR_PAGE_DSL, bytes.data(), bytes.data()));
+}
+
+}
+
 StackingOptions::StackingOptions(QWidget *parent, SigSession *session) :
     DSDialog(parent, true),
-    _session(session)
+    _session(session),
+    _have_threshold(false),
+    _have_filter(false),
+    _master_threshold(0.0),
+    _master_filter(0)
 {
     setTitle(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_LOGIC_STACKING), "Logic Stacking"));
 
@@ -52,6 +67,21 @@ StackingOptions::StackingOptions(QWidget *parent, SigSession *session) :
 
     _analyzer_count->setRange(2, LogicStackingMaxAnalyzers);
 
+    // Threshold and filter as the device options show them, if the device has them
+    DeviceAgent *device = _session->get_device();
+    _have_threshold = device->have_instance() &&
+                      device->get_config_double(SR_CONF_VTH, _master_threshold);
+    if (device->have_instance() && device->get_config_int16(SR_CONF_FILTER, _master_filter)){
+        GVariant *gvar = device->get_config_list(NULL, SR_CONF_FILTER);
+        if (gvar != NULL){
+            const struct sr_list_item *item = (const struct sr_list_item*)g_variant_get_uint64(gvar);
+            g_variant_unref(gvar);
+            for (; item != NULL && item->id >= 0; item++)
+                _filter_items.push_back(qMakePair(item->id, QString(item->name)));
+        }
+        _have_filter = !_filter_items.isEmpty();
+    }
+
     _reference_edge_mode->addItem(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_REFERENCE_RISING), "Rising"),
                                   LogicStackingReferenceRising);
     _reference_edge_mode->addItem(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_REFERENCE_FALLING), "Falling"),
@@ -62,9 +92,13 @@ StackingOptions::StackingOptions(QWidget *parent, SigSession *session) :
     // One row per analyzer; rows past the analyzer count are hidden
     QGridLayout *grid = new QGridLayout;
     grid->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_DEVICE), "Device"), this), 0, 1);
-    grid->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SECONDARY_SYNC_INPUT), "Sync input"), this), 0, 2);
-    grid->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SECONDARY_MANUAL_SHIFT), "Manual alignment"), this), 0, 3);
-    grid->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_REFERENCE_INPUT), "Reference input"), this), 0, 4);
+    if (_have_threshold)
+        grid->addWidget(new QLabel(dsl_text("Threshold Level"), this), 0, 2);
+    if (_have_filter)
+        grid->addWidget(new QLabel(dsl_text("Filter Targets"), this), 0, 3);
+    grid->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SECONDARY_SYNC_INPUT), "Sync input"), this), 0, 4);
+    grid->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SECONDARY_MANUAL_SHIFT), "Manual alignment"), this), 0, 5);
+    grid->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_REFERENCE_INPUT), "Reference input"), this), 0, 6);
 
     const QString master_role = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_MASTER), "Master");
     const QString secondary_role = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SECONDARY), "Secondary");
@@ -79,7 +113,20 @@ StackingOptions::StackingOptions(QWidget *parent, SigSession *session) :
 
         grid->addWidget(row.label, analyzer + 1, 0);
         grid->addWidget(row.device, analyzer + 1, 1);
-        grid->addWidget(row.reference_channel, analyzer + 1, 4);
+        grid->addWidget(row.reference_channel, analyzer + 1, 6);
+
+        if (_have_threshold){
+            row.threshold = new XDoubleSpinBox(this);
+            row.threshold->setRange(0.0, 5.0);
+            row.threshold->setDecimals(1);
+            row.threshold->setSingleStep(0.1);
+            row.threshold->setSuffix(" V");
+            grid->addWidget(row.threshold, analyzer + 1, 2);
+        }
+        if (_have_filter){
+            row.filter = new_filter_combo();
+            grid->addWidget(row.filter, analyzer + 1, 3);
+        }
 
         if (analyzer == 0)
             continue;
@@ -91,8 +138,8 @@ StackingOptions::StackingOptions(QWidget *parent, SigSession *session) :
         row.manual_shift_ns->setSuffix(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_NS), " ns"));
         row.manual_shift_ns->setSingleStep(1.0);
 
-        grid->addWidget(row.sync_channel, analyzer + 1, 2);
-        grid->addWidget(row.manual_shift_ns, analyzer + 1, 3);
+        grid->addWidget(row.sync_channel, analyzer + 1, 4);
+        grid->addWidget(row.manual_shift_ns, analyzer + 1, 5);
     }
     grid->setColumnStretch(1, 1);
 
@@ -127,6 +174,20 @@ StackingOptions::StackingOptions(QWidget *parent, SigSession *session) :
     load_config();
 
     connect(_analyzer_count, SIGNAL(valueChanged(int)), this, SLOT(on_analyzer_count_changed(int)));
+}
+
+QComboBox* StackingOptions::new_filter_combo()
+{
+    QComboBox *combo = new DsComboBox(this);
+    for (const auto &item : _filter_items)
+        combo->addItem(dsl_text(item.second), item.first);
+    return combo;
+}
+
+void StackingOptions::set_filter(QComboBox *combo, int filter)
+{
+    const int index = combo->findData(filter);
+    combo->setCurrentIndex(index >= 0 ? index : 0);
 }
 
 QComboBox* StackingOptions::new_channel_combo()
@@ -222,7 +283,7 @@ void StackingOptions::load_config()
     const int count = LogicStackingConfig::analyzer_count_valid(config.analyzer_count()) ?
                       config.analyzer_count() : 2;
 
-    // Rows past the saved secondaries start out wired like the last one
+    // Rows past the saved secondaries start out wired and set like the last one
     LogicStackingSecondary pattern;
     if (!config.secondaries.empty()){
         pattern = config.secondaries.back();
@@ -237,6 +298,9 @@ void StackingOptions::load_config()
         ds_device_handle handle = NULL_HANDLE;
         int reference_channel = config.master_reference_channel;
 
+        double threshold = _master_threshold;
+        int filter = _master_filter;
+
         if (analyzer == 0){
             handle = config.master_handle != NULL_HANDLE ? config.master_handle : active;
         }
@@ -246,12 +310,22 @@ void StackingOptions::load_config()
             if (saved)
                 handle = secondary.handle;
 
+            // Unset values follow the master, as they did before they were per analyzer
+            if (secondary.threshold >= 0.0)
+                threshold = secondary.threshold;
+            if (secondary.filter >= 0)
+                filter = secondary.filter;
+
             reference_channel = secondary.reference_channel;
             row.sync_channel->setCurrentIndex(qBound(0, secondary.sync_channel, LogicStackingChannelsPerAnalyzer - 1));
             row.manual_shift_ns->setValue(secondary.manual_shift_ps / 1000.0);
         }
 
         row.reference_channel->setCurrentIndex(qBound(0, reference_channel, LogicStackingChannelsPerAnalyzer - 1));
+        if (row.threshold != NULL)
+            row.threshold->setValue(threshold);
+        if (row.filter != NULL)
+            set_filter(row.filter, filter);
 
         row.device->setCurrentIndex(-1);
         for (int i = 0; handle != NULL_HANDLE && i < row.device->count(); i++){
@@ -309,8 +383,8 @@ void StackingOptions::update_rows()
     for (int analyzer = 0; analyzer < _rows.size(); analyzer++){
         const AnalyzerRow &row = _rows[analyzer];
         const bool shown = analyzer < count;
-        QWidget *widgets[5] = {row.label, row.device, row.sync_channel,
-                               row.manual_shift_ns, row.reference_channel};
+        QWidget *widgets[7] = {row.label, row.device, row.threshold, row.filter,
+                               row.sync_channel, row.manual_shift_ns, row.reference_channel};
         for (QWidget *widget : widgets){
             if (widget != NULL)
                 widget->setVisible(shown);
@@ -338,6 +412,10 @@ void StackingOptions::on_enabled_changed(bool enabled)
     _analyzer_count->setEnabled(enabled);
     for (const AnalyzerRow &row : _rows){
         row.device->setEnabled(enabled);
+        if (row.threshold != NULL)
+            row.threshold->setEnabled(enabled);
+        if (row.filter != NULL)
+            row.filter->setEnabled(enabled);
         if (row.sync_channel != NULL)
             row.sync_channel->setEnabled(enabled);
         if (row.manual_shift_ns != NULL)
@@ -382,6 +460,10 @@ void StackingOptions::accept()
         secondary.sync_channel = row.sync_channel->currentData().toInt();
         secondary.manual_shift_ps = (int64_t)llround(row.manual_shift_ns->value() * 1000.0);
         secondary.reference_channel = row.reference_channel->currentData().toInt();
+        if (row.threshold != NULL)
+            secondary.threshold = row.threshold->value();
+        if (row.filter != NULL)
+            secondary.filter = row.filter->currentData().toInt();
         config.secondaries.push_back(secondary);
     }
     config.show_sync_channel = _show_sync->isChecked();
@@ -411,6 +493,20 @@ void StackingOptions::accept()
                              L_S(STR_PAGE_DLG, S_ID(IDS_DLG_LOGIC_STACKING), "Logic Stacking"),
                              L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_SESSION_BUSY), "Stacking mode could not be applied while the session is busy."));
         return;
+    }
+
+    // After the config: applying it can switch the active device to a new master
+    DeviceAgent *master = _session->get_device();
+    if (master->have_instance()){
+        double threshold = 0.0;
+        if (_rows[0].threshold != NULL && master->get_config_double(SR_CONF_VTH, threshold) &&
+            threshold != _rows[0].threshold->value())
+            master->set_config_double(SR_CONF_VTH, _rows[0].threshold->value());
+
+        int filter = 0;
+        if (_rows[0].filter != NULL && master->get_config_int16(SR_CONF_FILTER, filter) &&
+            filter != _rows[0].filter->currentData().toInt())
+            master->set_config_int16(SR_CONF_FILTER, _rows[0].filter->currentData().toInt());
     }
 
     DSDialog::accept();
