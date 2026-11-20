@@ -568,6 +568,29 @@ QSet<int> TriggerDock::available_bus_channels() const
     return channels;
 }
 
+QSet<int> TriggerDock::untriggerable_bus_channels() const
+{
+    // While stacking, the secondary analyzer's channels can't be trigger sources.
+    QSet<int> channels;
+    for (auto signal : _session->get_signals()) {
+        const auto logic = qobject_cast<view::LogicSignal *>(signal);
+        if (logic && logic->enabled() && !logic->trigger_options_enabled())
+            channels.insert(logic->get_index());
+    }
+    return channels;
+}
+
+QString TriggerDock::bus_partial_warning(const trigger::BusMapping &mapping,
+    const QSet<int> &untriggerable) const
+{
+    const quint32 skipped = trigger::untriggerable_bus_bits(mapping, untriggerable);
+    if (!skipped)
+        return {};
+    return bus_text("IDS_DLG_BUS_PARTIAL",
+        "The secondary analyzer can't trigger, so the trigger ignores %1 and fires whatever the levels there. "
+        "The hex value shows 0 for ignored bits.").arg(trigger::bus_bit_names(skipped));
+}
+
 QString TriggerDock::bus_value_error(trigger::BusValueError error) const
 {
     using trigger::BusValueError;
@@ -579,6 +602,7 @@ QString TriggerDock::bus_value_error(trigger::BusValueError error) const
     case BusValueError::UnmappedBit: return bus_text("IDS_DLG_BUS_UNMAPPED", "Unassigned bus bits must be zero, as in the decoder.");
     case BusValueError::UnavailableChannel: return bus_text("IDS_DLG_BUS_UNAVAILABLE", "A mapped channel is disabled or unavailable in the current device mode.");
     case BusValueError::ConflictingBits: return bus_text("IDS_DLG_BUS_CONFLICT", "Two bus bits require different levels on the same channel.");
+    case BusValueError::NoTriggerChannel: return bus_text("IDS_DLG_BUS_NO_TRIGGER", "All of this bus's channels are on the secondary analyzer, which can't trigger.");
     }
     return {};
 }
@@ -618,17 +642,20 @@ void TriggerDock::update_bus_editor()
     if (selected >= 0 && selected < _buses.size()) {
         const auto &mapping = _buses.at(selected).mapping;
         quint32 value;
-        if (trigger::read_bus_value(mapping, bus_target_pattern(), value))
+        if (trigger::read_bus_value(mapping, bus_target_pattern(), untriggerable_bus_channels(), value))
             _bus_value->setText(QStringLiteral("0x") + QString::number(value, 16)
                 .toUpper().rightJustified((mapping.size() + 3) / 4, QLatin1Char('0')));
     }
     update_bus_status();
 }
 
-void TriggerDock::set_bus_status(const QString &message)
+void TriggerDock::set_bus_status(const QString &message, const QString &warning)
 {
-    _bus_status->setText(message);
-    _bus_status->setVisible(!message.isEmpty());
+    // The warning goes first so it stays in place while the message changes.
+    const QString text = warning.isEmpty() || message.isEmpty() ?
+        warning + message : warning + QLatin1Char('\n') + message;
+    _bus_status->setText(text);
+    _bus_status->setVisible(!text.isEmpty());
 }
 
 void TriggerDock::update_bus_status()
@@ -650,13 +677,17 @@ void TriggerDock::update_bus_status()
     const int selected = _bus_combo->currentIndex();
     if (selected < 0 || selected >= _buses.size())
         return;
+    const auto &mapping = _buses.at(selected).mapping;
+    const auto available = available_bus_channels();
+    const auto untriggerable = untriggerable_bus_channels();
     trigger::ChannelPattern assignments;
-    const auto mapping_error = trigger::compile_bus_value(_buses.at(selected).mapping,
-        QStringLiteral("0"), available_bus_channels(), assignments);
+    const auto mapping_error = trigger::compile_bus_value(mapping,
+        QStringLiteral("0"), available, untriggerable, assignments);
     if (mapping_error != trigger::BusValueError::None) {
         set_bus_status(bus_value_error(mapping_error));
         return;
     }
+    const QString warning = bus_partial_warning(mapping, untriggerable);
     // Clearing depends only on the mapping, never on the text in the value field.
     _bus_clear->setEnabled(true);
     const auto current = bus_target_pattern();
@@ -665,14 +696,15 @@ void TriggerDock::update_bus_status()
         all_dont_care &= current.value(it.key()) == QLatin1Char('X');
     _bus_value->setPlaceholderText(all_dont_care ?
         bus_text("IDS_DLG_BUS_DONT_CARE", "Don't care") : bus_text("IDS_DLG_BUS_CUSTOM", "Custom"));
-    const auto error = trigger::compile_bus_value(_buses.at(selected).mapping,
-        _bus_value->text(), available_bus_channels(), assignments);
+    const auto error = trigger::compile_bus_value(mapping,
+        _bus_value->text(), available, untriggerable, assignments);
     if (error != trigger::BusValueError::None) {
         if (_bus_value->text().isEmpty())
             set_bus_status(all_dont_care ? QString() :
-                bus_text("IDS_DLG_BUS_CUSTOM_HELP", "Current bits contain edges or don't-care values. Enter hex to replace them with levels."));
+                bus_text("IDS_DLG_BUS_CUSTOM_HELP", "Current bits contain edges or don't-care values. Enter hex to replace them with levels."),
+                warning);
         else
-            set_bus_status(bus_value_error(error));
+            set_bus_status(bus_value_error(error), warning);
         return;
     }
     int replaced_edges = 0;
@@ -681,7 +713,8 @@ void TriggerDock::update_bus_status()
             ++replaced_edges;
     }
     set_bus_status(replaced_edges ?
-        bus_text("IDS_DLG_BUS_EDGES", "Replaces %1 data-channel edge condition(s) with levels.").arg(replaced_edges) : QString());
+        bus_text("IDS_DLG_BUS_EDGES", "Replaces %1 data-channel edge condition(s) with levels.").arg(replaced_edges) : QString(),
+        warning);
     _bus_apply->setEnabled(true);
 }
 
@@ -717,10 +750,12 @@ void TriggerDock::change_bus_pattern(bool clear)
         return;
     }
     trigger::ChannelPattern assignments;
+    const auto untriggerable = untriggerable_bus_channels();
     const auto error = trigger::compile_bus_value(bus.mapping, clear ? QStringLiteral("0") : _bus_value->text(),
-        available_bus_channels(), assignments);
+        available_bus_channels(), untriggerable, assignments);
     if (error != trigger::BusValueError::None) {
-        set_bus_status(bus_value_error(error));
+        set_bus_status(bus_value_error(error), error == trigger::BusValueError::NoTriggerChannel ?
+            QString() : bus_partial_warning(bus.mapping, untriggerable));
         _bus_apply->setEnabled(false);
         if (clear)
             _bus_clear->setEnabled(false);

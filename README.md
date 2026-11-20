@@ -149,7 +149,9 @@ the *secondary*.
    two-analyzer stacking. Then select the **Master** and **Secondary** devices,
    and set **Secondary sync input** to the channel you wired in step 1.
 4. Configure the trigger as usual. The trigger applies to the master, so only
-   channels 0–31 can be used in it.
+   channels 0–31 can be used in it. A parallel bus trigger on a bus that spans
+   both analyzers matches only the master's bits (see
+   [doc/parallel-trigger.md](doc/parallel-trigger.md#stacking)).
 
 The secondary triggers on the rising edge that the master sends from its
 trigger-out port. This lines up the two captures at the trigger point. The sync
