@@ -16,7 +16,10 @@
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QGridLayout>
+#include <QGuiApplication>
 #include <QMessageBox>
+#include <QScreen>
+#include <QStandardItemModel>
 #include <QVBoxLayout>
 
 #include "../config/appconfig.h"
@@ -258,6 +261,9 @@ void StackingOptions::update_channel_combo_popup_width(QComboBox *combo) const
 
 void StackingOptions::populate_channel_labels()
 {
+    // The channel count is set in the device options; inputs past it can't be used
+    const int channel_count = _session->logic_stacking_config().channel_count;
+
     for (int analyzer = 0; analyzer < _rows.size(); analyzer++){
         const AnalyzerRow &row = _rows[analyzer];
         QComboBox *combos[2] = {row.reference_channel, row.sync_channel};
@@ -266,8 +272,12 @@ void StackingOptions::populate_channel_labels()
             if (combo == NULL)
                 continue;
 
-            for (int i = 0; i < LogicStackingChannelsPerAnalyzer; i++)
+            QStandardItemModel *model = qobject_cast<QStandardItemModel*>(combo->model());
+            for (int i = 0; i < LogicStackingChannelsPerAnalyzer; i++){
                 set_channel_combo_label(combo, i, channel_label(analyzer, i));
+                if (model != NULL && model->item(i) != NULL)
+                    model->item(i)->setEnabled(i < channel_count);
+            }
             update_channel_combo_popup_width(combo);
         }
     }
@@ -280,6 +290,7 @@ void StackingOptions::load_config()
     _enable->setChecked(config.enabled);
 
     const ds_device_handle active = _session->get_device()->handle();
+    const int last_channel = qBound(1, config.channel_count, LogicStackingChannelsPerAnalyzer) - 1;
     const int count = LogicStackingConfig::analyzer_count_valid(config.analyzer_count()) ?
                       config.analyzer_count() : 2;
 
@@ -317,11 +328,11 @@ void StackingOptions::load_config()
                 filter = secondary.filter;
 
             reference_channel = secondary.reference_channel;
-            row.sync_channel->setCurrentIndex(qBound(0, secondary.sync_channel, LogicStackingChannelsPerAnalyzer - 1));
+            row.sync_channel->setCurrentIndex(qBound(0, secondary.sync_channel, last_channel));
             row.manual_shift_ns->setValue(secondary.manual_shift_ps / 1000.0);
         }
 
-        row.reference_channel->setCurrentIndex(qBound(0, reference_channel, LogicStackingChannelsPerAnalyzer - 1));
+        row.reference_channel->setCurrentIndex(qBound(0, reference_channel, last_channel));
         if (row.threshold != NULL)
             row.threshold->setValue(threshold);
         if (row.filter != NULL)
@@ -392,7 +403,13 @@ void StackingOptions::update_rows()
     }
 
     on_enabled_changed(_enable->isChecked());
-    adjustSize();
+
+    // adjustSize() caps a window at 2/3 of the screen width, which the table
+    // exceeds on small screens; then the device names get cut off first
+    QSize size = sizeHint();
+    if (QGuiApplication::primaryScreen() != NULL)
+        size = size.boundedTo(QGuiApplication::primaryScreen()->availableGeometry().size());
+    resize(size);
 }
 
 void StackingOptions::on_analyzer_count_changed(int count)
@@ -449,13 +466,19 @@ void StackingOptions::accept()
 {
     const int count = analyzer_count();
 
-    LogicStackingConfig config;
+    // Start from the current setup: the channel count and selected channels
+    // are set in the device options
+    const LogicStackingConfig current = _session->logic_stacking_config();
+    LogicStackingConfig config = current;
+    config.secondaries.clear();
     config.enabled = _enable->isChecked();
     config.master_handle = selected_handle(_rows[0].device);
     config.master_reference_channel = _rows[0].reference_channel->currentData().toInt();
     for (int analyzer = 1; analyzer < count; analyzer++){
         const AnalyzerRow &row = _rows[analyzer];
         LogicStackingSecondary secondary;
+        if (analyzer - 1 < (int)current.secondaries.size())
+            secondary.channels = current.secondaries[analyzer - 1].channels;
         secondary.handle = selected_handle(row.device);
         secondary.sync_channel = row.sync_channel->currentData().toInt();
         secondary.manual_shift_ps = (int64_t)llround(row.manual_shift_ns->value() * 1000.0);
@@ -477,6 +500,15 @@ void StackingOptions::accept()
                                  L_S(STR_PAGE_DLG, S_ID(IDS_DLG_LOGIC_STACKING), "Logic Stacking"),
                                  QString(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_CONNECT_TWO_ANALYZERS), "Connect %1 DSLogic U3Pro32 analyzers first."))
                                      .arg(count));
+            return;
+        }
+
+        // The device options can leave the master with only its reference
+        // input; without the reference it captures nothing
+        if (!config.has_channel_model()){
+            QMessageBox::warning(this,
+                                 L_S(STR_PAGE_DLG, S_ID(IDS_DLG_LOGIC_STACKING), "Logic Stacking"),
+                                 L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_MASTER_NO_CHANNEL), "Enable at least one channel on the master (A1)."));
             return;
         }
 

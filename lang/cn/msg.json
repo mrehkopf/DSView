@@ -411,6 +411,10 @@
         "text": "会话忙碌时无法应用堆叠模式。"
     },
     {
+        "id": "IDS_MSG_STACKING_MASTER_NO_CHANNEL",
+        "text": "请在主分析仪 (A1) 上至少启用一个通道。"
+    },
+    {
         "id": "IDS_MSG_STACKING_MASTER_INCOMPLETE",
         "text": "堆叠主分析仪提供了 %1/%2 个请求样本。"
     },

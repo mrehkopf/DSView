@@ -404,6 +404,10 @@
         "text": "Der Stacking-Modus konnte nicht übernommen werden, da die Sitzung gerade beschäftigt ist."
     },
     {
+        "id": "IDS_MSG_STACKING_MASTER_NO_CHANNEL",
+        "text": "Aktivieren Sie mindestens einen Kanal am Hauptgerät (A1)."
+    },
+    {
         "id": "IDS_MSG_STACKING_MASTER_INCOMPLETE",
         "text": "Stacking: Das Hauptgerät hat nur %1 von %2 angeforderten Samples geliefert."
     },

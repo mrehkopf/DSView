@@ -26,6 +26,24 @@ const int LogicStackingChannelsPerAnalyzer = 32;
 // Master plus secondaries. LogicSnapshot's CHANNEL_MAX_COUNT must hold
 // LogicStackingMaxAnalyzers * LogicStackingChannelsPerAnalyzer channels.
 const int LogicStackingMaxAnalyzers = 8;
+// Inputs selected on an analyzer, bit n for Dn
+const uint32_t LogicStackingAllChannels = 0xFFFFFFFFu;
+
+// The U3Pro32 buffer modes stacking can use: fewer channels allow higher
+// sample rates and more depth per channel
+struct LogicStackingChannelMode
+{
+    int channel_count;
+    int mode_id;
+    // The driver's name, translated through the device option strings
+    const char *name;
+};
+
+static const LogicStackingChannelMode LogicStackingChannelModes[] = {
+    {32, DSL_BUFFER250x32, "Use Channels 0~31 (Max 250MHz)"},
+    {16, DSL_BUFFER500x16, "Use Channels 0~15 (Max 500MHz)"},
+    {8, DSL_BUFFER1000x8, "Use Channels 0~7 (Max 1GHz)"},
+};
 
 enum LogicStackingReferenceEdgeMode
 {
@@ -45,6 +63,8 @@ struct LogicStackingSecondary
     // master's, as sessions from before per-analyzer settings do
     double threshold = -1.0;
     int filter = -1;
+    // Inputs to capture and show; the sync input is captured regardless
+    uint32_t channels = LogicStackingAllChannels;
 
     bool operator==(const LogicStackingSecondary &other) const
     {
@@ -53,7 +73,8 @@ struct LogicStackingSecondary
                manual_shift_ps == other.manual_shift_ps &&
                reference_channel == other.reference_channel &&
                threshold == other.threshold &&
-               filter == other.filter;
+               filter == other.filter &&
+               channels == other.channels;
     }
 };
 
@@ -68,6 +89,11 @@ struct LogicStackingConfig
     bool reference_alignment_enabled = false;
     bool drift_correction_enabled = false;
     int reference_edge_mode = LogicStackingReferenceRising;
+    // Channels every analyzer uses, one of LogicStackingChannelModes; the
+    // global channel numbering stays 32 per analyzer whatever this is
+    int channel_count = LogicStackingChannelsPerAnalyzer;
+    // The master's selected inputs
+    uint32_t master_channels = LogicStackingAllChannels;
 
     int analyzer_count() const
     {
@@ -79,25 +105,88 @@ struct LogicStackingConfig
         return reference_alignment_enabled || drift_correction_enabled;
     }
 
+    // Inputs the channel mode leaves
+    uint32_t available_channels() const
+    {
+        return channel_count >= 32 ? LogicStackingAllChannels : ((1u << channel_count) - 1);
+    }
+
+    bool channel_available(int index) const
+    {
+        return index >= 0 && index < channel_count;
+    }
+
+    uint32_t selected_channels(int analyzer) const
+    {
+        if (analyzer == 0)
+            return master_channels;
+        if (analyzer > 0 && analyzer <= (int)secondaries.size())
+            return secondaries[analyzer - 1].channels;
+        return 0;
+    }
+
+    int reference_channel(int analyzer) const
+    {
+        if (analyzer == 0)
+            return master_reference_channel;
+        return secondaries[analyzer - 1].reference_channel;
+    }
+
+    // Inputs that are always captured: the sync input, and the reference
+    // input while it is used
+    uint32_t forced_channels(int analyzer) const
+    {
+        uint32_t mask = 0;
+        if (analyzer > 0 && analyzer <= (int)secondaries.size() &&
+            channel_available(secondaries[analyzer - 1].sync_channel))
+            mask |= 1u << secondaries[analyzer - 1].sync_channel;
+        if (uses_reference() && analyzer >= 0 && analyzer <= (int)secondaries.size() &&
+            channel_available(reference_channel(analyzer)))
+            mask |= 1u << reference_channel(analyzer);
+        return mask;
+    }
+
+    // Inputs the analyzer captures
+    uint32_t captured_channels(int analyzer) const
+    {
+        return (selected_channels(analyzer) | forced_channels(analyzer)) & available_channels();
+    }
+
+    // Inputs that get a channel in the stacked channel list: the selected ones
+    // and the reference input; a sync input only while sync channels are shown
+    uint32_t visible_channels(int analyzer) const
+    {
+        uint32_t mask = captured_channels(analyzer);
+        if (analyzer > 0 && analyzer <= (int)secondaries.size() && !show_sync_channel){
+            const int sync = secondaries[analyzer - 1].sync_channel;
+            const bool also_reference = uses_reference() && secondaries[analyzer - 1].reference_channel == sync;
+            if (!also_reference && channel_available(sync))
+                mask &= ~(1u << sync);
+        }
+        return mask;
+    }
+
     // The virtual channel model can be restored before physical devices are remapped.
     bool has_channel_model() const
     {
-        if (!enabled || !analyzer_count_valid(analyzer_count()))
+        if (!enabled || !analyzer_count_valid(analyzer_count()) ||
+            !channel_count_valid(channel_count))
             return false;
 
         if (uses_reference() &&
-            (!channel_index_valid(master_reference_channel) ||
+            (!channel_available(master_reference_channel) ||
              !reference_edge_mode_valid(reference_edge_mode)))
             return false;
 
         for (const LogicStackingSecondary &secondary : secondaries){
-            if (!channel_index_valid(secondary.sync_channel))
+            if (!channel_available(secondary.sync_channel))
                 return false;
-            if (uses_reference() && !channel_index_valid(secondary.reference_channel))
+            if (uses_reference() && !channel_available(secondary.reference_channel))
                 return false;
         }
 
-        return true;
+        // The master paces the capture and must record something
+        return captured_channels(0) != 0;
     }
 
     bool is_valid() const
@@ -126,13 +215,13 @@ struct LogicStackingConfig
         if (!enabled && !other.enabled)
             return true;
 
+        // The stacked channel list follows from the analyzers' visible inputs
         if (enabled != other.enabled ||
-            show_sync_channel != other.show_sync_channel ||
             secondaries.size() != other.secondaries.size())
             return false;
 
-        for (size_t i = 0; i < secondaries.size(); i++){
-            if (secondaries[i].sync_channel != other.secondaries[i].sync_channel)
+        for (int analyzer = 0; analyzer < analyzer_count(); analyzer++){
+            if (visible_channels(analyzer) != other.visible_channels(analyzer))
                 return false;
         }
 
@@ -174,6 +263,43 @@ struct LogicStackingConfig
     static bool channel_index_valid(int index)
     {
         return index >= 0 && index < LogicStackingChannelsPerAnalyzer;
+    }
+
+    static bool channel_count_valid(int count)
+    {
+        return channel_mode_id(count) >= 0;
+    }
+
+    // The driver's channel mode for a channel count, -1 if stacking has none
+    static int channel_mode_id(int count)
+    {
+        for (const LogicStackingChannelMode &mode : LogicStackingChannelModes){
+            if (mode.channel_count == count)
+                return mode.mode_id;
+        }
+        return -1;
+    }
+
+    static int channel_count_of(uint32_t mask)
+    {
+        int count = 0;
+        for (; mask != 0; mask &= mask - 1)
+            count++;
+        return count;
+    }
+
+    // Masks are saved as decimal strings, since JSON numbers in Qt read back
+    // as int; anything unreadable selects all inputs
+    static QString channels_to_string(uint32_t mask)
+    {
+        return QString::number(mask);
+    }
+
+    static uint32_t channels_from_string(const QString &text)
+    {
+        bool ok = false;
+        const uint32_t mask = text.toUInt(&ok);
+        return ok ? mask : LogicStackingAllChannels;
     }
 
     static bool reference_edge_mode_valid(int mode)

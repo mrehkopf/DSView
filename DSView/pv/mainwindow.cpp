@@ -839,6 +839,8 @@ namespace pv
             stackingObj["drift_correction_enabled"] = stacking.drift_correction_enabled;
             stackingObj["drift_master_channel"] = stacking.master_reference_channel;
             stackingObj["reference_edge_mode"] = stacking.reference_edge_mode;
+            stackingObj["channel_count"] = stacking.channel_count;
+            stackingObj["master_channels"] = LogicStackingConfig::channels_to_string(stacking.master_channels);
 
             ds_device_base_info *devices = NULL;
             int device_count = 0;
@@ -857,6 +859,7 @@ namespace pv
                 secondaryObj["reference_channel"] = secondary.reference_channel;
                 secondaryObj["threshold"] = secondary.threshold;
                 secondaryObj["filter"] = secondary.filter;
+                secondaryObj["channels"] = LogicStackingConfig::channels_to_string(secondary.channels);
                 save_stacking_identity(devices, device_count, secondary.handle,
                                        secondaryObj, "name", "unique_id");
                 secondariesArray.append(secondaryObj);
@@ -1046,6 +1049,10 @@ namespace pv
                     LogicStackingReferenceRising;
                 if (!LogicStackingConfig::reference_edge_mode_valid(stacking.reference_edge_mode))
                     stacking.reference_edge_mode = LogicStackingReferenceRising;
+                // Sessions from before channel selection capture all 32 channels
+                stacking.channel_count = stackingObj["channel_count"].toInt(LogicStackingChannelsPerAnalyzer);
+                stacking.master_channels = LogicStackingConfig::channels_from_string(
+                    stackingObj["master_channels"].toString());
 
                 std::vector<SavedStackingAnalyzer> saved(1);
                 saved[0].handle = stacking.master_handle;
@@ -1067,6 +1074,8 @@ namespace pv
                         // Negative or missing: the master's threshold and filter
                         secondary.threshold = secondaryObj["threshold"].toDouble(-1.0);
                         secondary.filter = secondaryObj["filter"].toInt(-1);
+                        secondary.channels = LogicStackingConfig::channels_from_string(
+                            secondaryObj["channels"].toString());
                         stacking.secondaries.push_back(secondary);
 
                         SavedStackingAnalyzer analyzer;
@@ -1199,6 +1208,10 @@ namespace pv
             }
         }
 
+        // Restoring the master's operation and channel mode enabled all its
+        // channels again; the stacking setup decides both
+        _device_agent->apply_logic_stacking_master();
+
         // load channel settings
         if (mode == DSO)
         {
@@ -1222,6 +1235,10 @@ namespace pv
         }
         else
         {
+            // Stacked channels exist exactly while their inputs are selected, and
+            // the merger writes data for every one, so they must stay enabled
+            const bool stacking = _device_agent->is_logic_stacking();
+
             for (const GSList *l = _device_agent->get_channels(); l; l = l->next)
             {
                 sr_channel *const probe = (sr_channel *)l->data;
@@ -1241,7 +1258,8 @@ namespace pv
                             chan_name = QString::number(probe->index);
                         }
                         
-                        probe->enabled = obj["enabled"].toBool();
+                        if (!stacking)
+                            probe->enabled = obj["enabled"].toBool();
                         probe->name = g_strdup(chan_name.toStdString().c_str());
                         load_probe_analog_settings(probe, obj);
 
@@ -1253,7 +1271,7 @@ namespace pv
                         break;
                     }
                 }
-                if (!isEnabled)
+                if (!isEnabled && !stacking)
                     probe->enabled = false;
             }
         }

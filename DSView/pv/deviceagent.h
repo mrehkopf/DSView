@@ -165,6 +165,10 @@ public:
     bool is_logic_stacking() const;
     bool is_logic_stacking_ready() const;
     const std::vector<pv::LogicStackingChannel>& logic_stacking_channels();
+    // Puts the master in the stacking channel mode with its inputs enabled
+    void apply_logic_stacking_master();
+    // Depth per channel every stacked analyzer can store
+    uint64_t logic_stacking_hw_depth();
 
     /**
      * Start collect data.
@@ -238,7 +242,9 @@ private:
     void free_stacking_channel_pool();
     void rebuild_stacking_channels();
     sr_channel* stacking_channel(int analyzer, int physical_index);
-    bool configure_stacking_capture(bool instant, uint16_t *secondary_trigger_percent);
+    bool configure_stacking_capture(bool instant, std::vector<uint16_t> *secondary_trigger_percents);
+    bool set_stacking_channels(int analyzer);
+    bool get_handle_config_uint64(ds_device_handle handle, int key, uint64_t &value);
     bool set_handle_config_bool(ds_device_handle handle, int key, bool value);
     bool set_handle_config_uint64(ds_device_handle handle, int key, uint64_t value);
     bool set_handle_config_int16(ds_device_handle handle, int key, int value);

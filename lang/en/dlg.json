@@ -1008,6 +1008,10 @@
         "text": "Reference input"
     },
     {
+        "id": "IDS_DLG_STACKING_INPUTS_OUTSIDE",
+        "text": "Move these inputs in the Stacking settings first: %1"
+    },
+    {
         "id": "IDS_DLG_STACKING_DRIFT_CORRECTION",
         "text": "Correct clock drift using reference signal"
     },

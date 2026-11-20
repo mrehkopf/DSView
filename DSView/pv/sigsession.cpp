@@ -387,6 +387,7 @@ namespace pv
         const bool channel_model_changed =
             !_device_agent.logic_stacking_config().has_same_channel_model(cfg);
         const bool was_stacking = _device_agent.is_logic_stacking();
+        const int old_channel_count = _device_agent.logic_stacking_config().channel_count;
         bool switched_device = false;
         std::vector<DeviceConfigSnapshotItem> preserved_options;
 
@@ -418,6 +419,19 @@ namespace pv
         if (cfg.enabled)
             set_collect_mode(COLLECT_SINGLE);
 
+        // A different channel mode can lower the master's sample rate, and a
+        // kept capture would then be shown and saved with the new rate. The
+        // traces and decoders stay, the data goes.
+        const bool channel_mode_changed = was_stacking && cfg.enabled &&
+                                          old_channel_count != cfg.channel_count;
+        if (channel_mode_changed){
+            clear_all_decode_task2();
+            clear_decode_result();
+            _view_data->clear();
+            _capture_data->clear();
+            _capture_data = _view_data;
+        }
+
         if (channel_model_changed){
             // Stacking stays on with the same master (analyzers added or removed, a
             // sync input changed or shown): every remaining channel keeps its global
@@ -444,6 +458,9 @@ namespace pv
             }
 
             signals_changed();
+            update_view();
+        }
+        else if (channel_mode_changed){
             update_view();
         }
 

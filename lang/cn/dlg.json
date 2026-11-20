@@ -1012,6 +1012,10 @@
         "text": "参考输入"
     },
     {
+        "id": "IDS_DLG_STACKING_INPUTS_OUTSIDE",
+        "text": "请先在堆叠设置中为这些输入选择其他通道: %1"
+    },
+    {
         "id": "IDS_DLG_STACKING_DRIFT_CORRECTION",
         "text": "使用参考信号校正时钟漂移"
     },

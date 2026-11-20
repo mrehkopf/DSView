@@ -148,9 +148,10 @@ DeviceOptions::DeviceOptions(QWidget *parent) :
     minWid->setMinimumWidth(300);
     _container_lay->addWidget(minWid);
 
-    // chnnels group box
-    if (!_device_agent->is_logic_stacking())
-        this->build_dynamic_panel();
+    // chnnels group box; while stacking it edits a copy of the stacking setup
+    if (_device_agent->is_logic_stacking())
+        _stacking = _device_agent->logic_stacking_config();
+    this->build_dynamic_panel();
 
     // space
     QWidget *space = new QWidget();
@@ -186,9 +187,24 @@ DeviceOptions::~DeviceOptions()
 
 void DeviceOptions::ChannelChecked(int index, QObject *object)
 {
-    (void)index;
-    
     QCheckBox* sc = dynamic_cast<QCheckBox*>(object);
+
+    // Stacked channel boxes carry the global channel index
+    if (!_stacking_boxes.empty() && sc != NULL){
+        const int analyzer = index / pv::LogicStackingChannelsPerAnalyzer;
+        const int input = index % pv::LogicStackingChannelsPerAnalyzer;
+        uint32_t *mask = analyzer == 0 ? &_stacking.master_channels :
+                         analyzer <= (int)_stacking.secondaries.size() ?
+                             &_stacking.secondaries[analyzer - 1].channels : NULL;
+        if (mask != NULL){
+            if (sc->isChecked())
+                *mask |= 1u << input;
+            else
+                *mask &= ~(1u << input);
+        }
+        return;
+    }
+
     channel_checkbox_clicked(sc);
 }
 
@@ -205,6 +221,26 @@ void DeviceOptions::accept()
 	}
 
     if (_device_agent->is_logic_stacking()) {
+        // Only the channel count and selected inputs are edited here
+        SigSession *session = AppControl::Instance()->GetSession();
+        pv::LogicStackingConfig config = session->logic_stacking_config();
+        config.channel_count = _stacking.channel_count;
+        config.master_channels = _stacking.master_channels;
+        for (size_t i = 0; i < config.secondaries.size() && i < _stacking.secondaries.size(); i++)
+            config.secondaries[i].channels = _stacking.secondaries[i].channels;
+
+        if (config.captured_channels(0) == 0){
+            MsgBox::Show(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_MASTER_NO_CHANNEL),
+                             "Enable at least one channel on the master (A1)."));
+            return;
+        }
+
+        if (!session->set_logic_stacking_config(config)){
+            MsgBox::Show(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_SESSION_BUSY),
+                             "Stacking mode could not be applied while the session is busy."));
+            return;
+        }
+
         QDialog::accept();
         return;
     }
@@ -459,6 +495,163 @@ void DeviceOptions::logic_probes(QVBoxLayout &layout)
     _dynamic_panel->setFixedHeight(_groupHeight2); 
 }
 
+// Inputs whose analyzer setting needs more channels than channel_count
+QString DeviceOptions::stacking_count_conflicts(int channel_count) const
+{
+    const QString sync_input = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SECONDARY_SYNC_INPUT), "Sync input");
+    const QString reference_input = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_REFERENCE_INPUT), "Reference input");
+    QStringList inputs;
+
+    for (int analyzer = 0; analyzer < _stacking.analyzer_count(); analyzer++){
+        const QString label = pv::LogicStackingConfig::analyzer_label(analyzer);
+        if (analyzer > 0 && _stacking.secondaries[analyzer - 1].sync_channel >= channel_count)
+            inputs << QString("%1 %2: D%3").arg(label, sync_input)
+                                         .arg(_stacking.secondaries[analyzer - 1].sync_channel);
+        if (_stacking.uses_reference() && _stacking.reference_channel(analyzer) >= channel_count)
+            inputs << QString("%1 %2: D%3").arg(label, reference_input)
+                                         .arg(_stacking.reference_channel(analyzer));
+    }
+
+    return inputs.join(", ");
+}
+
+// One row of channel modes for all analyzers, then each analyzer's inputs
+void DeviceOptions::stacking_probes(QVBoxLayout &layout)
+{
+    layout.setSpacing(2);
+    _stacking_count_buttons.clear();
+    _stacking_boxes.clear();
+
+    QFont font = this->font();
+    font.setPointSizeF(AppConfig::Instance().appOptions.fontSize);
+    int contentHeight = 0;
+
+    for (const pv::LogicStackingChannelMode &mode : pv::LogicStackingChannelModes){
+        const QString text = LangResource::Instance()->get_lang_text(STR_PAGE_DSL, mode.name, mode.name);
+        QRadioButton *button = new QRadioButton(text);
+        button->setFont(font);
+        button->setChecked(mode.channel_count == _stacking.channel_count);
+
+        // A sync or reference input outside the mode's channels can't be used
+        const QString conflicts = stacking_count_conflicts(mode.channel_count);
+        if (!conflicts.isEmpty()){
+            button->setEnabled(false);
+            button->setToolTip(QString(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_INPUTS_OUTSIDE),
+                                           "Move these inputs in the Stacking settings first: %1")).arg(conflicts));
+        }
+
+        layout.addWidget(button);
+        contentHeight += button->sizeHint().height() + 2;
+        connect(button, SIGNAL(toggled(bool)), this, SLOT(on_stacking_count_changed()));
+        _stacking_count_buttons.push_back(std::make_pair(button, mode.channel_count));
+    }
+
+    const QString master_role = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_MASTER), "Master");
+    const QString secondary_role = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SECONDARY), "Secondary");
+
+    for (int analyzer = 0; analyzer < _stacking.analyzer_count(); analyzer++){
+        QLabel *title = new QLabel(QString("%1 (%2)").arg(pv::LogicStackingConfig::analyzer_label(analyzer),
+                                                          analyzer == 0 ? master_role : secondary_role));
+        title->setFont(font);
+        layout.addWidget(title);
+        contentHeight += title->sizeHint().height() + 6;
+
+        QWidget *channel_panel = new QWidget();
+        QGridLayout *channel_grid = new QGridLayout();
+        channel_grid->setContentsMargins(0, 0, 0, 0);
+        channel_grid->setSpacing(0);
+        channel_panel->setLayout(channel_grid);
+
+        std::vector<QCheckBox*> boxes;
+        int line_height = 0;
+        for (int input = 0; input < pv::LogicStackingChannelsPerAnalyzer; input++){
+            ChannelLabel *item = new ChannelLabel(this, NULL,
+                pv::LogicStackingConfig::global_channel_index(analyzer, input));
+            item->getLabel()->setText(QString::number(input));
+            channel_grid->addWidget(item, input / 16, input % 16, Qt::AlignCenter);
+            boxes.push_back(item->getCheckBox());
+            line_height = item->height();
+        }
+
+        layout.addWidget(channel_panel);
+        contentHeight += line_height * 2 + 2;
+        _stacking_boxes.push_back(boxes);
+    }
+
+    QWidget *space = new QWidget();
+    space->setFixedHeight(10);
+    layout.addWidget(space);
+    contentHeight += 10;
+
+    QHBoxLayout *line_lay = new QHBoxLayout();
+    layout.addLayout(line_lay);
+    line_lay->setSpacing(10);
+    line_lay->setAlignment(Qt::AlignLeft);
+
+    QPushButton *enable_all_probes = new QPushButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_ENABLE_ALL), "Enable All"));
+    QPushButton *disable_all_probes = new QPushButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DISABLE_ALL), "Disable All"));
+    enable_all_probes->setMaximumHeight(33);
+    disable_all_probes->setMaximumHeight(33);
+    enable_all_probes->setFont(font);
+    disable_all_probes->setFont(font);
+    int bt_width = std::max(enable_all_probes->sizeHint().width(),
+                            disable_all_probes->sizeHint().width());
+    enable_all_probes->setFixedWidth(bt_width);
+    disable_all_probes->setFixedWidth(bt_width);
+    line_lay->addWidget(enable_all_probes);
+    line_lay->addWidget(disable_all_probes);
+    connect(enable_all_probes, SIGNAL(clicked()), this, SLOT(enable_all_probes()));
+    connect(disable_all_probes, SIGNAL(clicked()), this, SLOT(disable_all_probes()));
+
+    this->update_font();
+    contentHeight += enable_all_probes->sizeHint().height();
+
+    update_stacking_channels();
+
+    // The group box's title and margins come on top of its content
+    _groupHeight2 = std::max(contentHeight + 50, _dynamic_panel->sizeHint().height() + 10);
+    _dynamic_panel->setFixedHeight(_groupHeight2);
+}
+
+// Boxes follow the edited setup: inputs past the channel count are off, and
+// sync and reference inputs are always captured
+void DeviceOptions::update_stacking_channels()
+{
+    const QString sync_input = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SECONDARY_SYNC_INPUT), "Sync input");
+    const QString reference_input = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_REFERENCE_INPUT), "Reference input");
+
+    for (int analyzer = 0; analyzer < (int)_stacking_boxes.size(); analyzer++){
+        const uint32_t selected = _stacking.selected_channels(analyzer);
+        const uint32_t forced = _stacking.forced_channels(analyzer);
+        const bool has_sync = analyzer > 0 && analyzer <= (int)_stacking.secondaries.size();
+
+        for (int input = 0; input < (int)_stacking_boxes[analyzer].size(); input++){
+            QCheckBox *box = _stacking_boxes[analyzer][input];
+            const bool available = _stacking.channel_available(input);
+            const bool is_forced = available && ((forced >> input) & 1) != 0;
+
+            box->setEnabled(available && !is_forced);
+            box->setChecked(available && (is_forced || ((selected >> input) & 1) != 0));
+
+            QString tip;
+            if (is_forced)
+                tip = has_sync && _stacking.secondaries[analyzer - 1].sync_channel == input ?
+                      sync_input : reference_input;
+            box->setToolTip(tip);
+        }
+    }
+}
+
+void DeviceOptions::on_stacking_count_changed()
+{
+    for (const auto &entry : _stacking_count_buttons){
+        if (entry.first->isChecked())
+            _stacking.channel_count = entry.second;
+    }
+
+    update_stacking_channels();
+}
+
 void DeviceOptions::set_all_probes(bool set)
 { 
     for (auto box : _probes_checkBox_list) {
@@ -491,6 +684,14 @@ void DeviceOptions::enable_all_probes()
 {   
     bool stream_mode; 
 
+    if (!_stacking_boxes.empty()){
+        _stacking.master_channels = pv::LogicStackingAllChannels;
+        for (auto &secondary : _stacking.secondaries)
+            secondary.channels = pv::LogicStackingAllChannels;
+        update_stacking_channels();
+        return;
+    }
+
     if (_device_agent->get_config_bool(SR_CONF_STREAM, stream_mode)) {
         if (stream_mode) {
             enable_max_probes();
@@ -503,6 +704,15 @@ void DeviceOptions::enable_all_probes()
 
 void DeviceOptions::disable_all_probes()
 {
+    // Sync and reference inputs stay on
+    if (!_stacking_boxes.empty()){
+        _stacking.master_channels = 0;
+        for (auto &secondary : _stacking.secondaries)
+            secondary.channels = 0;
+        update_stacking_channels();
+        return;
+    }
+
 	set_all_probes(false);
 }
 
@@ -811,7 +1021,10 @@ QString DeviceOptions::dynamic_widget(QLayout *lay)
     if (mode == LOGIC) {
         QVBoxLayout *grid = dynamic_cast<QVBoxLayout*>(lay);
         assert(grid);
-        logic_probes(*grid);
+        if (_device_agent->is_logic_stacking())
+            stacking_probes(*grid);
+        else
+            logic_probes(*grid);
         //tr
         return L_S(STR_PAGE_DLG, S_ID(IDS_DLG_CHANNEL), "Channel");
     } 

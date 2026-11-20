@@ -151,7 +151,8 @@ and so on. The channels are named `A1-D0`, `A2-D0`, ….
 3. Click **Stacking** in the sampling toolbar. In the dialog, enable stacking
    and set the **Number of analyzers**. Then select a device for each analyzer
    (A1 is the master) and set each secondary's **Sync input** to the channel you
-   wired in step 1.
+   wired in step 1. **Threshold** and **Filter** are set per analyzer here as
+   well.
 4. Configure the trigger as usual. The trigger applies to the master, so only
    channels 0–31 can be used in it. A parallel bus trigger on a bus that spans
    several analyzers matches only the master's bits (see
@@ -159,18 +160,19 @@ and so on. The channels are named `A1-D0`, `A2-D0`, ….
 
 Each secondary triggers on the rising edge that the master sends from its
 trigger-out port. This lines up every secondary's capture with the master's at
-the trigger point. Each secondary's sync input is used up by this, so two
-stacked analyzers have 63 usable channels, three have 94 and four have 125.
-The sync channels are hidden from the waveform view unless **Show secondary
-sync channels** is checked.
+the trigger point. Each secondary's sync input is used up by this, so with 32
+channels per analyzer, two stacked analyzers have 63 usable channels, three
+have 94 and four have 125. The sync channels are hidden from the waveform view
+unless **Show secondary sync channels** is checked.
 
 **Manual alignment** (in ns) adds a fixed time offset to a secondary's data,
 for example to compensate for cable or probe delays. It is set per secondary.
 
-Device options such as sample rate and depth are shared by all analyzers.
-All analyzers capture in buffer mode with all 32 channels enabled, so stream
-mode is not available and the sample rate is limited to 250 MHz. Repeat mode,
-loop mode and RLE compression are not available while stacking is enabled.
+Sample rate, duration and the external clock options are shared by all
+analyzers. All analyzers capture in buffer mode, so stream mode is not
+available. Repeat mode, loop mode and RLE compression are not available while
+stacking is enabled.
+
 Instant captures (without a trigger) skip the trigger point alignment. They
 apply the manual alignment, plus the reference corrections described below if
 those are enabled and find matching edges.
@@ -183,6 +185,25 @@ capture.
 Stacking settings are saved with the session. If a saved session is loaded with
 different hardware, DSView asks you to remap the analyzers in the Stacking
 dialog.
+
+## Channels
+
+The **Options** dialog sets the channels for all stacked analyzers:
+
+- **Channel mode:** every analyzer uses channels 0–31 (up to 250 MHz), 0–15
+  (up to 500 MHz) or 0–7 (up to 1 GHz). A mode is unavailable while a sync or
+  reference input lies outside its channels; its tooltip names the inputs to
+  move in the Stacking dialog first.
+- **Inputs:** each analyzer has its own row of channels to capture. Sync
+  inputs, and reference inputs while they are used, are always captured.
+
+Channel numbers stay 32 apart per analyzer whatever the mode, so A2 always
+starts at channel 32. Names and decoders survive a change of mode or inputs,
+except on channels that disappear.
+
+Fewer enabled channels leave more memory per channel. All analyzers record the
+same number of samples, though, so the analyzer with the most enabled channels
+limits the duration.
 
 ## Reference alignment and drift correction
 

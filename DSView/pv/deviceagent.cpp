@@ -22,6 +22,7 @@
 #include "deviceagent.h"
 #include <assert.h>
 #include <string.h>
+#include <algorithm>
 #include <vector>
 #include "log.h"
 
@@ -307,8 +308,8 @@ bool DeviceAgent::start(bool instant)
         if (!is_logic_stacking_ready())
             return false;
 
-        uint16_t secondary_trigger_percent = 0;
-        if (!configure_stacking_capture(instant, &secondary_trigger_percent))
+        std::vector<uint16_t> secondary_trigger_percents;
+        if (!configure_stacking_capture(instant, &secondary_trigger_percents))
             return false;
 
         // The secondaries are armed first, so they all wait for the master's trigger-out
@@ -321,7 +322,8 @@ bool DeviceAgent::start(bool instant)
             targets[i].handle = secondaries[i].handle;
             targets[i].role = instant ? DS_COLLECT_TARGET_INSTANT : DS_COLLECT_TARGET_SECONDARY_SYNC_RISING;
             targets[i].sync_channel = secondaries[i].sync_channel;
-            targets[i].trigger_pos_percent = secondary_trigger_percent;
+            targets[i].trigger_pos_percent = i < secondary_trigger_percents.size() ?
+                                             secondary_trigger_percents[i] : ds_trigger_get_pos();
         }
 
         ds_collect_target &master = targets.back();
@@ -455,6 +457,7 @@ bool DeviceAgent::set_logic_stacking_config(const pv::LogicStackingConfig &confi
             rebuild_stacking_channels();
     }
 
+    apply_logic_stacking_master();
     config_changed();
     return true;
 }
@@ -553,7 +556,7 @@ void DeviceAgent::rebuild_stacking_channels()
         for (int physical = 0; physical < pv::LogicStackingChannelsPerAnalyzer; physical++){
             const bool is_sync = analyzer > 0 &&
                                  physical == _logic_stacking_config.secondaries[analyzer - 1].sync_channel;
-            const bool visible = _logic_stacking_config.show_sync_channel || !is_sync;
+            const bool visible = ((_logic_stacking_config.visible_channels(analyzer) >> physical) & 1) != 0;
 
             pv::LogicStackingChannel mapped;
             mapped.analyzer = analyzer;
@@ -607,18 +610,90 @@ bool DeviceAgent::enable_handle_probe(ds_device_handle handle, int probe_index, 
     return ds_enable_device_channel_index_by_handle(handle, probe_index, enable ? TRUE : FALSE) == SR_OK;
 }
 
-bool DeviceAgent::configure_stacking_capture(bool instant, uint16_t *secondary_trigger_percent)
+bool DeviceAgent::get_handle_config_uint64(ds_device_handle handle, int key, uint64_t &value)
+{
+    GVariant *gvar = NULL;
+    if (ds_get_device_config_by_handle(handle, NULL, NULL, key, &gvar) != SR_OK || gvar == NULL)
+        return false;
+
+    value = g_variant_get_uint64(gvar);
+    g_variant_unref(gvar);
+    return true;
+}
+
+// Buffer mode in the stacking channel mode, then the analyzer's inputs. Either
+// mode change enables every channel again, so the inputs come last.
+bool DeviceAgent::set_stacking_channels(int analyzer)
+{
+    const pv::LogicStackingConfig &config = _logic_stacking_config;
+    const int channel_mode = pv::LogicStackingConfig::channel_mode_id(config.channel_count);
+    if (channel_mode < 0 || analyzer < 0 || analyzer >= config.analyzer_count())
+        return false;
+
+    const uint32_t captured = config.captured_channels(analyzer);
+    bool ok = true;
+
+    if (analyzer == 0){
+        ok = set_config_int16(SR_CONF_OPERATION_MODE, LO_OP_BUFFER) && ok;
+        ok = set_config_int16(SR_CONF_CHANNEL_MODE, channel_mode) && ok;
+        for (int i = 0; i < config.channel_count; i++)
+            ok = enable_probe(i, ((captured >> i) & 1) != 0) && ok;
+    }
+    else{
+        const ds_device_handle handle = config.secondaries[analyzer - 1].handle;
+        ok = set_handle_config_int16(handle, SR_CONF_OPERATION_MODE, LO_OP_BUFFER) && ok;
+        ok = set_handle_config_int16(handle, SR_CONF_CHANNEL_MODE, channel_mode) && ok;
+        for (int i = 0; i < config.channel_count; i++)
+            ok = enable_handle_probe(handle, i, ((captured >> i) & 1) != 0) && ok;
+    }
+
+    return ok;
+}
+
+void DeviceAgent::apply_logic_stacking_master()
+{
+    // The sample rate and duration lists come from the master
+    if (is_logic_stacking_ready())
+        set_stacking_channels(0);
+}
+
+// Every analyzer stores the same number of samples, and the driver divides the
+// memory by the enabled channels: the analyzer capturing the most channels
+// limits the depth
+uint64_t DeviceAgent::logic_stacking_hw_depth()
+{
+    uint64_t depth = 0;
+    if (!get_config_uint64(SR_CONF_HW_DEPTH, depth) || !is_logic_stacking())
+        return depth;
+
+    // The master's depth is for the channels it has enabled right now, which
+    // a profile load may have changed since the stacking setup was applied
+    int master_enabled = 0;
+    for (const GSList *l = ds_get_actived_device_channels(); l; l = l->next){
+        const sr_channel *probe = (const sr_channel*)l->data;
+        if (probe->type == SR_CHANNEL_LOGIC && probe->enabled)
+            master_enabled++;
+    }
+    master_enabled = std::max(master_enabled, 1);
+
+    int most = 1;
+    for (int analyzer = 0; analyzer < _logic_stacking_config.analyzer_count(); analyzer++){
+        most = std::max(most, pv::LogicStackingConfig::channel_count_of(
+                                  _logic_stacking_config.captured_channels(analyzer)));
+    }
+
+    return (depth * (uint64_t)master_enabled / (uint64_t)most) & ~SAMPLES_ALIGN;
+}
+
+bool DeviceAgent::configure_stacking_capture(bool instant, std::vector<uint16_t> *secondary_trigger_percents)
 {
     if (!is_logic_stacking_ready())
         return false;
 
     uint64_t samplerate = get_sample_rate();
     uint64_t samplelimit = get_sample_limit();
-    uint64_t hw_depth = 0;
     const uint16_t master_trigger_percent = ds_trigger_get_pos();
-    StackingSecondaryTiming secondary_timing;
-    secondary_timing.samplelimit = samplelimit;
-    secondary_timing.trigger_percent = master_trigger_percent;
+    const std::vector<pv::LogicStackingSecondary> &secondaries = _logic_stacking_config.secondaries;
 
     if (samplerate == 0 || samplelimit == 0)
         return false;
@@ -627,38 +702,22 @@ bool DeviceAgent::configure_stacking_capture(bool instant, uint16_t *secondary_t
     ok = set_config_bool(SR_CONF_INSTANT, instant) && ok;
     ok = set_config_bool(SR_CONF_RLE, false) && ok;
     ok = set_config_bool(SR_CONF_LOOP_MODE, false) && ok;
-    ok = set_config_int16(SR_CONF_OPERATION_MODE, LO_OP_BUFFER) && ok;
     ok = set_config_int16(SR_CONF_BUFFER_OPTIONS, SR_BUF_UPLOAD) && ok;
-    ok = set_config_int16(SR_CONF_CHANNEL_MODE, DSL_BUFFER250x32) && ok;
 
-    for (const pv::LogicStackingSecondary &secondary : _logic_stacking_config.secondaries){
+    for (const pv::LogicStackingSecondary &secondary : secondaries){
         const ds_device_handle handle = secondary.handle;
         ok = set_handle_config_bool(handle, SR_CONF_INSTANT, instant) && ok;
         ok = set_handle_config_bool(handle, SR_CONF_RLE, false) && ok;
         ok = set_handle_config_bool(handle, SR_CONF_LOOP_MODE, false) && ok;
-        ok = set_handle_config_int16(handle, SR_CONF_OPERATION_MODE, LO_OP_BUFFER) && ok;
         ok = set_handle_config_int16(handle, SR_CONF_BUFFER_OPTIONS, SR_BUF_UPLOAD) && ok;
-        ok = set_handle_config_int16(handle, SR_CONF_CHANNEL_MODE, DSL_BUFFER250x32) && ok;
     }
 
     // Hidden sync inputs still need to be sampled so the merger can align the streams.
-    for (int i = 0; i < pv::LogicStackingChannelsPerAnalyzer; i++){
-        ok = enable_probe(i, true) && ok;
-        for (const pv::LogicStackingSecondary &secondary : _logic_stacking_config.secondaries)
-            ok = enable_handle_probe(secondary.handle, i, true) && ok;
-    }
+    for (int analyzer = 0; analyzer < _logic_stacking_config.analyzer_count(); analyzer++)
+        ok = set_stacking_channels(analyzer) && ok;
 
     if (!ok)
         return false;
-
-    // Give the secondaries enough post-trigger data when early master triggers shift A1 left.
-    if (!instant && get_config_uint64(SR_CONF_HW_DEPTH, hw_depth))
-        secondary_timing = stacking_secondary_timing(samplelimit,
-                                                    master_trigger_percent,
-                                                    hw_depth);
-
-    if (secondary_trigger_percent != NULL)
-        *secondary_trigger_percent = secondary_timing.trigger_percent;
 
     bool clock_type = false;
     const bool have_clock_type = get_config_bool(SR_CONF_CLOCK_TYPE, clock_type);
@@ -671,10 +730,25 @@ bool DeviceAgent::configure_stacking_capture(bool instant, uint16_t *secondary_t
     uint64_t ext_samplerate = 0;
     const bool have_ext_samplerate = get_config_uint64(SR_CONF_EXT_SAMPLERATE, ext_samplerate);
 
-    for (const pv::LogicStackingSecondary &secondary : _logic_stacking_config.secondaries){
+    if (secondary_trigger_percents != NULL)
+        secondary_trigger_percents->clear();
+
+    for (const pv::LogicStackingSecondary &secondary : secondaries){
         const ds_device_handle handle = secondary.handle;
+
+        // Give the secondary enough post-trigger data when early master triggers
+        // shift A1 left, within the depth its own channels leave
+        StackingSecondaryTiming timing;
+        timing.samplelimit = samplelimit;
+        timing.trigger_percent = master_trigger_percent;
+        uint64_t hw_depth = 0;
+        if (!instant && get_handle_config_uint64(handle, SR_CONF_HW_DEPTH, hw_depth))
+            timing = stacking_secondary_timing(samplelimit, master_trigger_percent, hw_depth);
+        if (secondary_trigger_percents != NULL)
+            secondary_trigger_percents->push_back(timing.trigger_percent);
+
         ok = set_handle_config_uint64(handle, SR_CONF_SAMPLERATE, samplerate) && ok;
-        ok = set_handle_config_uint64(handle, SR_CONF_LIMIT_SAMPLES, secondary_timing.samplelimit) && ok;
+        ok = set_handle_config_uint64(handle, SR_CONF_LIMIT_SAMPLES, timing.samplelimit) && ok;
 
         if (have_clock_type)
             ok = set_handle_config_bool(handle, SR_CONF_CLOCK_TYPE, clock_type) && ok;

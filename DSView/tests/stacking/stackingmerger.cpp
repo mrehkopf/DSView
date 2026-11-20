@@ -13,6 +13,7 @@
 #include <cstring>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <random>
 #include <string>
 #include <vector>
@@ -30,9 +31,27 @@ const ds_device_handle kMaster = 1;
 // Secondary k (A{k+2}) has handle kSecondary + k
 const ds_device_handle kSecondary = 2;
 
-sr_channel channels[2];
+// The channels each analyzer captures, as ds_get_device_channels_by_handle()
+// reports them; analyzers not listed capture the reference and data channels
+std::map<ds_device_handle, GSList*> device_channels;
+std::vector<sr_channel*> channel_storage;
 GSList *channel_list = NULL;
 int failures = 0;
+
+GSList* make_channel_list(const std::vector<int> &inputs)
+{
+    GSList *list = NULL;
+    for (int input : inputs) {
+        sr_channel *ch = new sr_channel();
+        memset(ch, 0, sizeof(*ch));
+        ch->index = (uint16_t)input;
+        ch->type = SR_CHANNEL_LOGIC;
+        ch->enabled = TRUE;
+        channel_storage.push_back(ch);
+        list = g_slist_append(list, ch);
+    }
+    return list;
+}
 
 void check(bool success, const std::string &description)
 {
@@ -57,6 +76,7 @@ struct Secondary
     int64_t manual_shift_ps = 0;
     double phase = -1;            // secondary sample phase, random if negative
     bool unrelated = false;       // the secondary's reference carries another signal
+    std::vector<int> inputs;      // captured inputs, sorted; empty for reference and data only
 };
 
 // The Secondary fields describe A2; `more` adds A3, A4, ...
@@ -72,6 +92,7 @@ struct Scenario : Secondary
     bool instant = false;
     int edge_mode = LogicStackingReferenceRising;
     int glitches = 0;             // 1-sample pulses on the master's reference only
+    std::vector<int> master_inputs;
     std::vector<Secondary> more;
 
     std::vector<Secondary> secondaries() const
@@ -137,15 +158,34 @@ std::vector<long double> make_edges(const Signal &signal, long double t0, long d
     return edges;
 }
 
-// LA_CROSS_DATA with the reference and data channels; sample j is taken at time_of(j)
+std::vector<int> default_inputs()
+{
+    return {kReferenceChannel, kDataChannel};
+}
+
+// LA_CROSS_DATA for the captured inputs, which include the reference and data
+// channels; every other input is high, so a channel taken from the wrong word
+// shows up as a data error. Sample j is taken at time_of(j).
 template <typename TimeOf>
 std::vector<uint64_t> sample(const std::vector<long double> &reference,
                              const std::vector<long double> &data,
                              uint64_t count,
-                             TimeOf time_of)
+                             TimeOf time_of,
+                             const std::vector<int> &captured)
 {
-    std::vector<uint64_t> words((count + 63) / 64 * 2, 0);
+    const size_t width = captured.size();
+    std::vector<uint64_t> words((count + 63) / 64 * width, 0);
     const std::vector<long double> *inputs[2] = {&reference, &data};
+    size_t column[2] = {0, 0};
+    for (size_t c = 0; c < width; c++) {
+        if (captured[c] == kReferenceChannel)
+            column[0] = c;
+        else if (captured[c] == kDataChannel)
+            column[1] = c;
+        else
+            for (uint64_t block = 0; block < (count + 63) / 64; block++)
+                words[block * width + c] = ~0ULL;
+    }
     size_t next_edge[2] = {0, 0};
     int level[2] = {0, 0};
 
@@ -158,7 +198,7 @@ std::vector<uint64_t> sample(const std::vector<long double> &reference,
                 next_edge[ch]++;
             }
             if (level[ch])
-                words[j / 64 * 2 + ch] |= 1ULL << (j & 63);
+                words[j / 64 * width + column[ch]] |= 1ULL << (j & 63);
         }
     }
 
@@ -290,15 +330,20 @@ Result run(const Scenario &s)
     LogicStackingMerger merger;
     merger.reset(config, kSamples, kSamplerate, s.instant);
 
+    device_channels.clear();
     {
+        const std::vector<int> inputs = s.master_inputs.empty() ? default_inputs() : s.master_inputs;
+        device_channels[kMaster] = make_channel_list(inputs);
         std::vector<uint64_t> master_words =
-            sample(master_reference, data, kSamples, [](uint64_t i) { return (long double)i; });
+            sample(master_reference, data, kSamples, [](uint64_t i) { return (long double)i; }, inputs);
         feed(merger, kMaster, master_words);
     }
     for (size_t k = 0; k < count; k++) {
+        const std::vector<int> inputs = secondaries[k].inputs.empty() ? default_inputs() : secondaries[k].inputs;
+        device_channels[kSecondary + (ds_device_handle)k] = make_channel_list(inputs);
         std::vector<uint64_t> secondary_words =
             sample(secondary_reference[k], data, secondary_samples[k],
-                   [&](uint64_t j) { return secondary_time(k, j); });
+                   [&](uint64_t j) { return secondary_time(k, j); }, inputs);
         feed(merger, kSecondary + (ds_device_handle)k, secondary_words);
     }
 
@@ -405,21 +450,92 @@ void check_aligned(const Scenario &s, int64_t tolerance = 1)
 
 }
 
-extern "C" GSList* ds_get_device_channels_by_handle(ds_device_handle)
+extern "C" GSList* ds_get_device_channels_by_handle(ds_device_handle handle)
 {
-    return channel_list;
+    auto it = device_channels.find(handle);
+    return it != device_channels.end() ? it->second : channel_list;
+}
+
+// Captured and visible inputs, the channel model and the channel modes
+void check_config()
+{
+    LogicStackingConfig config;
+    config.enabled = true;
+    config.master_handle = kMaster;
+    config.secondaries.resize(2);
+    config.secondaries[0].handle = kSecondary;
+    config.secondaries[0].sync_channel = 4;
+    config.secondaries[1].handle = kSecondary + 1;
+    config.secondaries[1].sync_channel = 0;
+
+    // Defaults match the setup before channel selection: everything but the sync inputs
+    check(config.has_channel_model(), "default setup is valid");
+    check(config.captured_channels(0) == 0xFFFFFFFFu && config.captured_channels(1) == 0xFFFFFFFFu,
+          "all inputs captured by default");
+    check(config.visible_channels(0) == 0xFFFFFFFFu, "all master inputs visible");
+    check(config.visible_channels(1) == (0xFFFFFFFFu & ~(1u << 4)), "sync input hidden");
+    LogicStackingConfig shown = config;
+    shown.show_sync_channel = true;
+    check(shown.visible_channels(1) == 0xFFFFFFFFu, "sync input shown");
+    check(!config.has_same_channel_model(shown), "showing sync inputs changes the channel model");
+
+    // Deselected sync input: still captured, hidden
+    LogicStackingConfig few = config;
+    few.secondaries[0].channels = (1u << 2) | (1u << 9);
+    check(few.captured_channels(1) == ((1u << 2) | (1u << 9) | (1u << 4)), "sync input always captured");
+    check(few.visible_channels(1) == ((1u << 2) | (1u << 9)), "only selected inputs visible");
+    check(!config.has_same_channel_model(few), "selection changes the channel model");
+
+    // Reference inputs are captured and shown while used
+    LogicStackingConfig reference = few;
+    reference.drift_correction_enabled = true;
+    reference.master_reference_channel = 3;
+    reference.secondaries[0].reference_channel = 6;
+    reference.secondaries[1].reference_channel = 3;
+    reference.master_channels = 0;
+    check(reference.has_channel_model(), "a master with only its reference input is valid");
+    check(reference.captured_channels(0) == (1u << 3), "master captures its reference input");
+    check((reference.visible_channels(1) & (1u << 6)) != 0, "reference input visible");
+    LogicStackingConfig no_master = reference;
+    no_master.drift_correction_enabled = false;
+    check(!no_master.has_channel_model(), "a master capturing nothing is invalid");
+
+    // Fewer channels: inputs past the count are dropped, and sync or reference
+    // inputs past it make the setup invalid
+    LogicStackingConfig narrow = config;
+    narrow.channel_count = 8;
+    check(narrow.has_channel_model(), "8 channels with sync inputs D4 and D0 is valid");
+    check(narrow.captured_channels(0) == 0xFFu && narrow.visible_channels(1) == (0xFFu & ~(1u << 4)),
+          "8-channel mode keeps inputs 0-7");
+    narrow.secondaries[0].sync_channel = 12;
+    check(!narrow.has_channel_model(), "sync input outside the channel count is invalid");
+    LogicStackingConfig odd = config;
+    odd.channel_count = 12;
+    check(!odd.has_channel_model(), "12 channels is not a channel mode");
+    check(LogicStackingConfig::channel_mode_id(32) == DSL_BUFFER250x32 &&
+          LogicStackingConfig::channel_mode_id(16) == DSL_BUFFER500x16 &&
+          LogicStackingConfig::channel_mode_id(8) == DSL_BUFFER1000x8, "channel mode ids");
+
+    // Per-analyzer threshold and filter don't touch the channel model
+    LogicStackingConfig threshold = config;
+    threshold.secondaries[1].threshold = 1.2;
+    threshold.secondaries[1].filter = 1;
+    check(config.has_same_channel_model(threshold), "threshold and filter keep the channel model");
+
+    // Masks are stored as strings; JSON numbers would lose the top bit
+    check(LogicStackingConfig::channels_from_string(LogicStackingConfig::channels_to_string(0xFFFFFFFFu)) == 0xFFFFFFFFu &&
+          LogicStackingConfig::channels_from_string(LogicStackingConfig::channels_to_string(0)) == 0 &&
+          LogicStackingConfig::channels_from_string(LogicStackingConfig::channels_to_string(0x80000001u)) == 0x80000001u,
+          "channel masks round-trip");
+    check(LogicStackingConfig::channels_from_string(QString()) == 0xFFFFFFFFu,
+          "a missing mask selects all inputs");
 }
 
 int main()
 {
-    const int indexes[2] = {kReferenceChannel, kDataChannel};
-    for (int i = 0; i < 2; i++) {
-        memset(&channels[i], 0, sizeof(channels[i]));
-        channels[i].index = indexes[i];
-        channels[i].type = SR_CHANNEL_LOGIC;
-        channels[i].enabled = TRUE;
-        channel_list = g_slist_append(channel_list, &channels[i]);
-    }
+    channel_list = make_channel_list(default_inputs());
+
+    check_config();
 
     // Accumulated drift far exceeds the reference's edge spacing at the capture ends
     Scenario dense_bits("dense random reference, alignment and drift");
@@ -529,6 +645,23 @@ int main()
         s.more[1].ppm = 0;
         s.more[1].phase = 0;
         check_aligned(s, 0);
+    }
+
+    {
+        // Every analyzer captures a different set of inputs; the merger must
+        // find the reference and data channels in each one's interleaving
+        Scenario s("four analyzers capturing different inputs");
+        s.latency = 4;
+        s.master_inputs = {1, kReferenceChannel, kDataChannel, 7};
+        s.inputs = {0, kReferenceChannel, kDataChannel};
+        s.more.resize(2);
+        s.more[0].ppm = -20;
+        s.more[0].latency = 6;
+        s.more[0].inputs = {0, kReferenceChannel, kDataChannel, 30, 31};
+        s.more[1].ppm = 50;
+        s.more[1].latency = 2;
+        s.more[1].inputs = {0, 2, kReferenceChannel, 4, kDataChannel};
+        check_aligned(s);
     }
 
     // Four analyzers: every secondary has its own drift, trigger latency and
