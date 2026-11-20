@@ -2533,10 +2533,6 @@ void ControlServer::m_config_load(const Call &call, const QJsonObject &params)
         return;
     }
 
-    // The client asked for this trigger, as with trigger.set: no warning
-    // about a simple trigger on several channels.
-    _trigger_dock->mark_control_trigger();
-
     QJsonObject r;
     r["path"] = path;
     r["values"] = current_values();

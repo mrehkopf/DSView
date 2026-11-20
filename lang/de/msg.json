@@ -28,10 +28,6 @@
         "text": "Information"
     },
     {
-        "id": "IDS_MSG_CONTINUE",
-        "text": "Fortfahren"
-    },
-    {
         "id": "IDS_MSG_AUTO_CALIB_START",
         "text": "Die automatische Kalibrierung wird jetzt gestartet. Schließen Sie keine Tastköpfe an.\nDer Vorgang kann eine Weile dauern."
     },
@@ -168,10 +164,6 @@
         "text": "Der Suchcursor steht bereits am Ende."
     },
     {
-        "id": "IDS_MSG_TRIGGER",
-        "text": "Trigger"
-    },
-    {
         "id": "IDS_MSG_STREAM_NO_AD_TRIGGER",
         "text": "Im Stream-Modus ist der erweiterte Trigger nicht verfügbar."
     },
@@ -180,16 +172,8 @@
         "text": "Der erweiterte Trigger erfordert DSLogic-Hardware."
     },
     {
-        "id": "IDS_MSG_SET_TRI_MULTI_CHANNEL",
-        "text": "Trigger auf mehreren Kanälen gesetzt.\nEs wird nur ausgelöst, wenn alle gesetzten Kanäle ihre Bedingung im selben Sample erfüllen."
-    },
-    {
         "id": "IDS_MSG_NOT_SHOW_AGAIN",
         "text": "Nicht mehr anzeigen"
-    },
-    {
-        "id": "IDS_MSG_CLEAR_TRIG",
-        "text": "Trigger löschen"
     },
     {
         "id": "IDS_MSG_IGNORE",

@@ -116,7 +116,6 @@ static void _loadApp(AppOptions &o, QSettings &st)
 {
     st.beginGroup("Application");
     getFiled("quickScroll", st, o.quickScroll, true);
-    getFiled("warnofMultiTrig", st, o.warnofMultiTrig, true);
     getFiled("originalData", st, o.originalData, false);
     getFiled("ableSaveLog", st, o.ableSaveLog, false);
     getFiled("appendLogMode", st, o.appendLogMode, false);
@@ -146,8 +145,6 @@ static void _loadApp(AppOptions &o, QSettings &st)
     getFiled("dsoSignalLineWidth", st, o.dsoSignalLineWidth, 1.0f);
     getFiled("dsoSampleDots", st, o.dsoSampleDots, true);
     getFiled("dsoPersistenceMs", st, o.dsoPersistenceMs, 0);
-
-    o.warnofMultiTrig = true;
 
     QString fmt;
     getFiled("protocalFormats", st, fmt, "");
@@ -197,7 +194,6 @@ static void _saveApp(AppOptions &o, QSettings &st)
 {
     st.beginGroup("Application");
     setFiled("quickScroll", st, o.quickScroll);
-    setFiled("warnofMultiTrig", st, o.warnofMultiTrig);
     setFiled("originalData", st, o.originalData);
     setFiled("ableSaveLog", st, o.ableSaveLog);
     setFiled("appendLogMode", st, o.appendLogMode);

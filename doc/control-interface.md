@@ -209,13 +209,6 @@ where.
   to 1, and neither comes back when you leave stream mode. A channel that is
   switched off loses its simple trigger condition. `trigger.set` replies with
   the trigger as DSView then holds it, the same as `trigger.get`.
-- **Multi-channel warning:** DSView normally asks before it captures with a
-  simple trigger on several channels. It doesn't for a trigger set through the
-  control interface, as long as that DSView keeps running and the trigger
-  stays as it was set. The same goes for a trigger from a configuration file
-  loaded with `config.load`. A trigger that comes from the saved device profile
-  still brings up the warning; with `--non-interactive` it ends up in
-  `messages`.
 - **Demo device:** it accepts a simple trigger but ignores it, so `triggered`
   stays `false`.
 - **Measured on a DSLogic U3Pro32 at 100 MHz, using its internal test pattern:**

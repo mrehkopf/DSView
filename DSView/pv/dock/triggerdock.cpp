@@ -361,7 +361,6 @@ void TriggerDock::device_updated()
     }
 
     this->setEnabled(_session->is_loop_mode() == false);
-    _acknowledged_simple_trigger.clear();
     update_view();
 }
 
@@ -782,7 +781,6 @@ void TriggerDock::change_bus_pattern(bool clear)
     {
         const QScopedValueRollback<bool> applying(_applying_bus, true);
         if (_simple_radioButton->isChecked()) {
-            const bool acknowledged = !clear || _acknowledged_simple_trigger == simple_pattern();
             for (auto signal : _session->get_signals()) {
                 auto logic = qobject_cast<view::LogicSignal *>(signal);
                 if (logic && assignments.contains(logic->get_index())) {
@@ -791,9 +789,6 @@ void TriggerDock::change_bus_pattern(bool clear)
                         view::LogicSignal::HIGTRIG : view::LogicSignal::LOWTRIG);
                 }
             }
-            // Acknowledge only this exact configuration; subsequent manual edits invalidate it.
-            // Clearing must not acknowledge unrelated trigger conditions for the first time.
-            _acknowledged_simple_trigger = acknowledged ? simple_pattern() : trigger::ChannelPattern();
         } else {
             const int stage = _stage_tabWidget->currentIndex();
             if (_adv_tabWidget->currentIndex() != 0 || stage < 0 ||
@@ -820,7 +815,6 @@ void TriggerDock::on_simple_trigger_changed()
 {
     if (_applying_bus)
         return;
-    _acknowledged_simple_trigger.clear();
     update_bus_editor();
 }
 
@@ -878,7 +872,6 @@ QJsonObject TriggerDock::get_session()
 
 void TriggerDock::set_session(QJsonObject ses)
 {
-    _acknowledged_simple_trigger.clear();
     _position_slider->setValue(ses["triggerPos"].toDouble());
     stages_comboBox->setCurrentIndex(ses["triggerStages"].toDouble());
     _adv_tabWidget->setCurrentIndex(ses["triggerTab"].toDouble());
@@ -1380,10 +1373,7 @@ void TriggerDock::lineEdit_highlight(PopupLineEdit *dst) {
 }
 
 void TriggerDock::try_commit_trigger()
-{   
-    AppConfig &app = AppConfig::Instance(); 
-    int num = 0;
-
+{
     int mode = _session->get_device()->get_work_mode();
     bool bInstant = _session->is_instant();
 
@@ -1399,41 +1389,7 @@ void TriggerDock::try_commit_trigger()
         for(auto s : _session->get_signals()){ 
             if (s->signal_type() == SR_CHANNEL_LOGIC) {
                 view::LogicSignal *logicSig = (view::LogicSignal*)s;
-                if (logicSig->commit_trig())
-                    num++;
-            }
-        }
-
-        const trigger::ChannelPattern pattern = simple_pattern();
-        if (app.appOptions.warnofMultiTrig && num > 1 &&
-            _acknowledged_simple_trigger != pattern &&
-            _control_simple_trigger != conditions_only(pattern))
-        {
-            dialogs::DSMessageBox msg(this);
-            msg.mBox()->setText(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_TRIGGER), "Trigger"));
-            msg.mBox()->setInformativeText(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_SET_TRI_MULTI_CHANNEL), 
-                                          "Trigger setted on multiple channels!\nCapture will Only triggered when all setted channels fullfill at one sample"));
-            msg.mBox()->setIcon(QMessageBox::Information);
-
-            QPushButton *noMoreButton = msg.mBox()->addButton(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_NOT_SHOW_AGAIN), "Not Show Again"), QMessageBox::ActionRole);
-            QPushButton *cancelButton = msg.mBox()->addButton(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_CLEAR_TRIG), "Clear Trig"), QMessageBox::ActionRole);
-            msg.mBox()->addButton(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_CONTINUE), "Continue"), QMessageBox::ActionRole);
-
-            msg.exec();
-
-            if (msg.mBox()->clickedButton() == cancelButton) {
-                for(auto s : _session->get_signals()){
-                    if (s->signal_type() == SR_CHANNEL_LOGIC) {
-                        view::LogicSignal *logicSig = (view::LogicSignal*)s;
-                        logicSig->set_trig(view::LogicSignal::NONTRIG);
-                        logicSig->commit_trig();
-                    }
-                }
-            }
-
-            if (msg.mBox()->clickedButton() == noMoreButton)
-            {
-                app.appOptions.warnofMultiTrig  = false;              
+                logicSig->commit_trig();
             }
         }
     }
@@ -1614,7 +1570,6 @@ void TriggerDock::set_control_simple(const trigger::ChannelPattern &conditions)
             logic->set_trig(trig);
         }
     }
-    _control_simple_trigger = conditions_only(simple_pattern());
     control_changed();
 }
 
@@ -1678,11 +1633,6 @@ bool TriggerDock::advanced_available(QString &reason) const
         return false;
     }
     return true;
-}
-
-void TriggerDock::mark_control_trigger()
-{
-    _control_simple_trigger = conditions_only(simple_pattern());
 }
 
 QSet<int> TriggerDock::trigger_channels() const

@@ -115,9 +115,6 @@ public:
     bool advanced_available(QString &reason) const;
     // Enabled channels that can be part of a trigger.
     QSet<int> trigger_channels() const;
-    // The simple trigger as it is now was asked for by a control client
-    // (a loaded configuration file): no multi-channel warning for it.
-    void mark_control_trigger();
 
 signals:
     void trigger_changed();
@@ -188,10 +185,6 @@ private:
     QLabel *_bus_target;
     QLabel *_bus_status;
     QVector<trigger::DecoderBus> _buses;
-    trigger::ChannelPattern _acknowledged_simple_trigger;
-    // Set through the control interface, which asks for exactly this; no
-    // multi-channel warning while it is unchanged.
-    trigger::ChannelPattern _control_simple_trigger;
     bool _applying_bus;
 
     QLabel *_position_label;
