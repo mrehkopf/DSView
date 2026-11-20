@@ -900,6 +900,14 @@
         "text": "Ein zugewiesener Kanal ist deaktiviert oder im aktuellen Gerätemodus nicht verfügbar."
     },
     {
+        "id": "IDS_DLG_BUS_PARTIAL",
+        "text": "Das Zweitgerät kann nicht triggern. Der Trigger ignoriert daher %1 und löst unabhängig von den dortigen Pegeln aus. Der Hexwert zeigt ignorierte Bits als 0."
+    },
+    {
+        "id": "IDS_DLG_BUS_NO_TRIGGER",
+        "text": "Alle Kanäle dieses Busses liegen auf dem Zweitgerät, das nicht triggern kann."
+    },
+    {
         "id": "IDS_DLG_BUS_CONFLICT",
         "text": "Zwei Busbits erfordern unterschiedliche Pegel auf demselben Kanal."
     },

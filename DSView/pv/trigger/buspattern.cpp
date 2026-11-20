@@ -5,12 +5,14 @@
 #include "buspattern.h"
 
 #include <QRegularExpression>
+#include <QStringList>
 
 namespace pv {
 namespace trigger {
 
 BusValueError compile_bus_value(const BusMapping &mapping, const QString &text,
-    const QSet<int> &available_channels, ChannelPattern &assignments)
+    const QSet<int> &available_channels, const QSet<int> &untriggerable_channels,
+    ChannelPattern &assignments)
 {
     if (mapping.isEmpty() || mapping.size() > 32)
         return BusValueError::EmptyBus;
@@ -26,12 +28,17 @@ BusValueError compile_bus_value(const BusMapping &mapping, const QString &text,
         return BusValueError::OutOfRange;
 
     ChannelPattern result;
+    bool skipped = false;
     for (int bit = 0; bit < mapping.size(); ++bit) {
         const int channel = mapping.at(bit);
         const QChar level = (value & (quint64(1) << bit)) ? QLatin1Char('1') : QLatin1Char('0');
         if (channel == -1) {
             if (level == QLatin1Char('1'))
                 return BusValueError::UnmappedBit;
+            continue;
+        }
+        if (untriggerable_channels.contains(channel)) {
+            skipped = true;
             continue;
         }
         if (channel < 0 || channel >= 32 || !available_channels.contains(channel))
@@ -41,14 +48,20 @@ BusValueError compile_bus_value(const BusMapping &mapping, const QString &text,
         result.insert(channel, level);
     }
     if (result.isEmpty())
-        return BusValueError::EmptyBus;
+        return skipped ? BusValueError::NoTriggerChannel : BusValueError::EmptyBus;
 
     assignments = result;
     return BusValueError::None;
 }
 
+BusValueError compile_bus_value(const BusMapping &mapping, const QString &text,
+    const QSet<int> &available_channels, ChannelPattern &assignments)
+{
+    return compile_bus_value(mapping, text, available_channels, QSet<int>(), assignments);
+}
+
 bool read_bus_value(const BusMapping &mapping, const ChannelPattern &pattern,
-    quint32 &value)
+    const QSet<int> &untriggerable_channels, quint32 &value)
 {
     if (mapping.isEmpty() || mapping.size() > 32)
         return false;
@@ -57,7 +70,7 @@ bool read_bus_value(const BusMapping &mapping, const ChannelPattern &pattern,
     bool connected = false;
     for (int bit = 0; bit < mapping.size(); ++bit) {
         const int channel = mapping.at(bit);
-        if (channel == -1)
+        if (channel == -1 || untriggerable_channels.contains(channel))
             continue;
         const QChar level = pattern.value(channel);
         if (level != QLatin1Char('0') && level != QLatin1Char('1'))
@@ -70,6 +83,41 @@ bool read_bus_value(const BusMapping &mapping, const ChannelPattern &pattern,
         return false;
     value = result;
     return true;
+}
+
+bool read_bus_value(const BusMapping &mapping, const ChannelPattern &pattern,
+    quint32 &value)
+{
+    return read_bus_value(mapping, pattern, QSet<int>(), value);
+}
+
+quint32 untriggerable_bus_bits(const BusMapping &mapping,
+    const QSet<int> &untriggerable_channels)
+{
+    quint32 bits = 0;
+    for (int bit = 0; bit < mapping.size() && bit < 32; ++bit) {
+        if (mapping.at(bit) != -1 && untriggerable_channels.contains(mapping.at(bit)))
+            bits |= quint32(1) << bit;
+    }
+    return bits;
+}
+
+QString bus_bit_names(quint32 bits)
+{
+    QStringList names;
+    for (int bit = 0; bit < 32; ++bit) {
+        if (!(bits & (quint32(1) << bit)))
+            continue;
+        int last = bit;
+        while (last < 31 && (bits & (quint32(1) << (last + 1))))
+            ++last;
+        if (last == bit)
+            names.append(QStringLiteral("D%1").arg(bit));
+        else
+            names.append(QStringLiteral("D%1\u2013D%2").arg(bit).arg(last));
+        bit = last;
+    }
+    return names.join(QStringLiteral(", "));
 }
 
 ChannelPattern decode_stage_pattern(const QString &text, int first_channel)

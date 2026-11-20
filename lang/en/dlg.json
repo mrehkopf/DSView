@@ -900,6 +900,14 @@
         "text": "A mapped channel is disabled or unavailable in the current device mode."
     },
     {
+        "id": "IDS_DLG_BUS_PARTIAL",
+        "text": "The secondary analyzer can't trigger, so the trigger ignores %1 and fires whatever the levels there. The hex value shows 0 for ignored bits."
+    },
+    {
+        "id": "IDS_DLG_BUS_NO_TRIGGER",
+        "text": "All of this bus's channels are on the secondary analyzer, which can't trigger."
+    },
+    {
         "id": "IDS_DLG_BUS_CONFLICT",
         "text": "Two bus bits require different levels on the same channel."
     },

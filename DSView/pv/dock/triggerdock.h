@@ -80,11 +80,13 @@ private:
     void setup_adv_tab();
     void lineEdit_highlight(PopupLineEdit *dst);
     void setup_bus_editor();
-    void set_bus_status(const QString &message);
+    void set_bus_status(const QString &message, const QString &warning = QString());
     void change_bus_pattern(bool clear);
     trigger::ChannelPattern simple_pattern() const;
     trigger::ChannelPattern bus_target_pattern() const;
     QSet<int> available_bus_channels() const;
+    QSet<int> untriggerable_bus_channels() const;
+    QString bus_partial_warning(const trigger::BusMapping &mapping, const QSet<int> &untriggerable) const;
     QString bus_value_error(trigger::BusValueError error) const;
     void update_trigger_mode();
 
