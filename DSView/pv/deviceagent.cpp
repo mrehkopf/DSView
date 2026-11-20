@@ -116,6 +116,7 @@ DeviceAgent::DeviceAgent()
 DeviceAgent::~DeviceAgent()
 {
     clear_stacking_channels();
+    free_stacking_channel_pool();
 }
 
 void DeviceAgent::update()
@@ -486,19 +487,9 @@ const std::vector<pv::LogicStackingChannel>& DeviceAgent::logic_stacking_channel
     return _logic_stacking_channel_map;
 }
 
+// Empties the channel list; the channels stay in the pool
 void DeviceAgent::clear_stacking_channels()
 {
-    for (GSList *l = _logic_stacking_channels; l; l = l->next){
-        sr_channel *ch = (sr_channel*)l->data;
-        if (ch != NULL){
-            if (ch->name)
-                g_free(ch->name);
-            if (ch->trigger)
-                g_free(ch->trigger);
-            g_free(ch);
-        }
-    }
-
     if (_logic_stacking_channels != NULL)
         g_slist_free(_logic_stacking_channels);
 
@@ -506,13 +497,34 @@ void DeviceAgent::clear_stacking_channels()
     _logic_stacking_channel_map.clear();
 }
 
-sr_channel* DeviceAgent::make_stacking_channel(int analyzer, int physical_index)
+void DeviceAgent::free_stacking_channel_pool()
 {
+    for (auto &entry : _logic_stacking_channel_pool){
+        sr_channel *ch = entry.second;
+        if (ch->name)
+            g_free(ch->name);
+        if (ch->trigger)
+            g_free(ch->trigger);
+        g_free(ch);
+    }
+
+    _logic_stacking_channel_pool.clear();
+}
+
+sr_channel* DeviceAgent::stacking_channel(int analyzer, int physical_index)
+{
+    const int global_index = pv::LogicStackingConfig::global_channel_index(analyzer, physical_index);
+    auto pooled = _logic_stacking_channel_pool.find(global_index);
+    if (pooled != _logic_stacking_channel_pool.end()){
+        // The merger emits a word for every listed channel, so it must stay enabled
+        pooled->second->enabled = TRUE;
+        return pooled->second;
+    }
+
     sr_channel *ch = (sr_channel*)g_try_malloc0(sizeof(sr_channel));
     if (ch == NULL)
         return NULL;
 
-    const int global_index = pv::LogicStackingConfig::global_channel_index(analyzer, physical_index);
     QString name = QString("%1-D%2")
                        .arg(pv::LogicStackingConfig::analyzer_label(analyzer))
                        .arg(physical_index);
@@ -524,6 +536,7 @@ sr_channel* DeviceAgent::make_stacking_channel(int analyzer, int physical_index)
     ch->trigger = g_strdup("");
     ch->bits = 1;
 
+    _logic_stacking_channel_pool[global_index] = ch;
     return ch;
 }
 
@@ -552,7 +565,7 @@ void DeviceAgent::rebuild_stacking_channels()
             if (!visible)
                 continue;
 
-            sr_channel *ch = make_stacking_channel(analyzer, physical);
+            sr_channel *ch = stacking_channel(analyzer, physical);
             if (ch == NULL){
                 dsv_err("DeviceAgent::rebuild_stacking_channels, malloc failed.");
                 clear_stacking_channels();

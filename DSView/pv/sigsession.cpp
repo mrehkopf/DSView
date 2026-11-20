@@ -386,6 +386,8 @@ namespace pv
         LogicStackingConfig cfg = config;
         const bool channel_model_changed =
             !_device_agent.logic_stacking_config().has_same_channel_model(cfg);
+        const bool was_stacking = _device_agent.is_logic_stacking();
+        bool switched_device = false;
         std::vector<DeviceConfigSnapshotItem> preserved_options;
 
         if (cfg.enabled){
@@ -401,6 +403,7 @@ namespace pv
                     release_device_session_options(preserved_options);
                     return false;
                 }
+                switched_device = true;
 
                 if (!preserved_options.empty())
                     restore_device_session_options(_device_agent, preserved_options);
@@ -416,11 +419,24 @@ namespace pv
             set_collect_mode(COLLECT_SINGLE);
 
         if (channel_model_changed){
-            clear_all_decoder();
-            _view_data->clear();
-            _capture_data->clear();
-            _capture_data = _view_data;
-            init_signals();
+            // Stacking stays on with the same master (analyzers added or removed, a
+            // sync input changed or shown): every remaining channel keeps its global
+            // index, so its trace, the decoders and the captured data are kept, like
+            // after a channel change in the device options. Decoders on a channel
+            // that is gone see it as missing.
+            const bool keep_traces = was_stacking && !switched_device &&
+                                     _device_agent.is_logic_stacking();
+
+            if (keep_traces){
+                reload();
+            }
+            else{
+                clear_all_decoder();
+                _view_data->clear();
+                _capture_data->clear();
+                _capture_data = _view_data;
+                init_signals();
+            }
 
             if (_device_agent.have_instance()){
                 set_cur_snap_samplerate(_device_agent.get_sample_rate());

@@ -26,6 +26,7 @@
 #include <stdint.h>
 #include <libsigrok.h>
 #include <QString>
+#include <map>
 #include <vector>
 #include "logicstackingconfig.h"
 
@@ -234,8 +235,9 @@ public:
 private:
     void config_changed(); 
     void clear_stacking_channels();
+    void free_stacking_channel_pool();
     void rebuild_stacking_channels();
-    sr_channel* make_stacking_channel(int analyzer, int physical_index);
+    sr_channel* stacking_channel(int analyzer, int physical_index);
     bool configure_stacking_capture(bool instant, uint16_t *secondary_trigger_percent);
     bool set_handle_config_bool(ds_device_handle handle, int key, bool value);
     bool set_handle_config_uint64(ds_device_handle handle, int key, uint64_t value);
@@ -265,8 +267,13 @@ private:
     struct sr_dev_inst  *_di; 
     IDeviceAgentCallback *_callback;
     pv::LogicStackingConfig _logic_stacking_config;
+    // The visible synthetic channels, all owned by the pool
     GSList *_logic_stacking_channels;
     std::vector<pv::LogicStackingChannel> _logic_stacking_channel_map;
+    // Every synthetic channel made so far, by global index. They are only
+    // freed with the agent: traces keep pointing at a channel after it is
+    // dropped from the list, and one that comes back keeps its name.
+    std::map<int, sr_channel*> _logic_stacking_channel_pool;
 };
 
 
