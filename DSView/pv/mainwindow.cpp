@@ -270,6 +270,7 @@ namespace pv
 
         _is_auto_switch_device = false;
         _is_save_confirm_msg = false;
+        _control_quitting = false;
 
         _stacking_return_timer.setSingleShot(true);
         connect(&_stacking_return_timer, &QTimer::timeout, this, [this](){
@@ -1534,6 +1535,20 @@ namespace pv
         return this;
     }
 
+    void MainWindow::control_quit()
+    {
+        // The client decides what to save: no "Save captured data?". The rest
+        // is the normal exit path, which saves the device profile and releases
+        // the device.
+        _control_quitting = true;
+
+        QWidget *top = AppControl::Instance()->GetTopWindow();
+        if (top != NULL)
+            top->close();
+        else
+            QCoreApplication::quit();
+    }
+
     bool MainWindow::save_config_to_file(QString name)
     {
         if (name == ""){
@@ -2047,7 +2062,7 @@ namespace pv
         bool ret = false;
         _is_save_confirm_msg = true;
 
-        if (AppConfig::Instance().appOptions.dontAskSaveOnExit)
+        if (AppConfig::Instance().appOptions.dontAskSaveOnExit || _control_quitting)
         {
             _is_save_confirm_msg = false;
             return false;

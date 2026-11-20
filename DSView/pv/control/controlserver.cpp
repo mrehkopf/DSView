@@ -41,7 +41,6 @@
 #include "../toolbars/samplingbar.h"
 #include "../dock/triggerdock.h"
 #include "../view/signal.h"
-#include "../appcontrol.h"
 #include "../log.h"
 #include "DSView/config.h"
 
@@ -800,15 +799,8 @@ void ControlServer::m_server_quit(const Call &call, const QJsonObject &params)
     r["quitting"] = true;
     reply(call, r);
 
-    // After the reply is out. Closing the main window takes the normal exit
-    // path, which saves the device profile and releases the device.
-    QTimer::singleShot(0, qApp, [](){
-        QWidget *top = AppControl::Instance()->GetTopWindow();
-        if (top != NULL)
-            top->close();
-        else
-            QCoreApplication::quit();
-    });
+    // After the reply is out.
+    QTimer::singleShot(0, this, [this](){ _host->control_quit(); });
 }
 
 void ControlServer::m_device_list(const Call &call, const QJsonObject &params)

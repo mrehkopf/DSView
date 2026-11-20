@@ -37,7 +37,9 @@ time.
 
 To stop a headless DSView, run `dsview-ctl quit` or send it Ctrl-C or SIGTERM.
 These take the normal exit path, which saves the device profile and releases the
-analyzer. A headless DSView doesn't save the window layout.
+analyzer. A headless DSView doesn't save the window layout. `quit` doesn't ask
+to save captured data, even when DSView has a window. If you need the data, save
+it with `export` first.
 
 ## dsview-ctl
 
@@ -55,7 +57,7 @@ dsview-ctl quit
 | Command | Does |
 | --- | --- |
 | `info` | DSView version, protocol version, socket, current device, state |
-| `quit` | Close DSView |
+| `quit` | Close DSView, without asking to save captured data |
 | `devices` | List devices |
 | `select INDEX\|NAME` | Switch device. NAME can be the device name, its unique id, or `name [id]` as the GUI shows it |
 | `config` | All options with their values and choices |
@@ -356,7 +358,7 @@ non-interactively, such as a hardware error. In an error reply they are in
 | Method | Params | Result |
 | --- | --- | --- |
 | `server.info` | | `name`, `version`, `protocol` (1), `pid`, `socket`, `headless`, `non_interactive`, `state`, `device` |
-| `server.quit` | | `quitting`. DSView exits after replying |
+| `server.quit` | | `quitting`. DSView exits after replying, without asking to save captured data |
 | `device.list` | | `devices`: `index`, `name`, `unique_id`, `active` |
 | `device.select` | `index` or `name` | `device`: `name`, `driver`, `type` (`hardware`, `demo`, `file`), `mode`, `stacking`, `path` for a file. For a data file also `status`, once its data is loaded |
 | `config.list` | | `options`: `key`, `label`, `type`, `value`, `choices`, `unit`, `min`, `max`, `read_only` |

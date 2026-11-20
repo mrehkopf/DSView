@@ -45,6 +45,9 @@ public:
     virtual QString control_default_config() = 0;
     // The settings a .dsl file holds next to the data.
     virtual ISessionDataGetter *control_session_data() = 0;
+    // Closes DSView as the window's close button does, but without asking
+    // to save captured data.
+    virtual void control_quit() = 0;
 };
 
 } // namespace control

@@ -216,6 +216,7 @@ private:
     bool control_store_config(const QString &path) override;
     QString control_default_config() override;
     ISessionDataGetter *control_session_data() override;
+    void control_quit() override;
 
 private: 
 	pv::view::View          *_view;
@@ -278,6 +279,7 @@ private:
     // port ends the wait
     std::vector<ds_device_handle> _stacking_wait_devices;
     QTimer          _stacking_return_timer;
+    bool            _control_quitting;
     QString         _pattern_mode;
     QWidget         *_frame;
     DsTimer         _delay_prop_msg_timer;
