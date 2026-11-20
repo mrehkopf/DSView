@@ -66,6 +66,8 @@ private:
 
     void changeName(QMouseEvent *event);
     void changeColor(QMouseEvent *event);
+    // _context_trace if it is still one of the view's traces, otherwise NULL
+    Trace* live_context_trace();
 
     //IUiWindow
     void UpdateLanguage() override;
