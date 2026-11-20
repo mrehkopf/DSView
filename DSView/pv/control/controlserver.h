@@ -21,6 +21,7 @@
 #define DSVIEW_PV_CONTROL_CONTROLSERVER_H
 
 #include <memory>
+#include <vector>
 #include <QObject>
 #include <QPointer>
 #include <QJsonObject>
@@ -29,6 +30,7 @@
 #include <QHash>
 #include <QList>
 #include <QTimer>
+#include <QElapsedTimer>
 #include <QLocalServer>
 #include <QLocalSocket>
 #include "../interface/icallbacks.h"
@@ -45,8 +47,13 @@ namespace toolbars {
 class SamplingBar;
 }
 
+namespace data {
+class LogicSnapshot;
+}
+
 namespace dock {
 class TriggerDock;
+class ProtocolDock;
 }
 
 namespace control {
@@ -65,7 +72,8 @@ public:
 
     ControlServer(SigSession *session, IControlHost *host,
                   toolbars::SamplingBar *sampling_bar,
-                  dock::TriggerDock *trigger_dock, QObject *parent);
+                  dock::TriggerDock *trigger_dock,
+                  dock::ProtocolDock *protocol_dock, QObject *parent);
     ~ControlServer();
 
     bool listen(const QString &name);
@@ -82,6 +90,7 @@ private slots:
     void on_disconnected();
     void on_export_poll();
     void on_load_timeout();
+    void on_decode_poll();
 
 private:
     struct Call
@@ -106,6 +115,24 @@ private:
         bool    save;   // a .dsl file (DSView's Save), not an export
         uint64_t start;
         QTimer  timer;
+    };
+
+    struct DecodeWaiter
+    {
+        Call            call;
+        QElapsedTimer   started;
+        double          timeout;    // seconds; 0: none
+    };
+
+    // decoder.results: one row's annotations in time order. Decoders
+    // store them in the order they produce them, which isn't always that.
+    struct ResultOrder
+    {
+        void                    *stack = NULL;  // compared only
+        uint64_t                generation = 0;
+        int                     row = -1;
+        std::vector<uint64_t>   index;          // annotation numbers, by start
+        std::vector<uint64_t>   start;          // their start samples
     };
 
     struct LoadCall
@@ -151,6 +178,33 @@ private:
     void m_file_close(const Call &call, const QJsonObject &params);
     void m_config_load(const Call &call, const QJsonObject &params);
     void m_config_save(const Call &call, const QJsonObject &params);
+    void m_decoder_catalog(const Call &call, const QJsonObject &params);
+    void m_decoder_describe(const Call &call, const QJsonObject &params);
+    void m_decoder_list(const Call &call, const QJsonObject &params);
+    void m_decoder_add(const Call &call, const QJsonObject &params);
+    void m_decoder_remove(const Call &call, const QJsonObject &params);
+    void m_decoder_wait(const Call &call, const QJsonObject &params);
+    void m_decoder_results(const Call &call, const QJsonObject &params);
+
+    void m_data_edges(const Call &call, const QJsonObject &params);
+    void m_data_measure(const Call &call, const QJsonObject &params);
+    void m_data_find(const Call &call, const QJsonObject &params);
+
+    // The captured logic data and the "start"/"end" range of a data call.
+    // Replies with an error and returns NULL if there is none.
+    data::LogicSnapshot *data_range(const Call &call, const QJsonObject &params,
+                                    uint64_t &start, uint64_t &end);
+    // The "channels" parameter: channels with data, all of them if absent.
+    bool data_channels(const Call &call, const QJsonObject &params,
+                       data::LogicSnapshot *snapshot, std::vector<int> &channels);
+
+    QJsonArray decoder_list();
+    // A decoder decodes or will: decoding, or a capture runs or a data file
+    // loads (decoders run at the end of a capture).
+    bool decoding_busy();
+    // The "index" parameter: a decoder of the session. Replies with an
+    // error and returns -1 if there is none.
+    int decoder_index(const Call &call, const QJsonObject &params);
 
     QJsonObject device_info();
     QJsonObject capture_status();
@@ -180,6 +234,7 @@ private:
     DeviceAgent             *_device;
     toolbars::SamplingBar   *_sampling_bar;
     dock::TriggerDock       *_trigger_dock;
+    dock::ProtocolDock      *_protocol_dock;
     QLocalServer            _server;
     QHash<QLocalSocket*, QByteArray> _buffers;
 
@@ -190,6 +245,10 @@ private:
     bool                    _load_started;
     QTimer                  _load_timer;
     QList<LoadCall>         _load_calls;
+
+    QList<DecodeWaiter>     _decode_waiters;
+    ResultOrder             _result_order;
+    QTimer                  _decode_poll;
 
     bool                    _stop_requested;
     bool                    _trigger_armed;   // the last capture waited for a trigger

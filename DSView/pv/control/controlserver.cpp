@@ -40,6 +40,13 @@
 #include "../storesession.h"
 #include "../toolbars/samplingbar.h"
 #include "../dock/triggerdock.h"
+#include "../dock/protocoldock.h"
+#include "../view/decodetrace.h"
+#include "../data/decoderstack.h"
+#include "../data/decode/annotation.h"
+#include "controldecoders.h"
+#include "controldata.h"
+#include "../data/logicsnapshot.h"
 #include "../view/signal.h"
 #include "../log.h"
 #include "DSView/config.h"
@@ -72,6 +79,10 @@ enum ErrorCode
 
 const int MaxLineLength = 1024 * 1024;
 const int ExportPollInterval = 50; // ms
+const int DecodePollInterval = 50; // ms
+// decoder.results: annotations per reply; data.edges: edges per reply
+const int ResultsDefaultLimit = 1000;
+const int ResultsMaxLimit = 10000;
 // MainWindow starts a data file's replay 100 ms after the device switch; if
 // it hasn't run by then, it failed.
 const int LoadStartTimeout = 5000; // ms
@@ -264,13 +275,15 @@ bool stacking_shared_option(int key)
 
 ControlServer::ControlServer(SigSession *session, IControlHost *host,
                              toolbars::SamplingBar *sampling_bar,
-                             dock::TriggerDock *trigger_dock, QObject *parent) :
+                             dock::TriggerDock *trigger_dock,
+                             dock::ProtocolDock *protocol_dock, QObject *parent) :
     QObject(parent),
     _session(session),
     _host(host),
     _device(session->get_device()),
     _sampling_bar(sampling_bar),
     _trigger_dock(trigger_dock),
+    _protocol_dock(protocol_dock),
     _loading(false),
     _load_started(false),
     _stop_requested(false),
@@ -278,6 +291,9 @@ ControlServer::ControlServer(SigSession *session, IControlHost *host,
 {
     _load_timer.setSingleShot(true);
     connect(&_load_timer, SIGNAL(timeout()), this, SLOT(on_load_timeout()));
+
+    _decode_poll.setInterval(DecodePollInterval);
+    connect(&_decode_poll, SIGNAL(timeout()), this, SLOT(on_decode_poll()));
 
     // After MainWindow, so the GUI has dealt with a message before a
     // client hears about it.
@@ -486,6 +502,16 @@ void ControlServer::dispatch(const Call &call, const QString &method, const QJso
         {"file.close",      &ControlServer::m_file_close},
         {"config.load",     &ControlServer::m_config_load},
         {"config.save",     &ControlServer::m_config_save},
+        {"decoder.catalog", &ControlServer::m_decoder_catalog},
+        {"decoder.describe",&ControlServer::m_decoder_describe},
+        {"decoder.list",    &ControlServer::m_decoder_list},
+        {"decoder.add",     &ControlServer::m_decoder_add},
+        {"decoder.remove",  &ControlServer::m_decoder_remove},
+        {"decoder.wait",    &ControlServer::m_decoder_wait},
+        {"decoder.results", &ControlServer::m_decoder_results},
+        {"data.edges",      &ControlServer::m_data_edges},
+        {"data.measure",    &ControlServer::m_data_measure},
+        {"data.find",       &ControlServer::m_data_find},
     };
 
     for (const auto &m : methods){
@@ -2563,6 +2589,454 @@ void ControlServer::m_config_save(const Call &call, const QJsonObject &params)
     r["path"] = path;
     r["bytes"] = (double)QFileInfo(path).size();
     reply(call, r);
+}
+
+//------------------------------------------------------------- decoders
+
+QJsonArray ControlServer::decoder_list()
+{
+    QJsonArray list;
+    const bool capturing = _session->is_working() || _loading;
+    const int n = (int)_session->get_decode_signals().size();
+    for (int i = 0; i < n; i++)
+        list.append(decoders::entry(_session, i, capturing));
+    return list;
+}
+
+bool ControlServer::decoding_busy()
+{
+    return _session->is_working() || _loading || _session->is_decode_busy();
+}
+
+int ControlServer::decoder_index(const Call &call, const QJsonObject &params)
+{
+    const int n = (int)_session->get_decode_signals().size();
+    const QJsonValue v = params.value("index");
+    const double d = v.toDouble(-1);
+
+    if (n == 0){
+        reply_error(call, ErrInvalidParams, "There are no decoders (decoder.add).");
+        return -1;
+    }
+    if (!v.isDouble() || d < 0 || d != std::floor(d) || d >= n){
+        reply_error(call, ErrInvalidParams,
+            QString("\"index\" must be a decoder from 0 to %1 (decoder.list).").arg(n - 1));
+        return -1;
+    }
+    return (int)d;
+}
+
+void ControlServer::m_decoder_catalog(const Call &call, const QJsonObject &params)
+{
+    (void)params;
+    QJsonObject r;
+    r["decoders"] = decoders::catalog();
+    reply(call, r);
+}
+
+void ControlServer::m_decoder_describe(const Call &call, const QJsonObject &params)
+{
+    const QString id = params.value("id").toString();
+    const srd_decoder *dec = decoders::find(id);
+    if (dec == NULL){
+        reply_error(call, ErrInvalidParams, id.isEmpty()
+            ? QString("\"id\" is required: a decoder id from decoder.catalog.")
+            : QString("There is no decoder \"%1\" (see decoder.catalog).").arg(id));
+        return;
+    }
+    reply(call, decoders::describe(dec));
+}
+
+void ControlServer::m_decoder_list(const Call &call, const QJsonObject &params)
+{
+    (void)params;
+    QJsonObject r;
+    r["decoders"] = decoder_list();
+    reply(call, r);
+}
+
+void ControlServer::m_decoder_add(const Call &call, const QJsonObject &params)
+{
+    if (!check_ready(call, true))
+        return;
+
+    QJsonObject config;
+    QString error;
+    if (!decoders::build(_session, params, config, error)){
+        reply_error(call, ErrInvalidParams, error);
+        return;
+    }
+
+    // The same path as loading the decoders of a configuration file, which
+    // also adds them to the Protocol dock.
+    const int before = (int)_session->get_decode_signals().size();
+    QJsonArray array;
+    array.append(config);
+    StoreSession ss(_session);
+    ss.load_decoders(_protocol_dock, array);
+
+    const int index = (int)_session->get_decode_signals().size() - 1;
+    if (index != before){
+        reply_error(call, ErrInternal, "DSView could not add the decoder.");
+        return;
+    }
+
+    // Decoders run at the end of a capture. One added afterwards decodes
+    // the data there is now, as when it is added in the GUI.
+    _session->decode_now(_session->get_decoder_trace(index));
+
+    reply(call, decoders::entry(_session, index, false));
+}
+
+void ControlServer::m_decoder_remove(const Call &call, const QJsonObject &params)
+{
+    if (!check_ready(call, true))
+        return;
+
+    const int n = (int)_session->get_decode_signals().size();
+    bool all = false;
+
+    if (params.contains("all") && !parse_bool(params.value("all"), all)){
+        reply_error(call, ErrInvalidParams, "\"all\" is true or false.");
+        return;
+    }
+
+    if (all){
+        _protocol_dock->del_all_protocol();
+    }
+    else{
+        const int index = decoder_index(call, params);
+        if (index < 0)
+            return;
+        _protocol_dock->remove_protocol(index);
+    }
+
+    QJsonObject r;
+    r["removed"] = n - (int)_session->get_decode_signals().size();
+    r["decoders"] = decoder_list();
+    reply(call, r);
+}
+
+void ControlServer::m_decoder_wait(const Call &call, const QJsonObject &params)
+{
+    double timeout = 0;
+    if (!param_timeout(params, timeout)){
+        reply_error(call, ErrInvalidParams, "\"timeout\" needs a time in seconds, e.g. 5 or 500ms.");
+        return;
+    }
+
+    if (!decoding_busy()){
+        QJsonObject r;
+        r["decoders"] = decoder_list();
+        reply(call, r);
+        return;
+    }
+
+    DecodeWaiter w;
+    w.call = call;
+    w.timeout = timeout;
+    w.started.start();
+    _decode_waiters.append(w);
+
+    if (!_decode_poll.isActive())
+        _decode_poll.start();
+}
+
+void ControlServer::on_decode_poll()
+{
+    const bool busy = decoding_busy();
+    QJsonObject r;
+    r["decoders"] = decoder_list();
+
+    for (int i = 0; i < _decode_waiters.size(); ){
+        DecodeWaiter &w = _decode_waiters[i];
+
+        if (!busy){
+            reply(w.call, r);
+        }
+        else if (w.timeout > 0 && w.started.elapsed() >= w.timeout * 1000.0){
+            reply_error(w.call, ErrTimeout, "Timed out; decoding goes on.", r);
+        }
+        else{
+            i++;
+            continue;
+        }
+        _decode_waiters.removeAt(i);
+    }
+
+    if (_decode_waiters.isEmpty())
+        _decode_poll.stop();
+}
+
+void ControlServer::m_decoder_results(const Call &call, const QJsonObject &params)
+{
+    const int index = decoder_index(call, params);
+    if (index < 0)
+        return;
+
+    view::DecodeTrace *trace = _session->get_decoder_trace(index);
+    data::DecoderStack *stack = trace->decoder();
+
+    // Decoders run at the end of a capture, which first clears their
+    // results; a new decode clears the annotations and their texts on the
+    // decode thread. So only finished ones are read.
+    if (_session->is_working() || _loading){
+        reply_error(call, ErrBusy, _loading
+            ? QString("A data file is being loaded; its decoders run once it is in.")
+            : QString("A capture is running; decoders run at its end. Wait with decoder.wait."));
+        return;
+    }
+    if (_session->is_decode_pending(trace)){
+        QJsonObject data;
+        data["progress"] = stack->get_progress();
+        reply_error(call, ErrBusy,
+            QString("Decoder %1 is still decoding (%2 %); wait with decoder.wait.")
+                .arg(index).arg(stack->get_progress()), data);
+        return;
+    }
+
+    data::decode::Row row;
+    int row_index = 0;
+    QString error;
+    if (!decoders::find_row(stack, params, row, row_index, error)){
+        reply_error(call, ErrInvalidParams, error);
+        return;
+    }
+
+    uint64_t start = 0, end = 0, offset = 0, limit = ResultsDefaultLimit;
+    bool has_start, has_end, has_offset, has_limit;
+    if (!param_uint64(params, "start", start, has_start) || !param_uint64(params, "end", end, has_end)){
+        reply_error(call, ErrInvalidParams, "\"start\" and \"end\" are sample numbers.");
+        return;
+    }
+    if (has_end && end <= start){
+        reply_error(call, ErrInvalidParams, "\"end\" must be after \"start\".");
+        return;
+    }
+    if (!param_uint64(params, "offset", offset, has_offset)){
+        reply_error(call, ErrInvalidParams, "\"offset\" is a number of annotations to skip.");
+        return;
+    }
+    if (!param_uint64(params, "limit", limit, has_limit) || limit < 1 || limit > (uint64_t)ResultsMaxLimit){
+        reply_error(call, ErrInvalidParams,
+            QString("\"limit\" is from 1 to %1 annotations.").arg(ResultsMaxLimit));
+        return;
+    }
+
+    const double samplerate = (double)_session->cur_snap_samplerate();
+    const uint64_t count = stack->row_annotation_count(row);
+    data::decode::Annotation ann;
+
+    // Sorted once per decode and row, for the pages that follow.
+    ResultOrder &order = _result_order;
+    if (order.stack != stack || order.generation != stack->generation()
+        || order.row != row_index || order.index.size() != count){
+        std::vector<std::pair<uint64_t, uint64_t>> sorted;
+        sorted.reserve(count);
+        for (uint64_t k = 0; k < count && stack->row_annotation(row, k, ann); k++)
+            sorted.push_back(std::make_pair(ann.start_sample(), k));
+        // By start, then in the order the decoder produced them.
+        std::sort(sorted.begin(), sorted.end());
+
+        order.stack = stack;
+        order.generation = stack->generation();
+        order.row = row_index;
+        order.index.resize(sorted.size());
+        order.start.resize(sorted.size());
+        for (size_t k = 0; k < sorted.size(); k++){
+            order.start[k] = sorted[k].first;
+            order.index[k] = sorted[k].second;
+        }
+    }
+
+    const uint64_t total = order.index.size();
+    uint64_t i = (std::lower_bound(order.start.begin(), order.start.end(), start)
+                  - order.start.begin()) + offset;
+
+    QJsonArray annotations;
+    uint64_t taken = 0;
+
+    for (; i < total && taken < limit; i++){
+        if (has_end && order.start[i] >= end)
+            break;
+        if (!stack->row_annotation(row, order.index[i], ann))
+            break;
+        annotations.append(decoders::annotation_json(row, ann, samplerate));
+        taken++;
+    }
+
+    // More of them, within the range?
+    const bool more = i < total && (!has_end || order.start[i] < end);
+
+    QJsonObject r;
+    r["index"] = index;
+    r["row"] = decoders::row_json(stack, row, row_index);
+    r["format"] = decoders::format_name(stack->decoder_status()->m_format);
+    r["samplerate"] = samplerate;
+    r["offset"] = (double)offset;
+    r["annotations"] = annotations;
+    r["next_offset"] = more ? QJsonValue((double)(offset + taken)) : QJsonValue();
+    if (!stack->error_message().isEmpty())
+        r["error"] = stack->error_message();
+    reply(call, r);
+}
+
+//------------------------------------------------------------- data
+
+data::LogicSnapshot *ControlServer::data_range(const Call &call, const QJsonObject &params,
+                                               uint64_t &start, uint64_t &end)
+{
+    if (!check_ready(call, true))
+        return NULL;
+    if (!_session->have_view_data()){
+        reply_error(call, ErrNoData, "There is no captured data.");
+        return NULL;
+    }
+
+    data::LogicSnapshot *snapshot = (data::LogicSnapshot *)_session->get_snapshot(SR_CHANNEL_LOGIC);
+    const uint64_t total = snapshot != NULL ? snapshot->get_ring_sample_count() : 0;
+    if (total == 0){
+        reply_error(call, ErrNoData, "There is no captured data.");
+        return NULL;
+    }
+
+    bool has_start, has_end;
+    start = 0;
+    end = total;
+    if (!param_uint64(params, "start", start, has_start) || !param_uint64(params, "end", end, has_end)){
+        reply_error(call, ErrInvalidParams, "\"start\" and \"end\" are sample numbers.");
+        return NULL;
+    }
+    if (start >= total){
+        reply_error(call, ErrInvalidParams, QString("\"start\" is beyond the data (%1 samples).").arg(total));
+        return NULL;
+    }
+    if (end > total || end <= start){
+        reply_error(call, ErrInvalidParams,
+            QString("\"end\" must be after \"start\" and at most %1.").arg(total));
+        return NULL;
+    }
+    return snapshot;
+}
+
+bool ControlServer::data_channels(const Call &call, const QJsonObject &params,
+                                  data::LogicSnapshot *snapshot, std::vector<int> &channels)
+{
+    channels.clear();
+    const QJsonValue v = params.value("channels");
+
+    if (v.isUndefined() || v.isNull()){
+        for (view::Signal *s : _session->get_signals()){
+            if (s->signal_type() == SR_CHANNEL_LOGIC && snapshot->has_data(s->get_index()))
+                channels.push_back(s->get_index());
+        }
+        std::sort(channels.begin(), channels.end());
+        channels.erase(std::unique(channels.begin(), channels.end()), channels.end());
+        if (channels.empty()){
+            reply_error(call, ErrNoData, "No channel has data.");
+            return false;
+        }
+        return true;
+    }
+
+    QJsonArray list = v.isArray() ? v.toArray() : QJsonArray{v};
+    for (const QJsonValue &c : list){
+        const double d = c.toDouble(-1);
+        if (!c.isDouble() || d < 0 || d != std::floor(d) || d >= 64){
+            reply_error(call, ErrInvalidParams, "\"channels\" is a list of channel numbers.");
+            return false;
+        }
+        if (!snapshot->has_data((int)d)){
+            reply_error(call, ErrInvalidParams,
+                QString("Channel %1 has no data in this capture (channel.list).").arg((int)d));
+            return false;
+        }
+        if (std::find(channels.begin(), channels.end(), (int)d) == channels.end())
+            channels.push_back((int)d);
+    }
+    if (channels.empty()){
+        reply_error(call, ErrInvalidParams, "\"channels\" is empty.");
+        return false;
+    }
+    return true;
+}
+
+void ControlServer::m_data_edges(const Call &call, const QJsonObject &params)
+{
+    uint64_t start, end, limit = ResultsDefaultLimit;
+    bool has_limit;
+    data::LogicSnapshot *snapshot = data_range(call, params, start, end);
+    if (snapshot == NULL)
+        return;
+
+    std::vector<int> channels;
+    if (!data_channels(call, params, snapshot, channels))
+        return;
+
+    if (!param_uint64(params, "limit", limit, has_limit) || limit > (uint64_t)ResultsMaxLimit){
+        reply_error(call, ErrInvalidParams,
+            QString("\"limit\" is from 0 to %1 edges; 0 gives only the levels at \"start\".").arg(ResultsMaxLimit));
+        return;
+    }
+
+    reply(call, logicdata::edges(snapshot, channels, start, end, limit));
+}
+
+void ControlServer::m_data_measure(const Call &call, const QJsonObject &params)
+{
+    uint64_t start, end;
+    data::LogicSnapshot *snapshot = data_range(call, params, start, end);
+    if (snapshot == NULL)
+        return;
+
+    std::vector<int> channels;
+    if (!data_channels(call, params, snapshot, channels))
+        return;
+
+    reply(call, logicdata::measure(snapshot, channels, start, end));
+}
+
+void ControlServer::m_data_find(const Call &call, const QJsonObject &params)
+{
+    uint64_t start, end, limit = 1;
+    bool has_limit;
+    data::LogicSnapshot *snapshot = data_range(call, params, start, end);
+    if (snapshot == NULL)
+        return;
+
+    const QJsonValue pv = params.value("pattern");
+    if (!pv.isObject() || pv.toObject().isEmpty()){
+        reply_error(call, ErrInvalidParams,
+            "\"pattern\" maps channels to conditions, e.g. {\"0\": \"rising\", \"3\": \"high\"}.");
+        return;
+    }
+
+    QMap<int, QChar> pattern;
+    const QJsonObject po = pv.toObject();
+    for (auto it = po.begin(); it != po.end(); ++it){
+        bool ok;
+        const int ch = it.key().toInt(&ok);
+        QChar cond;
+        if (!ok || ch < 0 || ch >= 64 || !snapshot->has_data(ch)){
+            reply_error(call, ErrInvalidParams,
+                QString("\"%1\" is not a channel with data in this capture.").arg(it.key()));
+            return;
+        }
+        if (!parse_condition(it.value(), cond) || cond == QLatin1Char('X')){
+            reply_error(call, ErrInvalidParams,
+                QString("Channel %1: the condition is low, high, rising, falling or edge.").arg(ch));
+            return;
+        }
+        pattern.insert(ch, cond);
+    }
+
+    if (!param_uint64(params, "limit", limit, has_limit) || limit < 1 || limit > (uint64_t)ResultsMaxLimit){
+        reply_error(call, ErrInvalidParams,
+            QString("\"limit\" is from 1 to %1 matches.").arg(ResultsMaxLimit));
+        return;
+    }
+
+    reply(call, logicdata::find(snapshot, pattern, start, end, limit));
 }
 
 } // namespace control

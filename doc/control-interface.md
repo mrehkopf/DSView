@@ -3,7 +3,9 @@
 Scripts and AI agents can drive DSView through a local socket: select a
 device, set the sample rate, threshold voltage and other options, choose
 channels, set the trigger, run captures and export the data as VCD or CSV.
-They can also save and open DSView data files (`.dsl`), and save and load
+They can decode protocols with DSView's protocol decoders and look at the
+captured data directly: edges, levels, measurements and pattern searches. They
+can also save and open DSView data files (`.dsl`), and save and load
 configuration files (`.dsc`). Commands go through the same code paths as the
 toolbar, so a capture started this way behaves like one started with the Start
 button, and the GUI shows it.
@@ -77,6 +79,16 @@ dsview-ctl quit
 | `export FILE` | Export the data. `--format`, `--start N`, `--end N`. A `.dsl` file is DSView's own data file |
 | `open FILE` | Open a data file (`.dsl`) and load its data |
 | `close` | Close the open data file |
+| `decoders [ID]` | The installed protocol decoders, or one of them in full |
+| `decode` | The decoders added, with their state and annotation rows |
+| `decode add ID KEY=VALUE...` | Add a decoder. A KEY that names one of its channels binds it to a channel number; other KEYs set options. `--stack ID [KEY=VALUE...]` adds a decoder that reads its output, `--label TEXT` names it |
+| `decode remove INDEX` | Remove a decoder; `--all` removes all of them |
+| `decode wait` | Wait until decoding is done; `--timeout SEC` |
+| `decode results INDEX ROW` | A row's annotations in time order, once decoding is done. `--decoder ID`, `--start N`, `--end N`, `--offset N`, `--limit N`, `--all` (every page) |
+| `edges [CH...]` | The levels at the start, then each change. `--start N`, `--end N`, `--limit N` |
+| `levels SAMPLE [CH...]` | The levels at a sample |
+| `measure [CH...]` | Edge counts, pulse widths, period, frequency and duty cycle. `--start N`, `--end N` |
+| `find CH=COND...` | Where conditions become true, e.g. `find 0=rising 3=high`. `--start N`, `--end N`, `--limit N` |
 | `call METHOD [JSON]` | Send any request |
 
 Global options go before the command: `-s NAME` (`--socket`) picks the socket and
@@ -338,6 +350,94 @@ dsview-ctl config load --default    # DSView's default configuration for the dev
 - **Saving** writes what the GUI's File > Config > Store writes. The reply gives
   `path` and `bytes`.
 
+## Protocol decoders
+
+DSView's protocol decoders (the Protocol dock in the GUI) turn the captured
+signals into annotations such as I²C addresses, UART bytes or SPI transfers.
+
+```bash
+dsview-ctl decoders                        # what is installed
+dsview-ctl decoders 1:i2c                  # channels, options and rows of one
+dsview-ctl decode add 1:i2c scl=1 sda=0 --stack eeprom24xx
+dsview-ctl capture
+dsview-ctl decode results 0 addr-data      # waits until decoding is done
+```
+
+- **Decoders:** the ids come from `decoder.catalog`. I²C, SPI and UART come in
+  two variants each, `0:i2c` and `1:i2c` and so on, with different options and
+  rows. A decoder that reads another decoder's output (`eeprom24xx` reads
+  `i2c`) goes in the `stack` of one that reads logic signals, as in the GUI.
+- **Adding:** `decoder.add` takes the decoder's `id`, `channels` (its channel
+  ids mapped to channel numbers; all required ones), `options`, `stack` (a list
+  of `{"id": ..., "options": {...}}`) and a `label`. Everything is checked
+  first: an unknown decoder, channel or option, a channel that is off, or a
+  value that isn't in the option's list gives error -32602 saying what is
+  allowed. The decoder shows up in the Protocol dock, and data and
+  configuration files keep it. Decoders from opened files and loaded
+  configurations show up in `decoder.list` too.
+- **Decoding** happens in the background at the end of each capture, as in the
+  GUI, and when a decoder is added while there is data. `decoder.wait` replies
+  once no decoder is busy. `decoder.list` gives each decoder's `decoding` and
+  `progress`, and `error` if decoding failed.
+- **Rows:** each decoder's annotations come in rows, e.g. `bits`, `addr-data`
+  and `warnings` for I²C. `decoder.list` gives each row's number, `decoder`,
+  `id`, `title` and how many `annotations` it has. The rows of the decoder that
+  reads the signals come first, then those of each stacked decoder.
+- **Results:** `decoder.results` returns one row's annotations sorted by start:
+  `start` and `end` (samples), `time` (seconds from the start of the capture),
+  `text`, and `class`, the annotation class from `decoder.describe`. Name the
+  row by number or id; when two decoders in the stack have a row with that id,
+  `decoder` says which. `start` and `end` select annotations that start in that
+  sample range. Each reply holds up to `limit` (default 1000, at most 10000);
+  `offset` skips some, and `next_offset` is the offset of the next page, or
+  null. While its decoder is decoding, the call fails with error 1 and
+  `data.progress`.
+- **Numbers** in annotation texts follow the decoder's display format in the
+  Protocol dock: `format` in the reply, `hex` unless changed in the GUI.
+- **Removing:** `decoder.remove` with an `index`, or `all`: `true`, does what
+  the Protocol dock's delete buttons do, without asking.
+
+## Data
+
+These calls look at the captured logic data without exporting it: the last
+capture, or the open data file. They aren't available while a capture runs or a
+file loads (error 1).
+
+```bash
+dsview-ctl edges 0-3 --start 1000 --limit 20   # what changes, and when
+dsview-ctl levels 123456                       # all levels at one sample
+dsview-ctl measure 4                           # frequency, duty cycle, pulse widths
+dsview-ctl find 0=rising 1=high --limit 5      # where a pattern occurs
+```
+
+- **Positions** are sample numbers from the start of the capture, and `time` is
+  the same in seconds. `end` is exclusive and defaults to the end of the data.
+  The trigger is at `trigger_sample` in the capture status.
+- **Channels:** a list of channel numbers, or all channels with data. A channel
+  that was off during the capture has no data (error -32602).
+- **`data.edges`** gives the `levels` at `start`, then each later sample where a
+  channel changes: `sample`, `time`, and the channels `rising` and `falling`
+  there. Each reply holds up to `limit` of them (default 1000, at most 10000; 0
+  gives the levels only). `next` is null when the range is done. Otherwise
+  pass it as `start` to go on: that reply starts with the levels after the
+  last change you have.
+- **`data.measure`** gives, per channel, the `level` at `start`, the numbers of
+  `rising` and `falling` edges, `first_edge` and `last_edge`, and `high`, `low`
+  and `period`, each with `count`, `min`, `max` and `mean` in seconds. Then
+  `frequency` (Hz, from the mean period) and `duty` (%). Pulses and periods cut
+  off by the range don't count; without any, these are null.
+- **`data.find`** gives the samples where a `pattern` becomes true. It maps
+  channels to the trigger's conditions: `low`, `high`, `rising`, `falling`,
+  `edge`. With an edge in the pattern, a match is a sample where those edges
+  happen and the levels hold. With levels only, it is where they start to hold,
+  and at sample 0 if they hold from the start. Up to `limit` matches (default
+  1); `next`, unless null, is where to search on.
+- **Time limit:** `data.measure` and `data.find` run in DSView's GUI thread and
+  stop after about half a second, which is roughly ten million edges of one
+  channel. A measurement that stops gives `truncated` and `next` for that
+  channel; measuring from `next` covers the rest. A search that stops gives
+  `next`.
+
 ## Protocol
 
 JSON-RPC 2.0 over the socket (a Unix domain socket, or a named pipe on
@@ -377,6 +477,16 @@ non-interactively, such as a hardware error. In an error reply they are in
 | `file.close` | | `closed` (the file's path), `device`. Also `status` when the new device is a data file |
 | `trigger.get` | | `mode`, `active` (a capture waits for it), `position`, `position_max`, `modes` (available here), `usable_channels`, `channels`, `stages`, `serial` |
 | `trigger.set` | `mode`, `position`, `channels`, `stages` | As `trigger.get` |
+| `decoder.catalog` | | `decoders`: `id`, `name`, `longname`, `inputs`, `outputs` |
+| `decoder.describe` | `id` | `id`, `name`, `longname`, `desc`, `inputs`, `outputs`, `channels` (`id`, `name`, `desc`, `required`), `options` (`id`, `desc`, `type`, `default`, `values`), `classes` (`id`, `desc`), `rows` (`id`, `desc`, `classes`) |
+| `decoder.list` | | `decoders`: `index`, `id`, `label`, `channels`, `options`, `stack`, `decoding`, `progress`, `error`, `format`, `rows` (`row`, `decoder`, `id`, `title`, `annotations`) |
+| `decoder.add` | `id`, `channels`, `options`, `stack`, `label` | The new decoder, as in `decoder.list` |
+| `decoder.remove` | `index`, or `all`: `true` | `removed`, `decoders` |
+| `decoder.wait` | `timeout` | `decoders`, once no decoder is busy |
+| `decoder.results` | `index`, `row`, `decoder`, `start`, `end`, `offset`, `limit` | `index`, `row`, `format`, `samplerate`, `offset`, `annotations` (`start`, `end`, `time`, `text`, `class`), `next_offset` |
+| `data.edges` | `channels`, `start`, `end`, `limit` | `start`, `end`, `samplerate`, `levels`, `edges` (`sample`, `time`, `rising`, `falling`), `next` |
+| `data.measure` | `channels`, `start`, `end` | `start`, `end`, `samplerate`, `channels` (see [Data](#data)) |
+| `data.find` | `pattern`, `start`, `end`, `limit` | `start`, `end`, `samplerate`, `matches` (`sample`, `time`), `next` |
 
 | Code | Meaning |
 | --- | --- |
@@ -385,10 +495,10 @@ non-interactively, such as a hardware error. In an error reply they are in
 | -32601 | Unknown method; `data.methods` lists them |
 | -32602 | Bad parameters; often with `data.keys`, `data.formats` or `data.applied` |
 | -32603 | Internal error, e.g. the device could not be opened |
-| 1 | Busy: a capture, export or save is running, a data file is loading, or DSView is in the middle of something |
+| 1 | Busy: a capture, export or save is running, a data file is loading, a decoder is still decoding, or DSView is in the middle of something |
 | 2 | No device |
 | 3 | Not supported: not logic analyzer mode, a data file instead of a device, channels while stacking, an advanced or serial trigger here, serial trigger settings, configuration files without an analyzer, or `file.close` without a data file |
-| 4 | Timed out; `data` is the status |
+| 4 | Timed out; `data` is the status, or the decoders for `decoder.wait` |
 | 5 | Capture failed; `data` is the status |
 | 6 | Export failed |
 | 7 | A dialog is open in DSView |
@@ -399,8 +509,9 @@ non-interactively, such as a hardware error. In an error reply they are in
 
 - **Modes:** logic analyzer mode only. With an oscilloscope, the info,
   device and status calls work and the rest return error 3.
-- **Not yet available:** serial trigger settings, protocol decoders (though
-  data and configuration files carry them), and switching the device mode.
+- **Not yet available:** serial trigger settings and switching the device mode.
+- **Decoders** can't be changed once added; remove one and add it again. The
+  display format of numbers in annotations is set in the GUI.
 - **Persistence:** settings changed through the control interface are kept
   in the device profile, as GUI changes are.
 - **AppImage:** `dsview-ctl` is not yet reachable from the AppImage. Use a

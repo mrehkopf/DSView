@@ -101,7 +101,39 @@ const char *usage_text =
 "      --mode MODE             simple, advanced or serial; advanced and serial\n"
 "                              use the stages set up in DSView or with\n"
 "                                call trigger.set '{\"stages\": [...]}'\n"
-"  call METHOD [JSON]          Send any request, with JSON params\n";
+"  decoders [ID]               List the protocol decoders, or show one with\n"
+"                              its channels, options and annotation rows\n"
+"  decode                      List the decoders added, their state and rows\n"
+"  decode add ID KEY=VALUE... [--stack ID [KEY=VALUE...]]... [--label TEXT]\n"
+"                              Add a decoder. A KEY naming one of its\n"
+"                              channels binds it to a channel number; other\n"
+"                              KEYs set options. --stack adds a decoder that\n"
+"                              reads the output of the one before, e.g.\n"
+"                                decode add 1:i2c scl=1 sda=0 --stack eeprom24xx\n"
+"  decode remove INDEX|--all   Remove a decoder\n"
+"  decode wait [--timeout SEC] Wait until decoding is done\n"
+"  decode results INDEX ROW [OPTIONS]\n"
+"                              Annotations of a row (number or id), in time\n"
+"                              order, once decoding is done\n"
+"      --timeout SEC           Give up waiting for decoding after that long\n"
+"      --decoder ID            The stacked decoder whose row it is, when\n"
+"                              several have a row of that id\n"
+"      --start N, --end N      Annotations that start in this sample range\n"
+"      --offset N, --limit N   Skip N of them, return at most N (1000)\n"
+"      --all                   Fetch every page\n"
+"  edges [CH...] [--start N] [--end N] [--limit N]\n"
+"                              The levels at the start, then each sample\n"
+"                              where a channel changes (default: all)\n"
+"  levels SAMPLE [CH...]       The channels' levels at a sample\n"
+"  measure [CH...] [--start N] [--end N]\n"
+"                              Edge counts, pulse widths, period, frequency\n"
+"                              and duty cycle per channel\n"
+"  find CH=COND... [--start N] [--end N] [--limit N]\n"
+"                              The samples where the conditions become true,\n"
+"                              e.g. find 0=rising 3=high\n"
+"  call METHOD [JSON]          Send any request, with JSON params\n"
+"\n"
+"Sample numbers N count from the start of the capture.\n";
 
 bool compact = false;
 
@@ -587,6 +619,254 @@ int main(int argc, char *argv[])
         if (has_mode)
             params["mode"] = mode;
         return simple(params.isEmpty() ? "trigger.get" : "trigger.set");
+    }
+
+    if (cmd == "decoders"){
+        if (args.size() > 1)
+            return usage_error("decoders takes at most one decoder id");
+        if (args.isEmpty())
+            return simple("decoder.catalog");
+        params["id"] = args.first();
+        return simple("decoder.describe");
+    }
+
+    if (cmd == "decode"){
+        const QString sub = args.isEmpty() ? QString("list") : args.takeFirst();
+
+        if (sub == "list"){
+            if (!args.isEmpty())
+                return usage_error("unexpected argument " + args.first());
+            return simple("decoder.list");
+        }
+
+        if (sub == "add"){
+            QString label;
+            if (!take_option(args, {"--label"}, label, found))
+                return usage_error("--label needs a text");
+            if (found)
+                params["label"] = label;
+            if (args.isEmpty() || args.first().startsWith("-"))
+                return usage_error("decode add needs a decoder id");
+
+            // Split into the decoder and its stack: ID KEY=VALUE... [--stack ID KEY=VALUE...]...
+            QList<QStringList> parts;
+            for (const QString &arg : args){
+                if (arg == "--stack")
+                    parts.append(QStringList());
+                else if (parts.isEmpty())
+                    parts.append(QStringList{arg});
+                else
+                    parts.last().append(arg);
+            }
+
+            if (!connect())
+                return ExitConnect;
+
+            // Which keys are channels: the decoder says.
+            QJsonObject desc, req;
+            req["id"] = parts.first().first();
+            if (!client.call("decoder.describe", req, desc))
+                return ExitError;
+            QStringList channel_ids;
+            for (const QJsonValue &c : desc.value("channels").toArray())
+                channel_ids << c.toObject().value("id").toString();
+
+            QJsonObject channels, options;
+            QJsonArray stack;
+            for (int i = 0; i < parts.size(); i++){
+                QStringList part = parts[i];
+                if (part.isEmpty() || part.first().contains('='))
+                    return usage_error("--stack needs a decoder id");
+                const QString id = part.takeFirst();
+                QJsonObject opts;
+                for (const QString &kv : part){
+                    int eq = kv.indexOf('=');
+                    if (eq <= 0)
+                        return usage_error("expected KEY=VALUE, got " + kv);
+                    const QString key = kv.left(eq).trimmed();
+                    const QString value = kv.mid(eq + 1).trimmed();
+                    if (i == 0 && channel_ids.contains(key)){
+                        bool ok;
+                        int ch = value.toInt(&ok);
+                        if (!ok || ch < 0)
+                            return usage_error("channel " + key + " needs a channel number");
+                        channels[key] = ch;
+                    }
+                    else
+                        opts[key] = value;
+                }
+                if (i == 0){
+                    params["id"] = id;
+                    options = opts;
+                }
+                else{
+                    QJsonObject s;
+                    s["id"] = id;
+                    s["options"] = opts;
+                    stack.append(s);
+                }
+            }
+            params["channels"] = channels;
+            if (!options.isEmpty())
+                params["options"] = options;
+            if (!stack.isEmpty())
+                params["stack"] = stack;
+
+            if (!client.call("decoder.add", params, result))
+                return ExitError;
+            print_json(stdout, result);
+            return ExitOk;
+        }
+
+        if (sub == "remove"){
+            if (take_flag(args, "--all"))
+                params["all"] = true;
+            else if (args.size() == 1){
+                bool ok;
+                params["index"] = args.first().toInt(&ok);
+                if (!ok)
+                    return usage_error("decode remove needs an index or --all");
+            }
+            else
+                return usage_error("decode remove needs an index or --all");
+            if (params.contains("all") && !args.isEmpty())
+                return usage_error("unexpected argument " + args.first());
+            return simple("decoder.remove");
+        }
+
+        if (sub == "wait"){
+            QString timeout;
+            if (!take_option(args, {"--timeout", "-t"}, timeout, found))
+                return usage_error("--timeout needs seconds");
+            if (!args.isEmpty())
+                return usage_error("unexpected argument " + args.first());
+            if (found)
+                params["timeout"] = timeout_value(timeout);
+            if (!connect())
+                return ExitConnect;
+            if (!client.call("decoder.wait", params, result, wait_limit_ms(timeout)))
+                return ExitError;
+            print_json(stdout, result);
+            return ExitOk;
+        }
+
+        if (sub == "results"){
+            QString start, end, offset, limit, decoder, timeout;
+            bool has_start, has_end, has_offset, has_limit, has_decoder, has_timeout;
+            if (!take_option(args, {"--decoder"}, decoder, has_decoder) ||
+                !take_option(args, {"--timeout", "-t"}, timeout, has_timeout) ||
+                !take_option(args, {"--start"}, start, has_start) ||
+                !take_option(args, {"--end"}, end, has_end) ||
+                !take_option(args, {"--offset"}, offset, has_offset) ||
+                !take_option(args, {"--limit"}, limit, has_limit))
+                return usage_error("an option is missing its value");
+            const bool all = take_flag(args, "--all");
+            if (args.size() != 2)
+                return usage_error("decode results needs a decoder index and a row");
+
+            bool ok;
+            params["index"] = args[0].toInt(&ok);
+            if (!ok)
+                return usage_error("the decoder index is a number (decode)");
+            bool is_number;
+            const int row = args[1].toInt(&is_number);
+            params["row"] = is_number ? QJsonValue(row) : QJsonValue(args[1]);
+            if (has_decoder)
+                params["decoder"] = decoder;
+            if (has_start)
+                params["start"] = start;
+            if (has_end)
+                params["end"] = end;
+            if (has_offset)
+                params["offset"] = offset;
+            if (has_limit)
+                params["limit"] = limit;
+
+            if (!connect())
+                return ExitConnect;
+            QJsonObject waited, wait_params;
+            if (has_timeout)
+                wait_params["timeout"] = timeout_value(timeout);
+            if (!client.call("decoder.wait", wait_params, waited, wait_limit_ms(timeout)))
+                return ExitError;
+
+            QJsonArray annotations;
+            while (true){
+                if (!client.call("decoder.results", params, result))
+                    return ExitError;
+                for (const QJsonValue &a : result.value("annotations").toArray())
+                    annotations.append(a);
+                const QJsonValue next = result.value("next_offset");
+                if (!all || !next.isDouble())
+                    break;
+                params["offset"] = next.toDouble();
+            }
+            result["annotations"] = annotations;
+            print_json(stdout, result);
+            return ExitOk;
+        }
+
+        return usage_error("unknown decode command " + sub);
+    }
+
+    if (cmd == "edges" || cmd == "measure" || cmd == "levels" || cmd == "find"){
+        QString start, end, limit;
+        bool has_start = false, has_end = false, has_limit = false;
+        if (cmd != "levels" &&
+            (!take_option(args, {"--start"}, start, has_start) ||
+             !take_option(args, {"--end"}, end, has_end) ||
+             (cmd != "measure" && !take_option(args, {"--limit"}, limit, has_limit))))
+            return usage_error("an option is missing its value");
+
+        if (cmd == "levels"){
+            if (args.isEmpty())
+                return usage_error("levels needs a sample number");
+            start = args.takeFirst();
+            has_start = true;
+            params["limit"] = 0;
+        }
+
+        if (cmd == "find"){
+            QJsonObject pattern;
+            for (const QString &arg : args){
+                int eq = arg.indexOf('=');
+                if (eq <= 0)
+                    return usage_error("expected CH=CONDITION, got " + arg);
+                pattern[arg.left(eq).trimmed()] = arg.mid(eq + 1).trimmed();
+            }
+            if (pattern.isEmpty())
+                return usage_error("find needs conditions, e.g. find 0=rising 3=high");
+            params["pattern"] = pattern;
+        }
+        else if (!args.isEmpty()){
+            QJsonArray channels;
+            if (!parse_channels(args, channels))
+                return usage_error("bad channel list");
+            params["channels"] = channels;
+        }
+
+        if (has_start)
+            params["start"] = start;
+        if (has_end)
+            params["end"] = end;
+        if (has_limit)
+            params["limit"] = limit;
+
+        if (!connect())
+            return ExitConnect;
+        const char *method = cmd == "measure" ? "data.measure" :
+                             cmd == "find" ? "data.find" : "data.edges";
+        if (!client.call(method, params, result))
+            return ExitError;
+
+        if (cmd == "levels"){
+            QJsonObject r;
+            r["sample"] = result.value("start");
+            r["levels"] = result.value("levels");
+            result = r;
+        }
+        print_json(stdout, result);
+        return ExitOk;
     }
 
     if (cmd == "call"){

@@ -25,6 +25,7 @@
 
 #include <libsigrokdecode.h>
 #include <list>
+#include <vector>
 #include <boost/optional.hpp>
 #include <QObject>
 #include <QString>
@@ -139,7 +140,24 @@ public:
 
 
     bool list_row_title(int row, QString &title);
-	 
+
+    // Every annotation row, also those the protocol table hides, for the
+    // control interface. Only while the stack isn't decoding: a new decode
+    // clears the annotations and their texts on the decode thread.
+    std::vector<decode::Row> all_rows();
+    uint64_t row_annotation_count(const decode::Row &row);
+    bool row_annotation(const decode::Row &row, uint64_t index, decode::Annotation &ann);
+
+    inline DecoderStatus *decoder_status(){
+        return _decoder_status;
+    }
+
+    // Changes, unique across all stacks, whenever the annotations are
+    // cleared for a new decode.
+    inline uint64_t generation(){
+        return _generation;
+    }
+
 	void clear();
     void init();
 	uint64_t get_max_sample_count();
@@ -230,6 +248,7 @@ private:
     int             _progress;
     bool            _is_decoding;
     uint64_t        _result_count;
+    volatile uint64_t _generation;
 
 	friend class DecoderStackTest::TwoDecoderStack;
 };

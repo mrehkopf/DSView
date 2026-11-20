@@ -194,6 +194,7 @@ namespace pv
         _lissajous_trace = NULL;
         _math_trace = NULL;
         _is_decoding = false;
+        _decode_current = NULL;
         _bClose = false;
         _callback = NULL;
         _work_time_id = 0;
@@ -2109,6 +2110,19 @@ namespace pv
         }
     }
 
+    void SigSession::decode_now(view::DecodeTrace *trace)
+    {
+        if (!have_view_data() || is_working())
+            return;
+
+        remove_decode_task(trace);
+        trace->decoder()->clear();
+        // The whole capture, and decode even if the options are unchanged.
+        trace->frame_ended();
+        add_decode_task(trace);
+        data_updated();
+    }
+
     void SigSession::rst_decoder_by_key_handel(void *handel)
     {
         int dex = get_trace_index_by_key_handel(handel);
@@ -2445,14 +2459,35 @@ namespace pv
         {
             auto p = (*it);
             _decode_tasks.erase(it);
+            _decode_current = p;
             return p;
         }
 
         // The thread ends. Clear the flag under the same lock as
         // add_decode_task, which starts no new thread while it is set: a
         // task added after this check would otherwise never run.
+        _decode_current = NULL;
         _is_decoding = false;
         return NULL;
+    }
+
+    bool SigSession::is_decode_pending(view::DecodeTrace *trace)
+    {
+        std::lock_guard<std::mutex> lock(_decode_task_mutex);
+
+        if (_decode_current == trace)
+            return true;
+        for (auto t : _decode_tasks){
+            if (t == trace)
+                return true;
+        }
+        return false;
+    }
+
+    bool SigSession::is_decode_busy()
+    {
+        std::lock_guard<std::mutex> lock(_decode_task_mutex);
+        return _is_decoding;
     }
 
     // the decode task thread proc

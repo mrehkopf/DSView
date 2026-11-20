@@ -389,6 +389,8 @@ set(DSView_SOURCES
     DSView/pv/appcontrol.cpp
     DSView/pv/control/controlmode.cpp
     DSView/pv/control/controlserver.cpp
+    DSView/pv/control/controldecoders.cpp
+    DSView/pv/control/controldata.cpp
     DSView/pv/dstimer.cpp
     DSView/pv/eventobject.cpp
     DSView/pv/ZipMaker.cpp

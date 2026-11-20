@@ -880,6 +880,31 @@ void ProtocolDock::OnProtocolDelete(void *handle){
     adjustPannelSize();
 }
 
+bool ProtocolDock::remove_protocol(int index)
+{
+    view::DecodeTrace *trace = _session->get_decoder_trace(index);
+    if (trace == NULL)
+        return false;
+
+    void *key_handel = trace->get_key_handel();
+
+    for (auto it = _protocol_lay_items.begin(); it != _protocol_lay_items.end(); it++)
+    {
+        if ((*it)->get_protocol_key_handel() == key_handel)
+        {
+            auto lay = (*it);
+            _protocol_lay_items.erase(it);
+            DESTROY_QT_LATER(lay);
+            break;
+        }
+    }
+
+    _session->remove_decoder_by_key_handel(key_handel);
+    protocol_updated();
+    adjustPannelSize();
+    return true;
+}
+
 void ProtocolDock::OnProtocolFormatChanged(QString format, void *handle){
     for (auto it = _protocol_lay_items.begin(); it != _protocol_lay_items.end(); it++){
        if ((*it) == handle){
