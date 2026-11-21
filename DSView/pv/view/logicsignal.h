@@ -131,7 +131,7 @@ private:
     void paint_mid_align(QPainter &p, int left, int right, QColor fore, QColor back, uint64_t end_align_sample);
 
 public:
-    // False for channels that can't be part of the trigger (the secondary's
+    // False for channels that can't be part of the trigger (the secondaries'
     // channels while stacking).
     bool trigger_options_enabled() const;
 

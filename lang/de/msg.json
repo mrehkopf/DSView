@@ -393,15 +393,19 @@
     },
     {
         "id": "IDS_MSG_STACKING_CONNECT_TWO_ANALYZERS",
-        "text": "Bitte schließen Sie zuerst zwei DSLogic U3Pro32 an."
+        "text": "Bitte schließen Sie zuerst %1 DSLogic U3Pro32 an."
     },
     {
         "id": "IDS_MSG_STACKING_SELECT_DIFFERENT_ANALYZERS",
-        "text": "Bitte wählen Sie zwei verschiedene DSLogic U3Pro32 aus."
+        "text": "Bitte wählen Sie für jeden Analysator ein anderes DSLogic U3Pro32 aus."
     },
     {
         "id": "IDS_MSG_STACKING_SESSION_BUSY",
         "text": "Der Stacking-Modus konnte nicht übernommen werden, da die Sitzung gerade beschäftigt ist."
+    },
+    {
+        "id": "IDS_MSG_STACKING_MASTER_NO_CHANNEL",
+        "text": "Aktivieren Sie mindestens einen Kanal am Hauptgerät (A1)."
     },
     {
         "id": "IDS_MSG_STACKING_MASTER_INCOMPLETE",
@@ -409,7 +413,7 @@
     },
     {
         "id": "IDS_MSG_STACKING_SECONDARY_INCOMPLETE",
-        "text": "Stacking: Die Daten des Zweitgeräts decken den Bereich nicht vollständig ab (Verschiebung=%1 Samples, vorhanden=%2 Samples, benötigt=[%3, %4])."
+        "text": "Stacking: Die Daten von %1 decken den Bereich nicht vollständig ab (Verschiebung=%2 Samples, vorhanden=%3 Samples, benötigt=[%4, %5])."
     },
     {
         "id": "IDS_MSG_STACKING_INSTANT_MANUAL_SHIFT",
@@ -417,43 +421,43 @@
     },
     {
         "id": "IDS_MSG_STACKING_SYNC_TRIGGER_MISSING",
-        "text": "Der Sync-Trigger wurde nicht von beiden Analysatoren gemeldet. Es wurde nur die manuelle Ausrichtung angewendet."
+        "text": "Hauptgerät und %1 haben nicht beide den Sync-Trigger gemeldet. Für %1 wurde nur die manuelle Ausrichtung angewendet."
     },
     {
         "id": "IDS_MSG_STACKING_REMAP_REQUIRED_LOAD",
-        "text": "Die in dieser Stacking-Sitzung gespeicherten Analysatoren wurden nicht gefunden. Öffnen Sie die Stacking-Einstellungen und ordnen Sie Haupt- und Zweitgerät neu zu, um die gespeicherte Konfiguration zu verwenden."
+        "text": "Die in dieser Stacking-Sitzung gespeicherten Analysatoren wurden nicht gefunden. Öffnen Sie die Stacking-Einstellungen und ordnen Sie Haupt- und Zweitgeräte neu zu, um die gespeicherte Konfiguration zu verwenden."
     },
     {
         "id": "IDS_MSG_STACKING_REMAP_REQUIRED_START",
-        "text": "Der Stacking-Modus benötigt zwei zugeordnete DSLogic U3Pro32. Öffnen Sie die Stacking-Einstellungen und wählen Sie Haupt- und Zweitgerät aus."
+        "text": "Der Stacking-Modus benötigt für jeden Analysator ein angeschlossenes DSLogic U3Pro32. Öffnen Sie die Stacking-Einstellungen und wählen Sie Haupt- und Zweitgeräte aus."
     },
     {
         "id": "IDS_MSG_STACKING_DRIFT_APPLIED",
-        "text": "Stacking-Driftkorrektur angewendet: Drift des Zweitgeräts %1 ppm, ermittelt aus %2 Referenzflanken."
+        "text": "Stacking-Driftkorrektur angewendet: Drift von %1 %2 ppm, ermittelt aus %3 Referenzflanken."
     },
     {
         "id": "IDS_MSG_STACKING_DRIFT_FAILED",
-        "text": "Stacking-Driftkorrektur übersprungen: zu wenige übereinstimmende Referenzflanken auf den gewählten Kanälen."
+        "text": "Stacking-Driftkorrektur für %1 übersprungen: zu wenige übereinstimmende Referenzflanken auf den gewählten Kanälen."
     },
     {
         "id": "IDS_MSG_STACKING_DRIFT_REJECTED",
-        "text": "Stacking-Driftkorrektur übersprungen: Die geschätzte Drift von %1 ppm liegt außerhalb des erwarteten Bereichs."
+        "text": "Stacking-Driftkorrektur für %1 übersprungen: Die geschätzte Drift von %2 ppm liegt außerhalb des erwarteten Bereichs."
     },
     {
         "id": "IDS_MSG_STACKING_DRIFT_INCONSISTENT",
-        "text": "Stacking-Driftkorrektur übersprungen: Die Referenzflanken passen zeitlich nicht zusammen (typische Abweichung %1 Samples)."
+        "text": "Stacking-Driftkorrektur für %1 übersprungen: Die Referenzflanken passen zeitlich nicht zusammen (typische Abweichung %2 Samples)."
     },
     {
         "id": "IDS_MSG_STACKING_ALIGNMENT_APPLIED",
-        "text": "Stacking-Referenzausrichtung angewendet: Versatz des Zweitgeräts %1 Samples (%2 ns), ermittelt aus %3 Referenzflanken."
+        "text": "Stacking-Referenzausrichtung angewendet: %1 um %2 Samples (%3 ns) korrigiert, ermittelt aus %4 Referenzflanken."
     },
     {
         "id": "IDS_MSG_STACKING_ALIGNMENT_FAILED",
-        "text": "Stacking-Referenzausrichtung übersprungen: zu wenige übereinstimmende Referenzflanken auf den gewählten Kanälen."
+        "text": "Stacking-Referenzausrichtung für %1 übersprungen: zu wenige übereinstimmende Referenzflanken auf den gewählten Kanälen."
     },
     {
         "id": "IDS_MSG_STACKING_ALIGNMENT_REJECTED",
-        "text": "Stacking-Referenzausrichtung übersprungen: Die Referenzflanken passen zeitlich nicht zusammen (typische Abweichung %1 Samples)."
+        "text": "Stacking-Referenzausrichtung für %1 übersprungen: Die Referenzflanken passen zeitlich nicht zusammen (typische Abweichung %2 Samples)."
     },
     {
         "id": "IDS_MSG_DRIVER_HINT_TITLE",

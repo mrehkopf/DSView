@@ -43,6 +43,7 @@
 #include "../toolbars/titlebar.h"
 #include "../dialogs/dsdialog.h"
 #include "../ui/dscombobox.h"
+#include "../logicstackingconfig.h"
 
 class QScrollArea;
 
@@ -106,6 +107,9 @@ private:
     QLayout *get_property_form(QWidget *parent);
 
     void logic_probes(QVBoxLayout& layout);
+    void stacking_probes(QVBoxLayout& layout);
+    void update_stacking_channels();
+    QString stacking_count_conflicts(int channel_count) const;
     void analog_probes(QGridLayout& layout);
     QString dynamic_widget(QLayout *lay); 
 
@@ -125,6 +129,7 @@ private:
 private slots:
 	void enable_all_probes();
 	void disable_all_probes();
+    void on_stacking_count_changed();
     void zero_adj();
     void mode_check_timeout();
     void channel_check();
@@ -156,6 +161,13 @@ private:
     std::vector<ChannelModePair>    _channel_mode_indexs;
     std::vector<struct sr_channel*> _dso_channel_list;
     std::vector<bool>   _lst_probe_enabled_status;
+
+    // While stacking: the channel count and selected inputs being edited,
+    // applied to the session's stacking setup on OK
+    pv::LogicStackingConfig _stacking;
+    std::vector<std::pair<QRadioButton*, int> > _stacking_count_buttons;
+    // [analyzer][input]
+    std::vector<std::vector<QCheckBox*> > _stacking_boxes;
 };
 
 } // namespace dialogs

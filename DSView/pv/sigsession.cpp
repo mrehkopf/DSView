@@ -62,6 +62,9 @@
 #include "ui/langresource.h"
 #include <qelapsedtimer.h>
 
+static_assert(pv::LogicStackingMaxAnalyzers * pv::LogicStackingChannelsPerAnalyzer <= CHANNEL_MAX_COUNT,
+              "LogicSnapshot can't hold every stacked analyzer's channels");
+
 namespace pv
 {
     namespace {
@@ -383,6 +386,9 @@ namespace pv
         LogicStackingConfig cfg = config;
         const bool channel_model_changed =
             !_device_agent.logic_stacking_config().has_same_channel_model(cfg);
+        const bool was_stacking = _device_agent.is_logic_stacking();
+        const int old_channel_count = _device_agent.logic_stacking_config().channel_count;
+        bool switched_device = false;
         std::vector<DeviceConfigSnapshotItem> preserved_options;
 
         if (cfg.enabled){
@@ -398,6 +404,7 @@ namespace pv
                     release_device_session_options(preserved_options);
                     return false;
                 }
+                switched_device = true;
 
                 if (!preserved_options.empty())
                     restore_device_session_options(_device_agent, preserved_options);
@@ -412,12 +419,38 @@ namespace pv
         if (cfg.enabled)
             set_collect_mode(COLLECT_SINGLE);
 
-        if (channel_model_changed){
-            clear_all_decoder();
+        // A different channel mode can lower the master's sample rate, and a
+        // kept capture would then be shown and saved with the new rate. The
+        // traces and decoders stay, the data goes.
+        const bool channel_mode_changed = was_stacking && cfg.enabled &&
+                                          old_channel_count != cfg.channel_count;
+        if (channel_mode_changed){
+            clear_all_decode_task2();
+            clear_decode_result();
             _view_data->clear();
             _capture_data->clear();
             _capture_data = _view_data;
-            init_signals();
+        }
+
+        if (channel_model_changed){
+            // Stacking stays on with the same master (analyzers added or removed, a
+            // sync input changed or shown): every remaining channel keeps its global
+            // index, so its trace, the decoders and the captured data are kept, like
+            // after a channel change in the device options. Decoders on a channel
+            // that is gone see it as missing.
+            const bool keep_traces = was_stacking && !switched_device &&
+                                     _device_agent.is_logic_stacking();
+
+            if (keep_traces){
+                reload();
+            }
+            else{
+                clear_all_decoder();
+                _view_data->clear();
+                _capture_data->clear();
+                _capture_data = _view_data;
+                init_signals();
+            }
 
             if (_device_agent.have_instance()){
                 set_cur_snap_samplerate(_device_agent.get_sample_rate());
@@ -425,6 +458,9 @@ namespace pv
             }
 
             signals_changed();
+            update_view();
+        }
+        else if (channel_mode_changed){
             update_view();
         }
 
@@ -688,7 +724,7 @@ namespace pv
         {
             MsgBox::Show(L_S(STR_PAGE_MSG,
                              S_ID(IDS_MSG_STACKING_REMAP_REQUIRED_START),
-                             "Stacking mode needs two mapped DSLogic U3Pro32 analyzers. Open Stacking settings and select the master and secondary devices."));
+                             "Stacking mode needs a connected DSLogic U3Pro32 for each stacked analyzer. Open Stacking settings and select the master and secondary devices."));
             return false;
         }
 

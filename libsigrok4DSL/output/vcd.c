@@ -42,6 +42,25 @@ struct context {
 	uint64_t samplecount;
 };
 
+/*
+ * Appends the identifier of the p-th channel: one of the 94 printable
+ * characters '!'..'~', or several of them from the 95th channel on.
+ */
+static void append_identifier(GString *s, int p)
+{
+	char id[8];
+	int len;
+
+	len = 0;
+	do {
+		id[len++] = (char)('!' + p % 94);
+		p = p / 94 - 1;
+	} while (p >= 0 && len < (int)sizeof(id));
+
+	while (len > 0)
+		g_string_append_c(s, id[--len]);
+}
+
 static int init(struct sr_output *o, GHashTable *options)
 {
 	struct context *ctx;
@@ -60,11 +79,6 @@ static int init(struct sr_output *o, GHashTable *options)
 			continue;
 		num_enabled_channels++;
 	}
-	if (num_enabled_channels > 94) {
-		sr_err("VCD only supports 94 channels.");
-		return SR_ERR;
-	}
-
 	ctx = g_try_malloc0(sizeof(struct context));
 	if (ctx == NULL){
 		sr_err("%s,ERROR:failed to alloc memory.", __func__);
@@ -161,8 +175,9 @@ static GString *gen_header(const struct sr_output *o)
 			continue;
 		if (!ch->enabled)
 			continue;
-		g_string_append_printf(header, "$var wire 1 %c %s $end\n",
-                (char)('!' + p), ch->name);
+		g_string_append(header, "$var wire 1 ");
+		append_identifier(header, p);
+		g_string_append_printf(header, " %s $end\n", ch->name);
         p++;
 	}
 
@@ -244,7 +259,7 @@ static int receive(const struct sr_output *o, const struct sr_datafeed_packet *p
 				/* Output which signal changed to which value. */
 				g_string_append_c(*out, ' ');
 				g_string_append_c(*out, '0' + curbit);
-				g_string_append_c(*out, '!' + p);
+				append_identifier(*out, p);
 
 				timestamp_written = TRUE;
 			}

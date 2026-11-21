@@ -98,6 +98,25 @@ int Header::get_nameEditWidth()
         return 0;
 }
 
+// Traces are deleted when the session rebuilds them, for example after a
+// device option or stacking change, while the trace whose name was edited
+// last could still be remembered here
+pv::view::Trace* Header::live_context_trace()
+{
+    if (_context_trace == NULL)
+        return NULL;
+
+    std::vector<Trace*> traces;
+    _view.get_traces(ALL_VIEW, traces);
+    for (auto t : traces){
+        if (t == _context_trace)
+            return t;
+    }
+
+    _context_trace = NULL;
+    return NULL;
+}
+
 pv::view::Trace* Header::get_mTrace(int &action, const QPoint &pt)
 {
     const int w = width();
@@ -422,9 +441,12 @@ void Header::changeColor(QMouseEvent *event)
 
     if ((event->button() == Qt::LeftButton)) {
         const QColor new_color = QColorDialog::getColor(_context_trace->get_colour(), this, L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SET_CHANNEL_COLOUR), "Set Channel Colour"));
-        if (new_color.isValid())
-            _context_trace->set_colour(new_color);
+        Trace *trace = live_context_trace();
+        if (new_color.isValid() && trace != NULL)
+            trace->set_colour(new_color);
     }
+
+    _context_trace = NULL;
 }
 
 void Header::mouseMoveEvent(QMouseEvent *event)
@@ -505,9 +527,11 @@ void Header::contextMenuEvent(QContextMenuEvent *event)
 
 void Header::on_action_set_name_triggered()
 {
-    auto context_Trace = _context_trace;
-    if (!context_Trace)
+    auto context_Trace = live_context_trace();
+    if (!context_Trace){
+        nameEdit->hide();
 		return;
+    }
 
     if (nameEdit->isModified()) {
         QString v = nameEdit->text().trimmed();
@@ -518,14 +542,16 @@ void Header::on_action_set_name_triggered()
     }
 
     nameEdit->hide();
+    _context_trace = NULL;
     header_updated();
 }
 
 void Header::header_resize()
 {
-    if (_context_trace) {
-        const int y = _context_trace->get_y();
-        nameEdit->move(QPoint(_context_trace->get_leftWidth(), y - nameEdit->height() / 2));
+    Trace *trace = live_context_trace();
+    if (trace) {
+        const int y = trace->get_y();
+        nameEdit->move(QPoint(trace->get_leftWidth(), y - nameEdit->height() / 2));
     }
 }
 

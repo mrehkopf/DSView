@@ -570,7 +570,7 @@ QSet<int> TriggerDock::available_bus_channels() const
 
 QSet<int> TriggerDock::untriggerable_bus_channels() const
 {
-    // While stacking, the secondary analyzer's channels can't be trigger sources.
+    // While stacking, the secondary analyzers' channels can't be trigger sources.
     QSet<int> channels;
     for (auto signal : _session->get_signals()) {
         const auto logic = qobject_cast<view::LogicSignal *>(signal);
@@ -587,7 +587,7 @@ QString TriggerDock::bus_partial_warning(const trigger::BusMapping &mapping,
     if (!skipped)
         return {};
     return bus_text("IDS_DLG_BUS_PARTIAL",
-        "The secondary analyzer can't trigger, so the trigger ignores %1 and fires whatever the levels there. "
+        "Only the master analyzer can trigger, so the trigger ignores %1 and fires whatever the levels there. "
         "The hex value shows 0 for ignored bits.").arg(trigger::bus_bit_names(skipped));
 }
 
@@ -602,7 +602,7 @@ QString TriggerDock::bus_value_error(trigger::BusValueError error) const
     case BusValueError::UnmappedBit: return bus_text("IDS_DLG_BUS_UNMAPPED", "Unassigned bus bits must be zero, as in the decoder.");
     case BusValueError::UnavailableChannel: return bus_text("IDS_DLG_BUS_UNAVAILABLE", "A mapped channel is disabled or unavailable in the current device mode.");
     case BusValueError::ConflictingBits: return bus_text("IDS_DLG_BUS_CONFLICT", "Two bus bits require different levels on the same channel.");
-    case BusValueError::NoTriggerChannel: return bus_text("IDS_DLG_BUS_NO_TRIGGER", "All of this bus's channels are on the secondary analyzer, which can't trigger.");
+    case BusValueError::NoTriggerChannel: return bus_text("IDS_DLG_BUS_NO_TRIGGER", "All of this bus's channels are on secondary analyzers, which can't trigger.");
     }
     return {};
 }

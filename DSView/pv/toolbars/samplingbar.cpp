@@ -558,6 +558,9 @@ namespace pv
 
             _device_agent->get_config_bool(SR_CONF_STREAM, stream_mode);
             _device_agent->get_config_uint64(SR_CONF_HW_DEPTH, hw_depth);
+            // The stacked analyzer capturing the most channels limits the depth
+            if (_device_agent->is_logic_stacking())
+                hw_depth = _device_agent->logic_stacking_hw_depth();
             int mode = _device_agent->get_work_mode();
 
             if (mode == LOGIC)
@@ -580,6 +583,9 @@ namespace pv
             if (mode == LOGIC)
             {
                 _device_agent->get_config_bool(SR_CONF_RLE_SUPPORT, rle_support);
+                // Stacked analyzers capture without RLE, so only plain depth is offered
+                if (_device_agent->is_logic_stacking())
+                    rle_support = false;
                 if (rle_support)
                     rle_depth = min(hw_depth * SR_KB(1), sw_depth);
             }

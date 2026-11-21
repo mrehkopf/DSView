@@ -44,9 +44,12 @@ public:
 
 private:
     void measureSize();
+    void fitPopupWidth();
 
 private: 
     bool    _bPopup;
+    int     _popupWidth;     // popup view minimum width as fitPopupWidth() set it
+    int     _popupMinWidth;  // popup view minimum width set by other code
 };
 
 

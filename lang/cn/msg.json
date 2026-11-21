@@ -400,15 +400,19 @@
     },
     {
         "id": "IDS_MSG_STACKING_CONNECT_TWO_ANALYZERS",
-        "text": "请先连接两台 DSLogic U3Pro32 分析仪。"
+        "text": "请先连接 %1 台 DSLogic U3Pro32 分析仪。"
     },
     {
         "id": "IDS_MSG_STACKING_SELECT_DIFFERENT_ANALYZERS",
-        "text": "请选择两台不同的 DSLogic U3Pro32 分析仪。"
+        "text": "请为每个分析仪选择不同的 DSLogic U3Pro32。"
     },
     {
         "id": "IDS_MSG_STACKING_SESSION_BUSY",
         "text": "会话忙碌时无法应用堆叠模式。"
+    },
+    {
+        "id": "IDS_MSG_STACKING_MASTER_NO_CHANNEL",
+        "text": "请在主分析仪 (A1) 上至少启用一个通道。"
     },
     {
         "id": "IDS_MSG_STACKING_MASTER_INCOMPLETE",
@@ -416,7 +420,7 @@
     },
     {
         "id": "IDS_MSG_STACKING_SECONDARY_INCOMPLETE",
-        "text": "堆叠次分析仪覆盖不完整: 偏移=%1 样本, 来源=%2 样本, 需要=[%3,%4]。"
+        "text": "堆叠分析仪 %1 覆盖不完整: 偏移=%2 样本, 来源=%3 样本, 需要=[%4,%5]。"
     },
     {
         "id": "IDS_MSG_STACKING_INSTANT_MANUAL_SHIFT",
@@ -424,7 +428,7 @@
     },
     {
         "id": "IDS_MSG_STACKING_SYNC_TRIGGER_MISSING",
-        "text": "两台分析仪未同时报告堆叠同步触发; 仅使用手动对齐。"
+        "text": "主分析仪和 %1 未同时报告堆叠同步触发; %1 仅使用手动对齐。"
     },
     {
         "id": "IDS_MSG_STACKING_REMAP_REQUIRED_LOAD",
@@ -432,34 +436,34 @@
     },
     {
         "id": "IDS_MSG_STACKING_REMAP_REQUIRED_START",
-        "text": "堆叠模式需要映射两台 DSLogic U3Pro32 分析仪。请打开堆叠设置并选择主设备和次设备。"
+        "text": "堆叠模式需要为每个堆叠分析仪连接一台 DSLogic U3Pro32。请打开堆叠设置并选择主设备和次设备。"
     },
     {
         "id": "IDS_MSG_STACKING_DRIFT_APPLIED",
-        "text": "已应用堆叠漂移校正: 次分析仪漂移 %1 ppm, 使用 %2 个参考边沿。"
+        "text": "已应用堆叠漂移校正: %1 漂移 %2 ppm, 使用 %3 个参考边沿。"
     },
     {
         "id": "IDS_MSG_STACKING_DRIFT_FAILED",
-        "text": "已跳过堆叠漂移校正: 所选通道上没有足够的匹配参考边沿。"
+        "text": "已跳过 %1 的堆叠漂移校正: 所选通道上没有足够的匹配参考边沿。"
     },
     {
         "id": "IDS_MSG_STACKING_DRIFT_REJECTED",
-        "text": "已跳过堆叠漂移校正: 估算漂移 %1 ppm 超出预期范围。"
+        "text": "已跳过 %1 的堆叠漂移校正: 估算漂移 %2 ppm 超出预期范围。"
     },
     {
         "id": "IDS_MSG_STACKING_DRIFT_INCONSISTENT",
-        "text": "已跳过堆叠漂移校正: 参考边沿时序不一致 (典型偏差 %1 样本)。"
+        "text": "已跳过 %1 的堆叠漂移校正: 参考边沿时序不一致 (典型偏差 %2 样本)。"
     },
     {
         "id": "IDS_MSG_STACKING_ALIGNMENT_APPLIED",
-        "text": "已应用堆叠参考对齐: 次分析仪偏移 %1 样本 (%2 ns), 使用 %3 个参考边沿。"
+        "text": "已应用堆叠参考对齐: %1 校正了 %2 样本 (%3 ns), 使用 %4 个参考边沿。"
     },
     {
         "id": "IDS_MSG_STACKING_ALIGNMENT_FAILED",
-        "text": "已跳过堆叠参考对齐: 所选通道上没有足够的匹配参考边沿。"
+        "text": "已跳过 %1 的堆叠参考对齐: 所选通道上没有足够的匹配参考边沿。"
     },
     {
         "id": "IDS_MSG_STACKING_ALIGNMENT_REJECTED",
-        "text": "已跳过堆叠参考对齐: 参考边沿时序不一致 (典型偏差 %1 样本)。"
+        "text": "已跳过 %1 的堆叠参考对齐: 参考边沿时序不一致 (典型偏差 %2 样本)。"
     }
 ]

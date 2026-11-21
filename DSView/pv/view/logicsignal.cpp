@@ -729,11 +729,11 @@ void LogicSignal::set_data(data::LogicSnapshot* data)
 
 bool LogicSignal::trigger_options_enabled() const
 {
-    // Only primary channels can use the user trigger; secondary is armed only on its "sync" trigger input.
-    const int StackingPrimaryChannelCount = 32; // TODO dynamic channel count depending on analyzer model
+    // Only the master's channels can use the user trigger; the secondaries are
+    // armed only on their "sync" trigger inputs.
     return session == NULL ||
            !session->is_logic_stacking() ||
-           _probe->index < StackingPrimaryChannelCount;
+           _probe->index < LogicStackingChannelsPerAnalyzer;
 }
 
 } // namespace view

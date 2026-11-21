@@ -13,9 +13,10 @@ includes the Qt 6 port and the UI and driver improvements from
 
 # What this fork adds
 
-- **Logic analyzer stacking:** combine two DSLogic U3Pro32 analyzers into one
-  capture with 64 channels (63 usable), with optional reference-based alignment and clock drift
-  correction (see [Logic stacking](#logic-stacking)).
+- **Logic analyzer stacking:** combine two or more DSLogic U3Pro32 analyzers
+  (up to eight) into one capture with 32 channels per analyzer, with optional
+  reference-based alignment and clock drift correction (see
+  [Logic stacking](#logic-stacking)).
 - **Parallel bus trigger entry:** set the trigger to a hexadecimal value of a
   configured Parallel decoder bus. See [doc/parallel-trigger.md](doc/parallel-trigger.md).
 - **System theme:** use the Qt style configured by your desktop, including
@@ -135,69 +136,107 @@ with `QT_MAJOR=5` to build against Qt 5 instead, which a 32-bit build needs.
 
 # Logic stacking
 
-Stacking runs two **DSLogic U3Pro32** analyzers as a single logic analyzer
-with 64 channels. Channels 0–31 come from the *master* and channels 32–63 from
-the *secondary*.
+Stacking runs two or more **DSLogic U3Pro32** analyzers (up to eight) as a
+single logic analyzer. Each analyzer contributes 32 channels: the *master* (A1)
+has channels 0–31, the first *secondary* (A2) channels 32–63, A3 channels 64–95,
+and so on. The channels are named `A1-D0`, `A2-D0`, ….
 
 ## Setup
 
-1. Connect the master's **trigger-out** port to one of the secondary's regular
-   logic inputs. This input is the *sync input*. The secondary's dedicated
-   trigger-in port can't be used yet, because the firmware doesn't support it.
-2. Connect both analyzers via USB and select one of them in LOGIC mode.
-3. Click **Stacking** in the sampling toolbar. In the dialog, enable
-   two-analyzer stacking. Then select the **Master** and **Secondary** devices,
-   and set **Secondary sync input** to the channel you wired in step 1.
+1. Connect the master's **trigger-out** port to one of the regular logic inputs
+   of each secondary. This input is that secondary's *sync input*. The
+   secondaries' dedicated trigger-in ports can't be used yet, because the
+   firmware doesn't support it.
+2. Connect all analyzers via USB and select one of them in LOGIC mode.
+3. Click **Stacking** in the sampling toolbar. In the dialog, enable stacking
+   and set the **Number of analyzers**. Then select a device for each analyzer
+   (A1 is the master) and set each secondary's **Sync input** to the channel you
+   wired in step 1. **Threshold** and **Filter** are set per analyzer here as
+   well.
 4. Configure the trigger as usual. The trigger applies to the master, so only
    channels 0–31 can be used in it. A parallel bus trigger on a bus that spans
-   both analyzers matches only the master's bits (see
+   several analyzers matches only the master's bits (see
    [doc/parallel-trigger.md](doc/parallel-trigger.md#stacking)).
 
-The secondary triggers on the rising edge that the master sends from its
-trigger-out port. This lines up the two captures at the trigger point. The sync
-input is used up by this, so the stacked capture has 63 usable channels.
-The sync channel is hidden from the waveform view unless **Show secondary sync
-channel** is checked.
+Each secondary triggers on the rising edge that the master sends from its
+trigger-out port. This lines up every secondary's capture with the master's at
+the trigger point. Each secondary's sync input is used up by this, so with 32
+channels per analyzer, two stacked analyzers have 63 usable channels, three
+have 94 and four have 125. The sync channels are hidden from the waveform view
+unless **Show secondary sync channels** is checked.
 
-**Secondary manual alignment** (in ns) adds a fixed time offset to the
-secondary's data, for example to compensate for cable or probe delays.
+**Manual alignment** (in ns) adds a fixed time offset to a secondary's data,
+for example to compensate for cable or probe delays. It is set per secondary.
 
-Device options such as sample rate and depth are shared by both analyzers.
-Both analyzers capture in buffer mode with all 32 channels enabled, so stream
-mode is not available and the sample rate is limited to 250 MHz. Repeat mode,
-loop mode and RLE compression are not available while stacking is enabled.
+Sample rate, duration and the external clock options are shared by all
+analyzers. All analyzers capture in buffer mode, so stream mode is not
+available. Repeat mode, loop mode and RLE compression are not available while
+stacking is enabled.
+
 Instant captures (without a trigger) skip the trigger point alignment. They
 apply the manual alignment, plus the reference corrections described below if
 those are enabled and find matching edges.
 
+Every analyzer's data is held in memory until all of them have finished
+uploading and the captures are merged. Memory use therefore grows with the
+number of analyzers, and during the merge it is about twice that of the merged
+capture.
+
 Stacking settings are saved with the session. If a saved session is loaded with
-different hardware, DSView asks you to remap the master and secondary in the
-Stacking dialog.
+different hardware, DSView asks you to remap the analyzers in the Stacking
+dialog.
+
+## Channels
+
+The **Options** dialog sets the channels for all stacked analyzers:
+
+- **Channel mode:** every analyzer uses channels 0–31 (up to 250 MHz), 0–15
+  (up to 500 MHz) or 0–7 (up to 1 GHz). A mode is unavailable while a sync or
+  reference input lies outside its channels; its tooltip names the inputs to
+  move in the Stacking dialog first.
+- **Inputs:** each analyzer has its own row of channels to capture. Sync
+  inputs, and reference inputs while they are used, are always captured.
+
+Channel numbers stay 32 apart per analyzer whatever the mode, so A2 always
+starts at channel 32. Names and decoders survive a change of mode or inputs,
+except on channels that disappear.
+
+Fewer enabled channels leave more memory per channel. All analyzers record the
+same number of samples, though, so the analyzer with the most enabled channels
+limits the duration.
 
 ## Reference alignment and drift correction
 
-The sync trigger aligns the two captures at the trigger point. However, the two
+The sync trigger aligns the captures at the trigger point. However, the
 analyzers run on independent clocks, so they can drift apart over a long
 capture. Connect a shared reference signal to one channel on each analyzer,
 for example a clock or any other signal whose edges are at least about 100
-samples apart. Then select those channels as **Master reference input** and
-**Secondary reference input**.
+samples apart. Then select those channels as each analyzer's **Reference
+input**.
 
-- **Align using reference signal** pairs edges of the reference signal on both
-  analyzers and corrects the constant offset between them at the trigger point.
+- **Align using reference signal** pairs edges of the reference signal on the
+  master and a secondary and corrects the constant offset between them at the
+  trigger point.
 - **Correct clock drift using reference signal** also estimates the clock
   frequency difference (in ppm) and rescales the secondary's timeline to match.
 - **Reference edge** selects which edges are used: rising, falling or both. If
   **Both** reports inconsistent edge timing, select a single edge instead.
 
-Edges are paired starting at the trigger point, then outwards over the whole
-capture, following the drift as it builds up. Near the trigger, an edge on the
-secondary only counts if it lies within about a quarter of the reference
-signal's typical edge spacing. The reference signal therefore corrects small
-remaining offsets, but not an offset of a whole reference period or more.
+Each secondary is aligned and corrected against the master on its own, so a
+problem with one secondary's reference input only affects that analyzer.
 
-After each capture the status messages report the offset or drift that was
-applied. A correction is skipped, and a message explains why, if:
+The sync trigger lines the captures up only to within the delay between the
+master's trigger-out and the secondary's trigger, which can be a few hundred
+nanoseconds. Near the trigger, DSView therefore looks for the offset within
+about 2 µs at which most reference edges line up. A reference that repeats
+within that distance, such as a clock, lines up equally well at several
+offsets; then the trigger alignment is kept, and the reference only corrects
+offsets below about a quarter of its typical edge spacing. From there, edges are
+paired outwards over the whole capture, following the drift as it builds up.
+
+After each capture the status messages report how far each secondary was
+corrected from the trigger alignment, and the drift that was applied. A correction is skipped, and a message explains why,
+if:
 
 - there are not enough matching edges,
 - the paired edges don't follow a consistent timing (typically more than 2
