@@ -178,6 +178,9 @@ public:
     bool stop_capture();
     bool switch_work_mode(int mode);
     bool set_logic_stacking_config(const LogicStackingConfig &config);
+    // Gives stacked analyzers that were unplugged the devices now at their USB
+    // ports. Returns whether one was linked again.
+    bool relink_stacking_analyzers();
     const LogicStackingConfig& logic_stacking_config() const;
     bool is_logic_stacking() const;
 

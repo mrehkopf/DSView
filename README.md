@@ -182,9 +182,25 @@ uploading and the captures are merged. Memory use therefore grows with the
 number of analyzers, and during the merge it is about twice that of the merged
 capture.
 
-Stacking settings are saved with the session. If a saved session is loaded with
-different hardware, DSView asks you to remap the analyzers in the Stacking
-dialog.
+DSLogic analyzers have no serial number, so DSView tells them apart by the USB
+port they are plugged into, shown in the device list as for example
+`DSLogic U3Pro32 [USB 8-3.2.1]` (bus 8, then the hub ports down to the
+analyzer). Keep each analyzer in the same USB port:
+
+- An analyzer that is unplugged and plugged into the same port again takes its
+  place in the stacking setup again.
+- If the master is unplugged, DSView switches to the demo device. When the
+  master is back in its port, DSView switches back to it with the stacking
+  setup, after waiting up to 3 s for the other analyzers.
+- Stacking settings are saved with the session, including each analyzer's
+  port. If a session is loaded and an analyzer isn't found at its port (it was
+  moved, or the session was saved by an older build that named devices by bus
+  and address), DSView asks you to remap the analyzers in the Stacking dialog.
+
+Where the system doesn't report the port (on macOS, DSView reads the port from
+the device's location ID), the device list shows the bus and address instead,
+for example `[USB 8.61]`. These change whenever an analyzer is plugged in
+again, so analyzers are then not found again automatically.
 
 ## Channels
 

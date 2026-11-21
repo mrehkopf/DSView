@@ -69,6 +69,20 @@ namespace pv
 {
     namespace {
 
+    // LogicStackingConfig::relink() against the current device list
+    bool relink_stacking_devices(LogicStackingConfig &config)
+    {
+        ds_device_base_info *devices = NULL;
+        int count = 0;
+
+        if (ds_get_device_list(&devices, &count) != SR_OK || devices == NULL)
+            return false;
+
+        const bool changed = config.relink(devices, count);
+        g_free(devices);
+        return changed;
+    }
+
     typedef std::pair<int, GVariant*> DeviceConfigSnapshotItem;
 
     // Used when a stacking remap silently changes the active master after session load.
@@ -384,6 +398,9 @@ namespace pv
             return false;
 
         LogicStackingConfig cfg = config;
+        // Note each analyzer's USB port for saving and for finding it again
+        relink_stacking_devices(cfg);
+
         const bool channel_model_changed =
             !_device_agent.logic_stacking_config().has_same_channel_model(cfg);
         const bool was_stacking = _device_agent.is_logic_stacking();
@@ -466,6 +483,19 @@ namespace pv
 
         release_device_session_options(preserved_options);
         return true;
+    }
+
+    bool SigSession::relink_stacking_analyzers()
+    {
+        if (_is_working || _is_saving)
+            return false;
+
+        LogicStackingConfig cfg = _device_agent.logic_stacking_config();
+        if (!cfg.enabled || !relink_stacking_devices(cfg))
+            return false;
+
+        dsv_info("Stacked analyzers were found again at their USB ports.");
+        return set_logic_stacking_config(cfg);
     }
 
     const LogicStackingConfig& SigSession::logic_stacking_config() const

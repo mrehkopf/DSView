@@ -673,6 +673,11 @@ if(WIN32)
     list(APPEND DSVIEW_LINK_LIBS cfgmgr32)
 endif()
 
+if(APPLE)
+    # IOKit location IDs identify the analyzers by their USB port.
+    list(APPEND DSVIEW_LINK_LIBS "-framework IOKit" "-framework CoreFoundation")
+endif()
+
 add_executable(${PROJECT_NAME}
     ${common_SOURCES}
     ${DSView_SOURCES}

@@ -28,6 +28,7 @@
 #include <QMouseEvent>
 #include <QVBoxLayout>
 #include <QAbstractButton>
+#include <QShowEvent>
 #include "../dsvdef.h"
 #include "../ui/langresource.h"
 #include "../config/appconfig.h"
@@ -165,6 +166,19 @@ int DSMessageBox::exec()
     PopupDlgList::AddDlgTolist(this);
 
     return QDialog::exec();
+}
+
+void DSMessageBox::showEvent(QShowEvent *event)
+{
+    // The dialog was sized for the text on a single line. QMessageBox wraps
+    // the text and fixes its own size only now, as it is shown, so shrink
+    // the dialog to fit before QDialog centres it.
+    if (!event->spontaneous()){
+        _main_layout->activate();
+        adjustSize();
+    }
+
+    QDialog::showEvent(event);
 }
 
 } // namespace dialogs

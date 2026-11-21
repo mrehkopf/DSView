@@ -25,6 +25,8 @@
 #define DSVIEW_PV_MAINWINDOW_H
 
 #include <list>
+#include <vector>
+#include <libsigrok.h>
 #include <QMainWindow>
 #include <QTranslator> 
 #include "dialogs/dsmessagebox.h"
@@ -33,6 +35,7 @@
 #include <QJsonDocument>
 #include <chrono>
 #include <QTimer>
+#include <QStringList>
 #include "dstimer.h"
 
 class QAction;
@@ -148,6 +151,12 @@ private:
     void check_usb_device_speed();
     void reset_all_view();
     bool confirm_to_store_data();
+    void switch_to_next_device();
+    void note_lost_stacking_master();
+    bool device_plugged_in_elsewhere();
+    bool return_to_stacking_master(bool wait_for_secondaries);
+    void on_stacking_return_timeout();
+    bool relink_stacking_analyzers();
     void update_toolbar_view_status();
     void calc_min_height();    
     void update_title_bar_text();
@@ -248,6 +257,14 @@ private:
     bool            _is_auto_switch_device;
     high_resolution_clock::time_point _last_key_press_time;
     bool            _is_save_confirm_msg;
+    // USB ports of the analyzers of a stacking setup whose master was
+    // unplugged, master first. DSView waits on the demo device and goes back
+    // to the master once a device is at its port again.
+    QStringList     _lost_stacking_ports;
+    // Devices listed when the master was unplugged; one plugged in at another
+    // port ends the wait
+    std::vector<ds_device_handle> _stacking_wait_devices;
+    QTimer          _stacking_return_timer;
     QString         _pattern_mode;
     QWidget         *_frame;
     DsTimer         _delay_prop_msg_timer;

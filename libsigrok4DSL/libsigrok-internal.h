@@ -59,12 +59,6 @@
 
 #define DS_VENDOR_ID	0x2A0E
 
-enum device_transaction_types
-{
-	DEV_TRANS_NONE = 0,
-	DEV_TRANS_OPEN = 1
-};
-
 /** global variable */
 extern char DS_RES_PATH[500];
 extern struct ds_trigger *trigger;

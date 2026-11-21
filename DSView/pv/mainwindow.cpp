@@ -46,6 +46,7 @@
 #include <QJsonValue>
 #include <QJsonArray>
 #include <functional>
+#include <algorithm>
 #include "utility/formatting.h"
 
 //include with qt5
@@ -174,23 +175,51 @@ namespace pv
             return matched;
         }
 
-        // Stores a device's name and unique id under the given keys
+        // The demo device, which DSView waits on while a stacking master is unplugged
+        ds_device_handle demo_device_handle()
+        {
+            ds_device_base_info *devices = NULL;
+            int count = 0;
+            ds_device_handle demo = NULL_HANDLE;
+
+            if (ds_get_device_list(&devices, &count) != SR_OK || devices == NULL)
+                return NULL_HANDLE;
+
+            for (int i = 0; i < count && demo == NULL_HANDLE; i++){
+                ds_device_full_info info;
+                if (ds_get_device_info_by_handle(devices[i].handle, &info) == SR_OK &&
+                    info.dev_type == DEV_TYPE_DEMO)
+                    demo = devices[i].handle;
+            }
+
+            g_free(devices);
+            return demo;
+        }
+
+        // Stores an analyzer's device name and unique id under the given keys:
+        // the listed device's, or the ones the stacking setup kept for an
+        // analyzer that is unplugged
         void save_stacking_identity(const ds_device_base_info *devices,
                                     int device_count,
-                                    ds_device_handle handle,
+                                    const LogicStackingConfig &stacking,
+                                    int analyzer,
                                     QJsonObject &obj,
                                     const QString &name_key,
                                     const QString &unique_id_key)
         {
-            if (devices == NULL || handle == NULL_HANDLE)
-                return;
+            const ds_device_handle handle = stacking.analyzer_handle(analyzer);
 
-            for (int i = 0; i < device_count; i++){
+            for (int i = 0; devices != NULL && handle != NULL_HANDLE && i < device_count; i++){
                 if (devices[i].handle == handle){
                     obj[name_key] = QString::fromLocal8Bit(devices[i].name);
                     obj[unique_id_key] = QString::fromLocal8Bit(devices[i].unique_id);
                     return;
                 }
+            }
+
+            if (!stacking.analyzer_unique_id(analyzer).isEmpty()){
+                obj[name_key] = stacking.analyzer_name(analyzer);
+                obj[unique_id_key] = stacking.analyzer_unique_id(analyzer);
             }
         }
 
@@ -238,6 +267,11 @@ namespace pv
 
         _is_auto_switch_device = false;
         _is_save_confirm_msg = false;
+
+        _stacking_return_timer.setSingleShot(true);
+        connect(&_stacking_return_timer, &QTimer::timeout, this, [this](){
+            on_stacking_return_timeout();
+        });
 
         _pattern_mode = "random";
 
@@ -847,11 +881,12 @@ namespace pv
             if (ds_get_device_list(&devices, &device_count) != SR_OK)
                 devices = NULL;
 
-            save_stacking_identity(devices, device_count, stacking.master_handle,
+            save_stacking_identity(devices, device_count, stacking, 0,
                                    stackingObj, "master_name", "master_unique_id");
 
             QJsonArray secondariesArray;
-            for (const LogicStackingSecondary &secondary : stacking.secondaries){
+            for (size_t i = 0; i < stacking.secondaries.size(); i++){
+                const LogicStackingSecondary &secondary = stacking.secondaries[i];
                 QJsonObject secondaryObj;
                 secondaryObj["handle"] = QString::number((qulonglong)secondary.handle);
                 secondaryObj["sync_channel"] = secondary.sync_channel;
@@ -860,7 +895,7 @@ namespace pv
                 secondaryObj["threshold"] = secondary.threshold;
                 secondaryObj["filter"] = secondary.filter;
                 secondaryObj["channels"] = LogicStackingConfig::channels_to_string(secondary.channels);
-                save_stacking_identity(devices, device_count, secondary.handle,
+                save_stacking_identity(devices, device_count, stacking, (int)i + 1,
                                        secondaryObj, "name", "unique_id");
                 secondariesArray.append(secondaryObj);
             }
@@ -873,7 +908,7 @@ namespace pv
                 stackingObj["secondary_sync_channel"] = secondary.sync_channel;
                 stackingObj["secondary_manual_shift_ps"] = QString::number((qlonglong)secondary.manual_shift_ps);
                 stackingObj["drift_secondary_channel"] = secondary.reference_channel;
-                save_stacking_identity(devices, device_count, secondary.handle,
+                save_stacking_identity(devices, device_count, stacking, 1,
                                        stackingObj, "secondary_name", "secondary_unique_id");
             }
 
@@ -1058,6 +1093,8 @@ namespace pv
                 saved[0].handle = stacking.master_handle;
                 saved[0].name = stackingObj["master_name"].toString();
                 saved[0].unique_id = stackingObj["master_unique_id"].toString();
+                stacking.master_name = saved[0].name;
+                stacking.master_unique_id = saved[0].unique_id;
 
                 if (stackingObj["secondaries"].isArray()){
                     const QJsonArray secondariesArray = stackingObj["secondaries"].toArray();
@@ -1076,12 +1113,14 @@ namespace pv
                         secondary.filter = secondaryObj["filter"].toInt(-1);
                         secondary.channels = LogicStackingConfig::channels_from_string(
                             secondaryObj["channels"].toString());
+                        secondary.name = secondaryObj["name"].toString();
+                        secondary.unique_id = secondaryObj["unique_id"].toString();
                         stacking.secondaries.push_back(secondary);
 
                         SavedStackingAnalyzer analyzer;
                         analyzer.handle = secondary.handle;
-                        analyzer.name = secondaryObj["name"].toString();
-                        analyzer.unique_id = secondaryObj["unique_id"].toString();
+                        analyzer.name = secondary.name;
+                        analyzer.unique_id = secondary.unique_id;
                         saved.push_back(analyzer);
                     }
                 }
@@ -1092,12 +1131,14 @@ namespace pv
                     secondary.sync_channel = stackingObj["secondary_sync_channel"].toInt();
                     secondary.manual_shift_ps = stackingObj["secondary_manual_shift_ps"].toString().toLongLong();
                     secondary.reference_channel = stackingObj["drift_secondary_channel"].toInt();
+                    secondary.name = stackingObj["secondary_name"].toString();
+                    secondary.unique_id = stackingObj["secondary_unique_id"].toString();
                     stacking.secondaries.push_back(secondary);
 
                     SavedStackingAnalyzer analyzer;
                     analyzer.handle = secondary.handle;
-                    analyzer.name = stackingObj["secondary_name"].toString();
-                    analyzer.unique_id = stackingObj["secondary_unique_id"].toString();
+                    analyzer.name = secondary.name;
+                    analyzer.unique_id = secondary.unique_id;
                     saved.push_back(analyzer);
                 }
 
@@ -1958,12 +1999,170 @@ namespace pv
                 if (_session->is_working())
                     _session->stop_capture();
 
-                _session->set_default_device();
+                switch_to_next_device();
             }
         }
 
         _is_save_confirm_msg = false;
         return ret;
+    }
+
+    // After the current device was unplugged or a new one was plugged in:
+    // normally the last device in the list. While a stacking master is
+    // unplugged, DSView waits on the demo device instead, and goes back to the
+    // master once it is plugged in again, so its profile restores the stacking
+    // setup. A secondary would load the same DSLogic profile and complain about
+    // the missing master.
+    void MainWindow::switch_to_next_device()
+    {
+        if (_session->is_working())
+            _session->stop_capture();
+
+        if (!_lost_stacking_ports.isEmpty() && device_plugged_in_elsewhere())
+        {
+            dsv_info("A device was plugged into another port, stop waiting for the stacking master.");
+            _lost_stacking_ports.clear();
+            _stacking_return_timer.stop();
+        }
+
+        if (!_lost_stacking_ports.isEmpty())
+        {
+            if (return_to_stacking_master(true))
+                return;
+
+            if (_device_agent->is_demo())
+                return;
+
+            ds_device_handle demo = demo_device_handle();
+            if (demo != NULL_HANDLE && _session->set_device(demo)){
+                dsv_info("The stacking master was unplugged, wait for it on the demo device.");
+                return;
+            }
+        }
+
+        _session->set_default_device();
+    }
+
+    // Notes the USB ports of the stacking setup when its master, the current
+    // device, was unplugged
+    void MainWindow::note_lost_stacking_master()
+    {
+        _lost_stacking_ports.clear();
+        _stacking_wait_devices.clear();
+        _stacking_return_timer.stop();
+
+        const LogicStackingConfig &stacking = _session->logic_stacking_config();
+        if (!stacking.enabled || stacking.master_handle != _device_agent->handle() ||
+            !LogicStackingConfig::is_port_id(stacking.master_unique_id))
+            return;
+
+        for (int analyzer = 0; analyzer < stacking.analyzer_count(); analyzer++){
+            if (LogicStackingConfig::is_port_id(stacking.analyzer_unique_id(analyzer)))
+                _lost_stacking_ports.append(stacking.analyzer_unique_id(analyzer));
+        }
+
+        ds_device_base_info *devices = NULL;
+        int count = 0;
+        if (ds_get_device_list(&devices, &count) == SR_OK && devices != NULL){
+            for (int i = 0; i < count; i++)
+                _stacking_wait_devices.push_back(devices[i].handle);
+            g_free(devices);
+        }
+    }
+
+    // Whether a device was plugged in, since the stacking master was
+    // unplugged, at a port that isn't one of the stacking setup's
+    bool MainWindow::device_plugged_in_elsewhere()
+    {
+        ds_device_base_info *devices = NULL;
+        int count = 0;
+        bool elsewhere = false;
+
+        if (ds_get_device_list(&devices, &count) != SR_OK || devices == NULL)
+            return false;
+
+        for (int i = 0; i < count && !elsewhere; i++){
+            const bool known = std::find(_stacking_wait_devices.begin(), _stacking_wait_devices.end(),
+                                         devices[i].handle) != _stacking_wait_devices.end();
+            elsewhere = !known &&
+                        !_lost_stacking_ports.contains(QString::fromLocal8Bit(devices[i].unique_id));
+        }
+
+        g_free(devices);
+        return elsewhere;
+    }
+
+    // Switches to the device at the unplugged master's USB port. The other
+    // analyzers come back one after another, each after its firmware upload,
+    // so this waits up to 3 s for them; one still missing then is left for
+    // the user to remap. Returns whether DSView switched to the master.
+    bool MainWindow::return_to_stacking_master(bool wait_for_secondaries)
+    {
+        ds_device_base_info *devices = NULL;
+        int count = 0;
+        ds_device_handle master = NULL_HANDLE;
+        int present = 0;
+
+        if (_lost_stacking_ports.isEmpty() ||
+            ds_get_device_list(&devices, &count) != SR_OK || devices == NULL)
+            return false;
+
+        for (int analyzer = 0; analyzer < _lost_stacking_ports.size(); analyzer++){
+            for (int i = 0; i < count; i++){
+                if (QString::fromLocal8Bit(devices[i].unique_id) == _lost_stacking_ports[analyzer]){
+                    if (analyzer == 0)
+                        master = devices[i].handle;
+                    present++;
+                    break;
+                }
+            }
+        }
+        g_free(devices);
+
+        if (master == NULL_HANDLE)
+            return false;
+
+        if (present < _lost_stacking_ports.size() && wait_for_secondaries){
+            if (!_stacking_return_timer.isActive())
+                _stacking_return_timer.start(3000);
+            return false;
+        }
+
+        _stacking_return_timer.stop();
+        dsv_info("The stacking master is plugged in again, switch back to it.");
+
+        if (_session->is_working())
+            _session->stop_capture();
+
+        return _session->set_device(master);
+    }
+
+    void MainWindow::on_stacking_return_timeout()
+    {
+        // Only from the demo device DSView waits on
+        if (_lost_stacking_ports.isEmpty() || !_device_agent->is_demo())
+            return;
+
+        // Not while data is saved or the user is asked to; try again later
+        if (_session->is_saving() || _is_save_confirm_msg){
+            _stacking_return_timer.start(1000);
+            return;
+        }
+
+        return_to_stacking_master(false);
+    }
+
+    // A stacked analyzer plugged into its USB port again takes its place in
+    // the setup, as after a remap in the Stacking dialog
+    bool MainWindow::relink_stacking_analyzers()
+    {
+        if (!_session->relink_stacking_analyzers())
+            return false;
+
+        _sampling_bar->update_device_list();
+        _sampling_bar->update_sample_rate_list();
+        _sampling_bar->reload();
+        return true;
     }
 
     void MainWindow::check_config_file_version()
@@ -2133,6 +2332,7 @@ namespace pv
             case DSV_MSG_DEVICE_LIST_UPDATED:
             {
                 _sampling_bar->update_device_list();
+                relink_stacking_analyzers();
                 break;
             }
             case DSV_MSG_START_COLLECT_WORK_PREV:
@@ -2182,6 +2382,12 @@ namespace pv
             }
             case DSV_MSG_CURRENT_DEVICE_CHANGED:
             {
+                // Back on the stacking master, or the user chose another device
+                if (!_device_agent->is_demo()){
+                    _lost_stacking_ports.clear();
+                    _stacking_return_timer.stop();
+                }
+
                 reset_all_view();
                 load_device_config();
                 update_title_bar_text();
@@ -2304,6 +2510,11 @@ namespace pv
 
                 _sampling_bar->update_device_list();
 
+                // A stacked analyzer is back at its USB port and takes its place
+                // again; no need to offer switching to it.
+                if (relink_stacking_analyzers())
+                    break;
+
                 //If the current device is working, do not remind to switch new device.
                 if (_session->get_device()->is_hardware() && _session->is_working()){
                     return;
@@ -2351,7 +2562,7 @@ namespace pv
                     if (_session->is_working())
                         _session->stop_capture();
                     
-                    _session->set_default_device();
+                    switch_to_next_device();
                 }
 
                 break;
@@ -2362,6 +2573,8 @@ namespace pv
                     _msg->close();
                     _msg = NULL;
                 }
+
+                note_lost_stacking_master();
 
                 // Save current config, and switch to the last device.
                 _session->device_event_object()->device_updated();
@@ -2379,7 +2592,7 @@ namespace pv
                     on_save();
                 }
                 else{
-                    _session->set_default_device();
+                    switch_to_next_device();
                 }
                 break;
             }
@@ -2390,7 +2603,7 @@ namespace pv
                 if (_is_auto_switch_device)
                 {
                     _is_auto_switch_device = false;
-                    _session->set_default_device();
+                    switch_to_next_device();
                 }
                 else
                 {
