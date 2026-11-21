@@ -449,7 +449,7 @@
     },
     {
         "id": "IDS_MSG_STACKING_ALIGNMENT_APPLIED",
-        "text": "Stacking reference alignment applied: %1 offset %2 samples (%3 ns) from %4 reference edges."
+        "text": "Stacking reference alignment applied: %1 corrected by %2 samples (%3 ns) from %4 reference edges."
     },
     {
         "id": "IDS_MSG_STACKING_ALIGNMENT_FAILED",

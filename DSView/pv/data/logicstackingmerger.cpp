@@ -62,6 +62,14 @@ const size_t kMinSlopePairs = 8;
 // Master edges used per polarity
 const size_t kMaxReferenceEdges = 1 << 20;
 const int kMaxTrimRounds = 3;
+// The sync trigger lines a secondary up only to within the latency between the
+// master's trigger-out and the secondary's trigger, which the trigger positions
+// don't include; a 250 MHz capture was 210 ns off. The reference is searched
+// this far around the trigger alignment.
+const double kSyncSearchSeconds = 2e-6;
+const int64_t kMaxSyncSearchSamples = 1 << 16;
+// Bins on either side of a histogram peak that still count towards it
+const int64_t kSearchPeakRadius = 2;
 
 template <typename T>
 T median_in_place(std::vector<T> &values)
@@ -720,6 +728,82 @@ void LogicStackingMerger::refine_reference_model(const std::vector<ReferencePair
     model.offset = median_in_place(offsets);
 }
 
+// Correction to the trigger alignment, in secondary samples, at which the most
+// reference edges in [first, last] coincide with the secondary's, searched within
+// +-search. Returns 0 unless one offset clearly wins: a periodic reference, such
+// as a clock, fits equally well at every period, and then the trigger alignment
+// stands.
+int64_t LogicStackingMerger::search_reference_offset(const std::vector<int64_t> master_edges[2],
+                                                     const std::vector<int64_t> secondary_edges[2],
+                                                     long double offset,
+                                                     int64_t first,
+                                                     int64_t last,
+                                                     int64_t search) const
+{
+    if (search <= 0)
+        return 0;
+
+    std::vector<int> histogram((size_t)(2 * search + 1), 0);
+    size_t master_count = 0;
+
+    for (int polarity = 0; polarity < 2; polarity++){
+        const std::vector<int64_t> &master = master_edges[polarity];
+        const std::vector<int64_t> &secondary = secondary_edges[polarity];
+
+        for (std::vector<int64_t>::const_iterator it = std::lower_bound(master.begin(), master.end(), first);
+             it != master.end() && *it <= last; ++it){
+            master_count++;
+            const int64_t predicted = (int64_t)llroundl((long double)*it - offset);
+            for (std::vector<int64_t>::const_iterator s = std::lower_bound(secondary.begin(), secondary.end(), predicted - search);
+                 s != secondary.end() && *s <= predicted + search; ++s)
+                histogram[(size_t)(*s - predicted + search)]++;
+        }
+    }
+
+    if (master_count < kMinSlopePairs)
+        return 0;
+
+    // Quantization on both analyzers spreads a match over neighbouring bins
+    const int64_t bins = (int64_t)histogram.size();
+    std::vector<int> smoothed(histogram.size(), 0);
+    for (int64_t bin = 0; bin < bins; bin++){
+        for (int64_t k = std::max<int64_t>(0, bin - kSearchPeakRadius);
+             k <= std::min<int64_t>(bins - 1, bin + kSearchPeakRadius); k++)
+            smoothed[(size_t)bin] += histogram[(size_t)k];
+    }
+
+    // The best offset, nearest to the trigger alignment among equals
+    int64_t best = search;
+    for (int64_t bin = 0; bin < bins; bin++){
+        if (smoothed[(size_t)bin] > smoothed[(size_t)best] ||
+            (smoothed[(size_t)bin] == smoothed[(size_t)best] &&
+             std::llabs(bin - search) < std::llabs(best - search)))
+            best = bin;
+    }
+
+    int runner_up = 0;
+    for (int64_t bin = 0; bin < bins; bin++){
+        if (std::llabs(bin - best) > 3 * kSearchPeakRadius)
+            runner_up = std::max(runner_up, smoothed[(size_t)bin]);
+    }
+
+    // Most edges must line up there, at least twice as many as anywhere else
+    const int matches = smoothed[(size_t)best];
+    if ((size_t)matches < kMinSlopePairs ||
+        (size_t)matches * 2 < master_count ||
+        matches < 2 * runner_up)
+        return 0;
+
+    int64_t peak = best;
+    for (int64_t k = std::max<int64_t>(0, best - kSearchPeakRadius);
+         k <= std::min<int64_t>(bins - 1, best + kSearchPeakRadius); k++){
+        if (histogram[(size_t)k] > histogram[(size_t)peak])
+            peak = k;
+    }
+
+    return peak - search;
+}
+
 // Pair reference edges outwards from the trigger anchor, widening the span step by
 // step and predicting edge positions with the model fitted so far. The drift may
 // add up to many edge periods over the capture without breaking the pairing.
@@ -755,6 +839,13 @@ bool LogicStackingMerger::fit_reference_timing(const SourceBuffer &secondary,
 
     ReferenceFit model;
     model.offset = (long double)alignment_shift;
+
+    // Start where the reference edges near the trigger line up; the trigger
+    // alignment can be off by more than the pair window on a dense reference
+    const int64_t search = std::min<int64_t>(kMaxSyncSearchSamples,
+        std::max<int64_t>(pair_window, (int64_t)llround(kSyncSearchSeconds * (double)_samplerate)));
+    model.offset -= (long double)search_reference_offset(reference.edges, secondary_edges, model.offset,
+                                                         anchor - half_span, anchor + half_span, search);
     std::vector<ReferencePair> pairs;
 
     for (;;){
@@ -784,16 +875,21 @@ void LogicStackingMerger::apply_reference_alignment(SourceBuffer &secondary, con
     if (fit.error_at(anchor) <= kMaxTimingError)
         reference_shift = (long double)anchor - ((long double)anchor - fit.offset) / fit.scale;
 
+    // The shift between the buffers includes the secondary's longer pre-trigger
+    // part, so it says little; report how far the reference moved the secondary
+    // from the trigger alignment
+    const int64_t previous_shift = shift_samples(secondary);
     secondary.shift = (int64_t)llround(reference_shift) + manual_shift_samples(secondary);
     secondary.shift_ready = true;
 
-    const double shift_ns = _samplerate == 0 ? 0.0 :
-        (double)secondary.shift * 1000000000.0 / (double)_samplerate;
+    const int64_t correction = secondary.shift - previous_shift;
+    const double correction_ns = _samplerate == 0 ? 0.0 :
+        (double)correction * 1000000000.0 / (double)_samplerate;
     append_warning(QString(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STACKING_ALIGNMENT_APPLIED),
-                               "Stacking reference alignment applied: %1 offset %2 samples (%3 ns) from %4 reference edges."))
+                               "Stacking reference alignment applied: %1 corrected by %2 samples (%3 ns) from %4 reference edges."))
                    .arg(secondary.label())
-                   .arg(secondary.shift)
-                   .arg(shift_ns, 0, 'f', 3)
+                   .arg(correction)
+                   .arg(correction_ns, 0, 'f', 3)
                    .arg((qulonglong)fit.inlier_count));
 }
 

@@ -449,7 +449,7 @@
     },
     {
         "id": "IDS_MSG_STACKING_ALIGNMENT_APPLIED",
-        "text": "Stacking-Referenzausrichtung angewendet: Versatz von %1 %2 Samples (%3 ns), ermittelt aus %4 Referenzflanken."
+        "text": "Stacking-Referenzausrichtung angewendet: %1 um %2 Samples (%3 ns) korrigiert, ermittelt aus %4 Referenzflanken."
     },
     {
         "id": "IDS_MSG_STACKING_ALIGNMENT_FAILED",

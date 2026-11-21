@@ -144,6 +144,12 @@ private:
     void refine_reference_model(const std::vector<ReferencePair> &pairs,
                                 int64_t span,
                                 ReferenceFit &model) const;
+    int64_t search_reference_offset(const std::vector<int64_t> master_edges[2],
+                                    const std::vector<int64_t> secondary_edges[2],
+                                    long double offset,
+                                    int64_t first,
+                                    int64_t last,
+                                    int64_t search) const;
     bool fit_reference_timing(const SourceBuffer &secondary,
                               int64_t alignment_shift,
                               ReferenceFit &fit);

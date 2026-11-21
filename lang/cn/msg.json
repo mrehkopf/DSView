@@ -456,7 +456,7 @@
     },
     {
         "id": "IDS_MSG_STACKING_ALIGNMENT_APPLIED",
-        "text": "已应用堆叠参考对齐: %1 偏移 %2 样本 (%3 ns), 使用 %4 个参考边沿。"
+        "text": "已应用堆叠参考对齐: %1 校正了 %2 样本 (%3 ns), 使用 %4 个参考边沿。"
     },
     {
         "id": "IDS_MSG_STACKING_ALIGNMENT_FAILED",

@@ -570,6 +570,22 @@ int main()
     glitches.latency = 4;
     check_aligned(glitches);
 
+    // The sync trigger can be off by more than a quarter of a dense reference's
+    // edge spacing; a 250 MHz capture of a bus select line was 53 samples off
+    // with a 46-sample pair window. The start offset is searched near the trigger.
+    Scenario late("sync latency beyond the pair window");
+    late.reference = {RandomBits, 40};
+    late.latency = 35;
+    check_aligned(late);
+
+    Scenario later("sync latency of 1.2 us on a dense reference");
+    later.reference = {RandomBits, 40};
+    later.latency = 300;
+    later.more.resize(1);
+    later.more[0].ppm = -25;
+    later.more[0].latency = 180;
+    check_aligned(later);
+
     {
         // Without drift correction the reference only aligns the trigger point;
         // 30 ppm still adds up to 0.3 samples 10000 samples away

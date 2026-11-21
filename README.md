@@ -225,14 +225,17 @@ input**.
 Each secondary is aligned and corrected against the master on its own, so a
 problem with one secondary's reference input only affects that analyzer.
 
-Edges are paired starting at the trigger point, then outwards over the whole
-capture, following the drift as it builds up. Near the trigger, an edge on the
-secondary only counts if it lies within about a quarter of the reference
-signal's typical edge spacing. The reference signal therefore corrects small
-remaining offsets, but not an offset of a whole reference period or more.
+The sync trigger lines the captures up only to within the delay between the
+master's trigger-out and the secondary's trigger, which can be a few hundred
+nanoseconds. Near the trigger, DSView therefore looks for the offset within
+about 2 µs at which most reference edges line up. A reference that repeats
+within that distance, such as a clock, lines up equally well at several
+offsets; then the trigger alignment is kept, and the reference only corrects
+offsets below about a quarter of its typical edge spacing. From there, edges are
+paired outwards over the whole capture, following the drift as it builds up.
 
-After each capture the status messages report the offset or drift that was
-applied to each secondary. A correction is skipped, and a message explains why,
+After each capture the status messages report how far each secondary was
+corrected from the trigger alignment, and the drift that was applied. A correction is skipped, and a message explains why,
 if:
 
 - there are not enough matching edges,
