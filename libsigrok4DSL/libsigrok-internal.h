@@ -129,6 +129,8 @@ struct sr_dev_driver {
 			void *cb_data);
     int (*dev_acquisition_stop) (const struct sr_dev_inst *sdi,
 			void *cb_data);
+	/* Optional: sets the device's LEDs (DS_LED_*), also while it isn't open */
+	int (*dev_set_led) (struct sr_dev_inst *sdi, int leds);
 
 	/* Dynamic */
 	void *priv;

@@ -399,6 +399,7 @@ set(DSView_SOURCES
     DSView/pv/utility/path.cpp
     DSView/pv/utility/array.cpp
     DSView/pv/deviceagent.cpp
+    DSView/pv/deviceidentifier.cpp
     DSView/pv/ui/langresource.cpp
     DSView/pv/ui/fn.cpp
     DSView/pv/ui/xtoolbutton.cpp

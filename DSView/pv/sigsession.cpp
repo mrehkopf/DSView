@@ -247,6 +247,7 @@ namespace pv
 
     void SigSession::uninit()
     {
+        _device_identifier.stop_all();
         this->Close();
 
         ds_lib_exit();
@@ -483,6 +484,14 @@ namespace pv
 
         release_device_session_options(preserved_options);
         return true;
+    }
+
+    bool SigSession::identify_device(ds_device_handle handle)
+    {
+        if (is_working())
+            return false;
+
+        return _device_identifier.identify(handle);
     }
 
     bool SigSession::relink_stacking_analyzers()
@@ -949,6 +958,10 @@ namespace pv
         }
 
         _is_task_end = false;
+
+        // The library refuses LED changes during the capture, so end any
+        // blinking first
+        _device_identifier.stop_all();
 
         if (_device_agent.start(_is_instant) == false){
             dsv_err("Start collect error!");

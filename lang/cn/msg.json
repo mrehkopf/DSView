@@ -465,5 +465,9 @@
     {
         "id": "IDS_MSG_STACKING_ALIGNMENT_REJECTED",
         "text": "已跳过 %1 的堆叠参考对齐: 参考边沿时序不一致 (典型偏差 %2 样本)。"
+    },
+    {
+        "id": "IDS_MSG_IDENTIFY_FAILED",
+        "text": "无法控制设备的指示灯。它可能未连接，或正被其他程序使用。"
     }
 ]

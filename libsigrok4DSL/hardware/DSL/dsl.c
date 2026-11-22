@@ -2045,6 +2045,58 @@ SR_PRIV int dsl_dev_close(struct sr_dev_inst *sdi)
     return SR_OK;
 }
 
+/* DSL_CTL_LED drives the FX2/FX3's green (bit 0) and red (bit 1) LED pins
+ * directly. The firmware turns the red one on at power-up, and
+ * dsl_fpga_config() switches to green once the FPGA is loaded. A device
+ * DSView hasn't opened gets a temporary handle: vendor requests to the
+ * device need no claimed interface, so this works alongside another program
+ * that has the device open, where the system allows that. */
+SR_PRIV int dsl_dev_set_led(struct sr_dev_inst *sdi, int leds)
+{
+    struct sr_usb_dev_inst *usb;
+    struct libusb_device_handle *hdl;
+    struct libusb_device_handle *temp_hdl = NULL;
+    struct ctl_wr_cmd wr_cmd;
+    struct ctl_rd_cmd rd_cmd;
+    uint8_t hw_info = 0;
+    int ret;
+
+    usb = sdi->conn;
+    if (usb == NULL || usb->usb_dev == NULL)
+        return SR_ERR_ARG;
+
+    hdl = usb->devhdl;
+    if (hdl == NULL) {
+        ret = libusb_open(usb->usb_dev, &temp_hdl);
+        if (ret != LIBUSB_SUCCESS) {
+            sr_err("%s: Unable to open device: %s.", __func__, libusb_error_name(ret));
+            return SR_ERR;
+        }
+        hdl = temp_hdl;
+    }
+
+    if (leds == DS_LED_IDLE) {
+        rd_cmd.header.dest = DSL_CTL_HW_STATUS;
+        rd_cmd.header.offset = 0;
+        rd_cmd.header.size = 1;
+        rd_cmd.data = &hw_info;
+        if ((ret = command_ctl_rd(hdl, rd_cmd)) != SR_OK)
+            goto out;
+        leds = (hw_info & bmFPGA_DONE) ? bmLED_GREEN : bmLED_RED;
+    }
+
+    wr_cmd.header.dest = DSL_CTL_LED;
+    wr_cmd.header.offset = 0;
+    wr_cmd.header.size = 1;
+    wr_cmd.data[0] = (uint8_t)(leds & (bmLED_GREEN | bmLED_RED));
+    ret = command_ctl_wr(hdl, wr_cmd);
+
+out:
+    if (temp_hdl != NULL)
+        libusb_close(temp_hdl);
+    return ret;
+}
+
 SR_PRIV int dsl_dev_acquisition_stop(const struct sr_dev_inst *sdi, void *cb_data)
 {
     (void)cb_data;

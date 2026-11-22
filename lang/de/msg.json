@@ -474,5 +474,9 @@
     {
         "id": "IDS_MSG_DRIVER_HINT_LINUX_BUNDLED",
         "text": "Für den USB-Zugriff auf DreamSourceLab-Hardware wird eine udev-Regel benötigt, die auf diesem System nicht gefunden wurde (bei Verwendung des AppImage ist das normal). Zur Installation führen Sie Folgendes aus:\n\nsudo cp \"%1\" /etc/udev/rules.d/ && sudo udevadm control --reload-rules"
+    },
+    {
+        "id": "IDS_MSG_IDENTIFY_FAILED",
+        "text": "Die LED des Geräts lässt sich nicht ansteuern. Es ist vielleicht nicht angeschlossen oder wird von einem anderen Programm verwendet."
     }
 ]

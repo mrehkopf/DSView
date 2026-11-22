@@ -43,6 +43,7 @@
 #include "dstimer.h"
 #include <libsigrok.h>
 #include "deviceagent.h"
+#include "deviceidentifier.h"
 #include "eventobject.h"
 #include "data/logicsnapshot.h"
 #include "data/analogsnapshot.h"
@@ -183,6 +184,9 @@ public:
     bool relink_stacking_analyzers();
     const LogicStackingConfig& logic_stacking_config() const;
     bool is_logic_stacking() const;
+    // Blinks a device's LED for two seconds; false if it can't, for example
+    // during a capture
+    bool identify_device(ds_device_handle handle);
 
     uint64_t cur_samplerate();
     uint64_t cur_snap_samplerate();
@@ -636,6 +640,7 @@ private:
     DsTimer     _repeat_wait_prog_timer;
     DsTimer     _refresh_rt_timer;
     DsTimer     _trig_check_timer;
+    DeviceIdentifier _device_identifier;
    
     int         _noData_cnt;
     bool        _data_lock;

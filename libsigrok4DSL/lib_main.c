@@ -1485,6 +1485,44 @@ SR_API int ds_get_device_status_by_handle(ds_device_handle handle,
 	return sr_status_get(di, status, prg);
 }
 
+SR_API int ds_set_device_led_by_handle(ds_device_handle handle, int leds)
+{
+	struct sr_dev_inst *di;
+	int ret;
+
+	if (handle == NULL_HANDLE)
+		return SR_ERR_ARG;
+
+	if (ds_is_collecting())
+	{
+		sr_err("Can't set the device's LEDs while collecting.");
+		return SR_ERR_CALL_STATUS;
+	}
+
+	/* Held through the transfer, so that the hotplug thread can't destroy
+	   the device meanwhile */
+	pthread_mutex_lock(&lib_ctx.mutext);
+	di = find_device_instance_by_handle(handle);
+
+	if (di == NULL)
+	{
+		sr_err("Device handle not found.");
+		ret = SR_ERR_CALL_STATUS;
+	}
+	else if (di->driver == NULL || di->driver->dev_set_led == NULL)
+		ret = SR_ERR_NA;
+	else if (di->status == SR_ST_INITIALIZING)
+	{
+		sr_err("Can't set the LEDs of a device that is initializing.");
+		ret = SR_ERR_CALL_STATUS;
+	}
+	else
+		ret = di->driver->dev_set_led(di, leds);
+
+	pthread_mutex_unlock(&lib_ctx.mutext);
+	return ret;
+}
+
 SR_API struct sr_config *ds_new_config(int key, GVariant *data)
 {
 	return sr_config_new(key, data);

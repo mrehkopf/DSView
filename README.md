@@ -21,6 +21,9 @@ includes the Qt 6 port and the UI and driver improvements from
   configured Parallel decoder bus. See [doc/parallel-trigger.md](doc/parallel-trigger.md).
 - **System theme:** use the Qt style configured by your desktop, including
   Kvantum (see [Appearance](#appearance)).
+- **Identify:** blink a DSLogic's or DSCope's LED red and green for two
+  seconds, to see which device is which. The button is in the **Options**
+  dialog and, for each stacked analyzer, in the Stacking dialog.
 - Smaller fixes: no more busy-looping in the USB event thread (Windows), fewer redundant
   capture status repaints, reserved space for the waveform status and
   measurement bar.
@@ -152,7 +155,8 @@ and so on. The channels are named `A1-D0`, `A2-D0`, ….
    and set the **Number of analyzers**. Then select a device for each analyzer
    (A1 is the master) and set each secondary's **Sync input** to the channel you
    wired in step 1. **Threshold** and **Filter** are set per analyzer here as
-   well.
+   well. To see which analyzer a device is, click **Identify** next to it: that
+   analyzer's LED blinks red and green for two seconds.
 4. Configure the trigger as usual. The trigger applies to the master, so only
    channels 0–31 can be used in it. A parallel bus trigger on a bus that spans
    several analyzers matches only the master's bits (see
@@ -212,6 +216,7 @@ The **Options** dialog sets the channels for all stacked analyzers:
   move in the Stacking dialog first.
 - **Inputs:** each analyzer has its own row of channels to capture. Sync
   inputs, and reference inputs while they are used, are always captured.
+- **Identify:** blinks that analyzer's LED, as in the Stacking dialog.
 
 Channel numbers stay 32 apart per analyzer whatever the mode, so A2 always
 starts at channel 32. Names and decoders survive a change of mode or inputs,

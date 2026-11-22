@@ -1560,6 +1560,22 @@ SR_API int ds_get_actived_device_status(struct sr_status *status, gboolean prg);
 SR_API int ds_get_device_status_by_handle(ds_device_handle handle,
 										 struct sr_status *status, gboolean prg);
 
+/* LED states for ds_set_device_led_by_handle(): the DSLogic and DSCope
+   firmware drives a green and a red LED. */
+#define DS_LED_OFF		0
+#define DS_LED_GREEN	(1 << 0)
+#define DS_LED_RED		(1 << 1)
+/* What the device shows on its own: red after power-up, green once DSView
+   has loaded its FPGA */
+#define DS_LED_IDLE		(-1)
+
+/**
+ * Sets a device's LEDs, for example to show which device a handle is. This
+ * works whether or not the device is open, but not while a capture runs or
+ * the device is initializing. Returns SR_ERR_NA for devices without LEDs.
+ */
+SR_API int ds_set_device_led_by_handle(ds_device_handle handle, int leds);
+
 SR_API struct sr_config *ds_new_config(int key, GVariant *data);
 
 SR_API void ds_free_config(struct sr_config *src);

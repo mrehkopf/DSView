@@ -474,5 +474,9 @@
     {
         "id": "IDS_MSG_DRIVER_HINT_LINUX_BUNDLED",
         "text": "DreamSourceLab hardware needs a udev rule granting USB access, which was not found on this system (this is normal when running the AppImage). To install it, run:\n\nsudo cp \"%1\" /etc/udev/rules.d/ && sudo udevadm control --reload-rules"
+    },
+    {
+        "id": "IDS_MSG_IDENTIFY_FAILED",
+        "text": "The device's LED could not be blinked. It may be unplugged or in use by another program."
     }
 ]

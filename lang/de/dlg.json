@@ -1162,5 +1162,13 @@
     {
         "id": "IDS_DLG_SNAP_VSCROLL",
         "text": "Beim Scrollen an Kanälen einrasten"
+    },
+    {
+        "id": "IDS_DLG_IDENTIFY",
+        "text": "Identifizieren"
+    },
+    {
+        "id": "IDS_DLG_IDENTIFY_TIP",
+        "text": "Lässt die LED des Geräts zwei Sekunden lang rot und grün blinken."
     }
 ]
