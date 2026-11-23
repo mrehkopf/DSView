@@ -26,6 +26,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -131,6 +132,10 @@ const char *usage_text =
 "  find CH=COND... [--start N] [--end N] [--limit N]\n"
 "                              The samples where the conditions become true,\n"
 "                              e.g. find 0=rising 3=high\n"
+"  search QUERY [--start N] [--end N] [--limit N] [--all]\n"
+"                              Events or states with conditions around them\n"
+"                              (doc/search.md). QUERY is JSON or a file\n"
+"                              holding it; --all fetches every page\n"
 "  call METHOD [JSON]          Send any request, with JSON params\n"
 "\n"
 "Sample numbers N count from the start of the capture.\n";
@@ -865,6 +870,55 @@ int main(int argc, char *argv[])
             r["levels"] = result.value("levels");
             result = r;
         }
+        print_json(stdout, result);
+        return ExitOk;
+    }
+
+    if (cmd == "search"){
+        QString start, end, limit;
+        bool has_start = false, has_end = false, has_limit = false;
+        const bool all = args.removeAll("--all") > 0;
+        if (!take_option(args, {"--start"}, start, has_start) ||
+            !take_option(args, {"--end"}, end, has_end) ||
+            !take_option(args, {"--limit"}, limit, has_limit))
+            return usage_error("an option is missing its value");
+        if (args.size() != 1)
+            return usage_error("search needs one query, as JSON or a file name");
+
+        QByteArray text = args[0].toUtf8();
+        if (!args[0].trimmed().startsWith('{')){
+            QFile file(args[0]);
+            if (!file.open(QIODevice::ReadOnly))
+                return usage_error("can't read " + args[0]);
+            text = file.readAll();
+        }
+        QJsonParseError err;
+        const QJsonDocument doc = QJsonDocument::fromJson(text, &err);
+        if (err.error != QJsonParseError::NoError || !doc.isObject())
+            return usage_error("the query must be a JSON object: " + err.errorString());
+
+        params["query"] = doc.object();
+        if (has_start)
+            params["start"] = start;
+        if (has_end)
+            params["end"] = end;
+        if (has_limit)
+            params["limit"] = limit;
+
+        if (!connect())
+            return ExitConnect;
+        QJsonArray matches;
+        while (true){
+            if (!client.call("data.search", params, result))
+                return ExitError;
+            for (const QJsonValue &m : result.value("matches").toArray())
+                matches.append(m);
+            const QJsonValue next = result.value("next");
+            if (!all || !next.isDouble())
+                break;
+            params["start"] = next.toDouble();
+        }
+        result["matches"] = matches;
         print_json(stdout, result);
         return ExitOk;
     }

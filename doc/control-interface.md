@@ -89,6 +89,7 @@ dsview-ctl quit
 | `levels SAMPLE [CH...]` | The levels at a sample |
 | `measure [CH...]` | Edge counts, pulse widths, period, frequency and duty cycle. `--start N`, `--end N` |
 | `find CH=COND...` | Where conditions become true, e.g. `find 0=rising 3=high`. `--start N`, `--end N`, `--limit N` |
+| `search QUERY` | Events or states with conditions around them ([Search](#search)). QUERY is JSON or a file holding it. `--start N`, `--end N`, `--limit N`, `--all` (every page) |
 | `call METHOD [JSON]` | Send any request |
 
 Global options go before the command: `-s NAME` (`--socket`) picks the socket and
@@ -438,6 +439,59 @@ dsview-ctl find 0=rising 1=high --limit 5      # where a pattern occurs
   channel; measuring from `next` covers the rest. A search that stops gives
   `next`.
 
+## Search
+
+`data.search` runs the search of DSView's search bar ([search.md](search.md)):
+an event or state, with conditions on what happens around it. The query is
+JSON with the same fields as the search dialog:
+
+```json
+{
+  "find": "state",
+  "patterns": [[{"channel": 26, "value": "0"}]],
+  "max_duration": "200ns",
+  "conditions": [{
+    "subject": "event",
+    "patterns": [[{"bus": "D", "value": "changes"}]],
+    "quantifier": "occurs",
+    "window": "end", "from": "0", "to": "300ns"
+  }]
+}
+```
+
+```bash
+dsview-ctl search query.json --limit 10
+dsview-ctl search '{"patterns": [[{"channel": 25, "value": "F"}, {"bus": "A", "value": "0xXX420B"}]]}' --all
+```
+
+- **`find`**: `event` (default) or `state`. **`patterns`**: a list of
+  alternatives, each a list of terms that must all match. A term is
+  `{"channel": N, "value": V}`, `{"bus": NAME, "value": V}` for a parallel
+  decoder's bus, or `{"bits": [N, ...], "value": V}` for any channels as a bus
+  (D0 first, -1 for a bit that is always 0). Values are as in the dialog.
+- **`min_duration`**, **`max_duration`**: a state's length bounds, as times
+  (`"45ns"`, `"3sa"`).
+- **`conditions`**: each with `subject` (`event` or `state`), `patterns`,
+  `quantifier` (`occurs`, `none`, `at_least`, `at_most`, `exactly` for events;
+  `sometime`, `never`, `throughout` for states), `count` for the counted ones,
+  `window` (`start`, `end`, `during`, `until`, `since`), `from` and `to` for
+  `start` and `end`, and `boundary` (patterns) for `until` and `since`.
+- **Matches** have `sample` and `time` (the start); for states also `end`,
+  `duration`, and `start_unknown`/`end_unknown` for a state cut by the capture.
+  With conditions, `conditions` has one object per condition: for an event
+  condition other than `none`, `count` (occurrences in the window) and, if
+  there is one, `delta`/`delta_time` to the nearest occurrence (samples,
+  seconds).
+- **Range:** `start` and `end` pick which matches are reported (by their
+  start); conditions still look at the whole capture, so a match is the same
+  whatever the range. Up to `limit` matches (default 100, at most 10000);
+  `next`, unless null, is where to search on.
+- **Running time:** the search runs on its own thread and replies when done.
+  Meanwhile other calls that need an idle DSView get error 1; a capture or a
+  device switch from the GUI stops the search (error 1).
+- **Errors** in the query are error -32602, with the problem in `message`,
+  such as `"query": condition 1: '5' needs a unit (s, ms, us, ns or sa).`
+
 ## Protocol
 
 JSON-RPC 2.0 over the socket (a Unix domain socket, or a named pipe on
@@ -487,6 +541,7 @@ non-interactively, such as a hardware error. In an error reply they are in
 | `data.edges` | `channels`, `start`, `end`, `limit` | `start`, `end`, `samplerate`, `levels`, `edges` (`sample`, `time`, `rising`, `falling`), `next` |
 | `data.measure` | `channels`, `start`, `end` | `start`, `end`, `samplerate`, `channels` (see [Data](#data)) |
 | `data.find` | `pattern`, `start`, `end`, `limit` | `start`, `end`, `samplerate`, `matches` (`sample`, `time`), `next` |
+| `data.search` | `query`, `start`, `end`, `limit` | `start`, `end`, `samplerate`, `matches` (`sample`, `time`, `end`, `duration`, `conditions`), `next` (see [Search](#search)) |
 
 | Code | Meaning |
 | --- | --- |
@@ -495,7 +550,7 @@ non-interactively, such as a hardware error. In an error reply they are in
 | -32601 | Unknown method; `data.methods` lists them |
 | -32602 | Bad parameters; often with `data.keys`, `data.formats` or `data.applied` |
 | -32603 | Internal error, e.g. the device could not be opened |
-| 1 | Busy: a capture, export or save is running, a data file is loading, a decoder is still decoding, or DSView is in the middle of something |
+| 1 | Busy: a capture, export, save or search is running, a data file is loading, a decoder is still decoding, or DSView is in the middle of something |
 | 2 | No device |
 | 3 | Not supported: not logic analyzer mode, a data file instead of a device, channels while stacking, an advanced or serial trigger here, serial trigger settings, configuration files without an analyzer, or `file.close` without a data file |
 | 4 | Timed out; `data` is the status, or the decoders for `decoder.wait` |

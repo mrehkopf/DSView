@@ -19,6 +19,11 @@ includes the Qt 6 port and the UI and driver improvements from
   [Logic stacking](#logic-stacking)).
 - **Parallel bus trigger entry:** set the trigger to a hexadecimal value of a
   configured Parallel decoder bus. See [doc/parallel-trigger.md](doc/parallel-trigger.md).
+- **Search:** find events and states in the captured data with conditions on
+  what happens before, after or during them: bus values in hex or binary with
+  don't-care bits and edges, comparisons and ranges, pulse widths, absence of
+  activity, counts, and the timing between events, with a sortable list of
+  matches. See [doc/search.md](doc/search.md).
 - **System theme:** use the Qt style configured by your desktop, including
   Kvantum (see [Appearance](#appearance)).
 - **Identify:** blink a DSLogic's or DSCope's LED red and green for two
@@ -26,7 +31,7 @@ includes the Qt 6 port and the UI and driver improvements from
   dialog and, for each stacked analyzer, in the Stacking dialog.
 - **Control interface:** scripts and AI agents can set up the analyzer and its
   trigger, run captures, decode protocols, look at the captured data (edges,
-  levels, measurements, pattern search), export VCD or CSV, and save or open
+  levels, measurements, searches), export VCD or CSV, and save or open
   data and configuration files, through the `dsview-ctl` command line tool
   or JSON-RPC on a local socket. DSView can run without a window
   (`--headless`). See [doc/control-interface.md](doc/control-interface.md).
