@@ -33,10 +33,18 @@
 #include <unistd.h>
 #endif
 
+#ifdef __APPLE__
+#include <CoreFoundation/CoreFoundation.h>
+#include <IOKit/IOKitLib.h>
+#endif
+
 #define MAX_DEVCIE_LIST_LENGTH  20
 
-// Wait the device reconnect for 500ms.
-#define CHECK_DEV_RECONNECT_TIMES 5
+// Hubs below the root port a USB device can sit behind, plus its own port.
+#define MAX_USB_PORT_DEPTH 7
+
+// Handle hotplug events once none has arrived for 200ms (ticks of the hotplug thread loop).
+#define HOTPLUG_SETTLE_TICKS 2
 
 #undef LOG_PREFIX
 #define LOG_PREFIX "lib_main: "
@@ -53,12 +61,12 @@ struct sr_lib_context
 	GSList *device_list; // All device instance, sr_dev_inst* type
 	pthread_mutex_t mutext;
 	int lib_exit_flag;
-	int attach_event_flag;
-	int detach_event_flag;
-	int is_waitting_reconnect;
-	int check_reconnect_times;
-	struct libusb_device *attach_device_handle;
-	struct libusb_device *detach_device_handle;
+	/* Hotplug events not handled yet, set by the hotplug callback on
+	 * whichever thread handles libusb events. Guarded by hotplug_mutex. */
+	pthread_mutex_t hotplug_mutex;
+	int hotplug_attach_pending;
+	int hotplug_detach_pending;
+	int hotplug_quiet_ticks;
 	struct sr_dev_inst *actived_device_instance;
 	GThread *hotplug_thread;
 	GThread *collect_thread;
@@ -69,8 +77,6 @@ struct sr_lib_context
 	int callback_thread_count;
 	int is_delay_destory_actived_device;
 	int is_stop_by_detached;
-	int transaction_id;
-	int transaction_command;
 	int last_error;
 	int is_reloading_list;
 };
@@ -87,7 +93,7 @@ static void post_event_async(int event);
 static void send_event(int event);
 static void make_demo_device_to_list();
 static void process_attach_event(int isEvent);
-static void process_detach_event();
+static void remove_detached_devices(void);
 static struct libusb_device* get_new_attached_usb_device();
 static struct libusb_device* get_new_detached_usb_device();
 static void get_device_unique_id(const struct sr_dev_inst *dev, char *buf, size_t len);
@@ -104,12 +110,9 @@ static struct sr_lib_context lib_ctx = {
 	.device_list = NULL,
 	.hotplug_thread = NULL,
 	.lib_exit_flag = 0,
-	.attach_event_flag = 0,
-	.detach_event_flag = 0,
-	.is_waitting_reconnect = 0,
-	.check_reconnect_times = 0,
-	.attach_device_handle = NULL,
-	.detach_device_handle = NULL,
+	.hotplug_attach_pending = 0,
+	.hotplug_detach_pending = 0,
+	.hotplug_quiet_ticks = 0,
 	.actived_device_instance = NULL,
 	.data_forward_callback = NULL,
 	.collect_thread = NULL,
@@ -119,8 +122,6 @@ static struct sr_lib_context lib_ctx = {
 	.callback_thread_count = 0,
 	.is_delay_destory_actived_device = 0,
 	.is_stop_by_detached = 0,
-	.transaction_id = 0,
-	.transaction_command = DEV_TRANS_NONE,
 	.last_error = SR_OK,
 	.is_reloading_list = 0,
 };
@@ -164,6 +165,7 @@ SR_API int ds_lib_init()
 		}
 	}
 	pthread_mutex_init(&lib_ctx.mutext, NULL); // init locker
+	pthread_mutex_init(&lib_ctx.hotplug_mutex, NULL); // before the hotplug callback is registered
 
 	make_demo_device_to_list();
 
@@ -365,6 +367,115 @@ SR_API int ds_get_device_list(struct ds_device_base_info **out_list, int *out_co
 	return SR_OK;
 }
 
+#ifdef __APPLE__
+static int darwin_get_number_property(io_service_t service, CFStringRef key, SInt64 *value)
+{
+	CFTypeRef ref;
+	int ok;
+
+	ok = 0;
+	ref = IORegistryEntryCreateCFProperty(service, key, kCFAllocatorDefault, 0);
+
+	if (ref != NULL){
+		if (CFGetTypeID(ref) == CFNumberGetTypeID())
+			ok = CFNumberGetValue((CFNumberRef)ref, kCFNumberSInt64Type, value) ? 1 : 0;
+		CFRelease(ref);
+	}
+
+	return ok;
+}
+
+/**
+ * The ports macOS lists in the location ID of the USB device at this bus and
+ * address. The location ID holds the bus number in its top byte and then one
+ * nibble per port from the root, and always names the full path, where the
+ * port numbers libusb collects end at the first hub it doesn't know.
+ */
+static int darwin_get_port_numbers(libusb_device *usb_dev, uint8_t *ports, int size)
+{
+	static const char *classes[] = {"IOUSBHostDevice", "IOUSBDevice"};
+	io_iterator_t iter;
+	io_service_t service;
+	SInt64 location;
+	SInt64 address;
+	uint32_t found;
+	int have_found;
+	int shift;
+	int count;
+	unsigned int c;
+
+	have_found = 0;
+	found = 0;
+
+	for (c = 0; c < sizeof(classes) / sizeof(classes[0]) && !have_found; c++)
+	{
+		// The matching dictionary is consumed by IOServiceGetMatchingServices().
+		if (IOServiceGetMatchingServices(MACH_PORT_NULL, IOServiceMatching(classes[c]), &iter) != KERN_SUCCESS)
+			continue;
+
+		while (!have_found && (service = IOIteratorNext(iter)) != 0)
+		{
+			if (darwin_get_number_property(service, CFSTR("locationID"), &location)
+				&& darwin_get_number_property(service, CFSTR("USB Address"), &address)
+				&& (((uint32_t)location >> 24) & 0xFF) == libusb_get_bus_number(usb_dev)
+				&& address == libusb_get_device_address(usb_dev))
+			{
+				found = (uint32_t)location;
+				have_found = 1;
+			}
+			IOObjectRelease(service);
+		}
+		IOObjectRelease(iter);
+	}
+
+	if (!have_found)
+		return 0;
+
+	count = 0;
+	for (shift = 20; shift >= 0 && count < size; shift -= 4)
+	{
+		if (((found >> shift) & 0xF) == 0)
+			break;
+		ports[count++] = (uint8_t)((found >> shift) & 0xF);
+	}
+
+	return count;
+}
+#endif
+
+/**
+ * The USB port path of a device, as "USB <bus>-<port>.<port>...", named
+ * like the Linux sysfs device. It stays the same while the device is plugged
+ * into the same port, also across reconnects and restarts.
+ */
+static int get_usb_port_path(libusb_device *usb_dev, char *buf, size_t len)
+{
+	uint8_t ports[MAX_USB_PORT_DEPTH];
+	int count;
+	int i;
+	size_t pos;
+
+	if (usb_dev == NULL)
+		return SR_ERR_ARG;
+
+	count = 0;
+#ifdef __APPLE__
+	count = darwin_get_port_numbers(usb_dev, ports, MAX_USB_PORT_DEPTH);
+#endif
+	if (count <= 0)
+		count = libusb_get_port_numbers(usb_dev, ports, MAX_USB_PORT_DEPTH);
+
+	if (count <= 0)
+		return SR_ERR;
+
+	pos = (size_t)snprintf(buf, len, "USB %u-", libusb_get_bus_number(usb_dev));
+
+	for (i = 0; i < count && pos < len; i++)
+		pos += (size_t)snprintf(buf + pos, len - pos, i == 0 ? "%u" : ".%u", ports[i]);
+
+	return pos < len ? SR_OK : SR_ERR;
+}
+
 static void get_device_unique_id(const struct sr_dev_inst *dev, char *buf, size_t len)
 {
 	if (buf == NULL || len == 0)
@@ -377,10 +488,14 @@ static void get_device_unique_id(const struct sr_dev_inst *dev, char *buf, size_
 
 	if (dev->dev_type == DEV_TYPE_USB)
 	{
-		/* Get USB bus and address for device. Unfortunately the DSLogic devices do
-		   not have serial numbers in their device descriptors */
+		/* The DSLogic devices have no serial number in their device descriptor,
+		   so name the port they are plugged into. Without a port path, fall
+		   back to the bus and address, which change on every reconnect. */
 		const struct sr_usb_dev_inst *usb = dev->conn;
-		snprintf(buf, len, "USB %u.%u", usb->bus, usb->address);
+		libusb_device *usb_dev = usb->usb_dev != NULL ? usb->usb_dev : (libusb_device *)dev->handle;
+
+		if (get_usb_port_path(usb_dev, buf, len) != SR_OK)
+			snprintf(buf, len, "USB %u.%u", usb->bus, usb->address);
 	}
 	else if (dev->dev_type == DEV_TYPE_SERIAL)
 	{
@@ -867,7 +982,11 @@ SR_API int ds_start_collect_multi(const struct ds_collect_target *targets, int c
 	for (i = 0; i < count; i++)
 	{
 		if (targets[i].handle == NULL_HANDLE)
+		{
+			// The hotplug thread holds off removing devices while this list is set.
+			clear_collect_devices();
 			return SR_ERR_ARG;
+		}
 
 		pthread_mutex_lock(&lib_ctx.mutext);
 		di = find_device_instance_by_handle(targets[i].handle);
@@ -1366,6 +1485,44 @@ SR_API int ds_get_device_status_by_handle(ds_device_handle handle,
 	return sr_status_get(di, status, prg);
 }
 
+SR_API int ds_set_device_led_by_handle(ds_device_handle handle, int leds)
+{
+	struct sr_dev_inst *di;
+	int ret;
+
+	if (handle == NULL_HANDLE)
+		return SR_ERR_ARG;
+
+	if (ds_is_collecting())
+	{
+		sr_err("Can't set the device's LEDs while collecting.");
+		return SR_ERR_CALL_STATUS;
+	}
+
+	/* Held through the transfer, so that the hotplug thread can't destroy
+	   the device meanwhile */
+	pthread_mutex_lock(&lib_ctx.mutext);
+	di = find_device_instance_by_handle(handle);
+
+	if (di == NULL)
+	{
+		sr_err("Device handle not found.");
+		ret = SR_ERR_CALL_STATUS;
+	}
+	else if (di->driver == NULL || di->driver->dev_set_led == NULL)
+		ret = SR_ERR_NA;
+	else if (di->status == SR_ST_INITIALIZING)
+	{
+		sr_err("Can't set the LEDs of a device that is initializing.");
+		ret = SR_ERR_CALL_STATUS;
+	}
+	else
+		ret = di->driver->dev_set_led(di, leds);
+
+	pthread_mutex_unlock(&lib_ctx.mutext);
+	return ret;
+}
+
 SR_API struct sr_config *ds_new_config(int key, GVariant *data)
 {
 	return sr_config_new(key, data);
@@ -1682,64 +1839,16 @@ static void clear_collect_devices(void)
 
 /**-------------------private function ---------------*/
 
-static int update_device_handle(struct libusb_device *old_dev, struct libusb_device *new_dev)
-{
-	GSList *l;
-	struct sr_dev_inst *dev;
-	struct sr_usb_dev_inst *usb_dev_info;
-	uint8_t bus;
-	uint8_t address;
-	int bFind = 0;
-
-	pthread_mutex_lock(&lib_ctx.mutext);
-
-	for (l = lib_ctx.device_list; l; l = l->next)
-	{
-		dev = l->data;
-		usb_dev_info = dev->conn;
-		if (usb_dev_info != NULL && dev->handle == (ds_device_handle)old_dev)
-		{
-			// Release the old device and the resource.
-			if (dev == lib_ctx.actived_device_instance)
-			{
-				sr_info("To release the old device's resource.");
-				close_device_instance(dev);
-			}
-
-			bus = libusb_get_bus_number(new_dev);
-			address = libusb_get_device_address(new_dev);
-			usb_dev_info->usb_dev = new_dev;
-			usb_dev_info->bus = bus;
-			usb_dev_info->address = address;
-			dev->handle = (ds_device_handle)new_dev;
-			bFind = 1;
-
-			// Reopen the device by transaction.
-			if (dev == lib_ctx.actived_device_instance){
-				lib_ctx.transaction_id++;
-				lib_ctx.transaction_command = DEV_TRANS_OPEN;
-			}
-			break;
-		}
-	}
-
-	pthread_mutex_unlock(&lib_ctx.mutext);
-
-	if (bFind)
-	{
-		return SR_OK;
-	}
-
-	return SR_ERR;
-}
-
 /**
  * hotplug event
+ *
+ * Called on whichever thread is handling libusb events: the hotplug thread,
+ * the collect thread, or any thread inside a synchronous transfer, possibly
+ * with lib_ctx.mutext held. So it only records that something changed; the
+ * hotplug thread compares the device list with the USB devices present.
  */
 static void hotplug_event_listen_callback(struct libusb_context *ctx, struct libusb_device *dev, int event)
 {
-	int bDone = 0;
-
 	(void)ctx;
 
 	if (dev == NULL){
@@ -1757,49 +1866,10 @@ static void hotplug_event_listen_callback(struct libusb_context *ctx, struct lib
 	if (event == USB_EV_HOTPLUG_ATTACH)
 	{
 		sr_info("----------One device attached,handle:%p", dev);
-
-		if (lib_ctx.is_waitting_reconnect)
-		{
-			if (lib_ctx.attach_device_handle != NULL)
-			{
-				sr_err("One attached device haven't processed complete,handle:%p",
-					   lib_ctx.attach_device_handle);
-			}
-
-			if (lib_ctx.detach_device_handle == NULL)
-			{
-				sr_err("The detached device handle is null, but the status is waitting for reconnect.");
-			}
-			else
-			{
-				if (update_device_handle(lib_ctx.detach_device_handle, dev) == SR_OK)
-				{
-					bDone = 1;
-					sr_info("----------One device loose contact, but it reconnect success.");
-				}
-				else
-				{
-					sr_err("Update reconnected device handle error! can't find the old.");
-				}
-				lib_ctx.detach_device_handle = NULL;
-			}
-		}
-		if (bDone == 0)
-		{
-			lib_ctx.attach_event_flag = 1; // Is a new device attched.
-			lib_ctx.attach_device_handle = dev;
-		}
-		lib_ctx.is_waitting_reconnect = 0;
 	}
 	else if (event == USB_EV_HOTPLUG_DETTACH)
 	{
 		sr_info("----------One device detached,handle:%p", dev);
-
-		if (lib_ctx.detach_device_handle != NULL)
-		{
-			sr_err("One detached device haven't processed complete,handle:%p",
-				   lib_ctx.detach_device_handle);
-		}
 
 		if (lib_ctx.actived_device_instance != NULL 
 			&& lib_ctx.actived_device_instance->handle == (ds_device_handle)dev 
@@ -1809,18 +1879,20 @@ static void hotplug_event_listen_callback(struct libusb_context *ctx, struct lib
 			lib_ctx.is_stop_by_detached = 1;
 			ds_release_actived_device();
 		}
-
-		/**
-		 * Begin to wait the device reconnect, if timeout, will process the detach event.
-		 */
-		lib_ctx.is_waitting_reconnect = 1;
-		lib_ctx.check_reconnect_times = 0;
-		lib_ctx.detach_device_handle = dev;
 	}
 	else
 	{
 		sr_err("Unknown usb device event");
+		return;
 	}
+
+	pthread_mutex_lock(&lib_ctx.hotplug_mutex);
+	if (event == USB_EV_HOTPLUG_ATTACH)
+		lib_ctx.hotplug_attach_pending = 1;
+	else
+		lib_ctx.hotplug_detach_pending = 1;
+	lib_ctx.hotplug_quiet_ticks = 0;
+	pthread_mutex_unlock(&lib_ctx.hotplug_mutex);
 }
 
 static void process_attach_event(int isEvent)
@@ -1886,112 +1958,145 @@ static void process_attach_event(int isEvent)
 	if (num > 0 && isEvent){
 		post_event_async(DS_EV_NEW_DEVICE_ATTACH);
 	}
-
-	lib_ctx.attach_device_handle = NULL;
 }
 
-static void process_detach_event()
+/**
+ * Remove every USB device that libusb no longer reports from the list.
+ * Presence is checked against the current libusb device list, not against
+ * the device a detach event named, so a removal can't be lost to events
+ * that arrived together, were coalesced or carried no device.
+ */
+static void remove_detached_devices(void)
 {
+	libusb_device **usb_list;
+	ssize_t usb_count;
+	ssize_t i;
 	GSList *l;
+	GSList *next;
 	struct sr_dev_inst *dev;
-	libusb_device *ev_dev;
+	int present;
+	int removed;
 	int ev;
-	int bFind;
 
-	sr_info("Process device detach event.");
+	usb_list = NULL;
+	usb_count = libusb_get_device_list(lib_ctx.sr_ctx->libusb_ctx, &usb_list);
 
-	ev = DS_EV_INACTIVE_DEVICE_DETACH;
-	ev_dev = lib_ctx.detach_device_handle;
-
-	if (ev_dev == NULL)
-	{
-		sr_err("The detached device handle is null.");
+	if (usb_count < 0 || usb_list == NULL){
+		// Without a list, every device would look detached.
+		sr_err("%s: Failed to get the USB device list: %s",
+			   __func__, libusb_error_name((int)usb_count));
 		return;
 	}
-	lib_ctx.detach_device_handle = NULL;
 
-	bFind = 0;
+	removed = 0;
+	ev = DS_EV_INACTIVE_DEVICE_DETACH;
+
 	pthread_mutex_lock(&lib_ctx.mutext);
 
-	for (l = lib_ctx.device_list; l; l = l->next)
+	for (l = lib_ctx.device_list; l; l = next)
 	{
+		next = l->next;
 		dev = l->data;
 
-		if (dev->handle == (ds_device_handle)ev_dev)
+		if (dev->dev_type != DEV_TYPE_USB)
+			continue;
+
+		present = 0;
+		for (i = 0; i < usb_count; i++){
+			if ((ds_device_handle)usb_list[i] == dev->handle){
+				present = 1;
+				break;
+			}
+		}
+
+		if (present)
+			continue;
+
+		lib_ctx.device_list = g_slist_delete_link(lib_ctx.device_list, l);
+		removed++;
+
+		if (dev == lib_ctx.actived_device_instance)
 		{
-			// Found the device, and remove it from list.
-			lib_ctx.device_list = g_slist_remove(lib_ctx.device_list, l->data);
-
-			if (dev == lib_ctx.actived_device_instance)
-			{
-				sr_info("The current device will be delayed for destruction, handle:%p", dev->handle);
-				lib_ctx.is_delay_destory_actived_device = 1;
-				ev = DS_EV_CURRENT_DEVICE_DETACH;
-			}
-			else
-			{
-				destroy_device_instance(dev);
-			}
-
-			bFind = 1;
-			break;
+			sr_info("The current device is detached, its destruction is delayed, name:\"%s\", handle:%p",
+					dev->name, dev->handle);
+			lib_ctx.is_delay_destory_actived_device = 1;
+			ev = DS_EV_CURRENT_DEVICE_DETACH;
+		}
+		else
+		{
+			sr_info("Remove the detached device, name:\"%s\", handle:%p", dev->name, dev->handle);
+			destroy_device_instance(dev);
 		}
 	}
+
 	pthread_mutex_unlock(&lib_ctx.mutext);
 
-	// Tell user a new device detached, and the list is updated.
-	if (bFind){
+	libusb_free_device_list(usb_list, 1);
+
+	// Tell user the list is updated.
+	if (removed > 0){
 		post_event_async(ev);
-	}	
+	}
 }
 
 static gpointer usb_hotplug_process_proc(gpointer data)
 {
+	int attach;
+	int detach;
+
 	(void)data;
 	
 	sr_info("Hotplug thread start!");
-
-	int cur_trans_id = 0;
 
 	while (!lib_ctx.lib_exit_flag)
 	{
 		sr_hotplug_wait_timout(lib_ctx.sr_ctx);
 
-		if (lib_ctx.attach_event_flag){
-			process_attach_event(1);
-			lib_ctx.attach_event_flag = 0;
-		}
-
-		if (lib_ctx.detach_event_flag){
-			process_detach_event();
-			lib_ctx.detach_event_flag = 0;
-		}
-
 		xsleep(100);
 
-		if (lib_ctx.is_waitting_reconnect)
+		/* Wait for a burst of events (one unplugged hub, a firmware upload's
+		 * re-enumeration) to settle, then take all of them at once. Events
+		 * that arrive while this pass runs are kept for the next one. */
+		attach = 0;
+		detach = 0;
+
+		pthread_mutex_lock(&lib_ctx.hotplug_mutex);
+		if (lib_ctx.hotplug_attach_pending || lib_ctx.hotplug_detach_pending)
 		{
-			lib_ctx.check_reconnect_times++;
-			// 500ms
-			if (lib_ctx.check_reconnect_times == CHECK_DEV_RECONNECT_TIMES)
+			lib_ctx.hotplug_quiet_ticks++;
+
+			if (lib_ctx.hotplug_quiet_ticks >= HOTPLUG_SETTLE_TICKS)
 			{
-				// Device loose contact,wait for it reconnection timeout.
-				lib_ctx.detach_event_flag = 1; // use detach event
-				lib_ctx.is_waitting_reconnect = 0;
+				attach = lib_ctx.hotplug_attach_pending;
+				detach = lib_ctx.hotplug_detach_pending;
+				lib_ctx.hotplug_attach_pending = 0;
+				lib_ctx.hotplug_detach_pending = 0;
+				lib_ctx.hotplug_quiet_ticks = 0;
 			}
 		}
-		
-		// The event command is changed.
-		if (lib_ctx.transaction_id != cur_trans_id)
-		{
-			cur_trans_id = lib_ctx.transaction_id;
+		pthread_mutex_unlock(&lib_ctx.hotplug_mutex);
 
-			if (lib_ctx.transaction_command == DEV_TRANS_OPEN){
-				if (lib_ctx.actived_device_instance != NULL){
-					sr_info("To reopen the current device.");
-					open_device_instance(lib_ctx.actived_device_instance);
+		if (attach || detach)
+		{
+			/* Don't destroy devices the collect thread may be using. Try again
+			 * after the capture; collect_device_list is cleared last. */
+			if (ds_is_collecting() || lib_ctx.collect_device_list != NULL)
+			{
+				if (detach){
+					pthread_mutex_lock(&lib_ctx.hotplug_mutex);
+					lib_ctx.hotplug_detach_pending = 1;
+					pthread_mutex_unlock(&lib_ctx.hotplug_mutex);
 				}
 			}
+			else
+			{
+				// Before the scan, so a device that came back is listed once.
+				remove_detached_devices();
+			}
+		}
+
+		if (attach){
+			process_attach_event(1);
 		}
 	}
 
@@ -2261,8 +2366,13 @@ SR_API int ds_reload_device_list()
 
 	lib_ctx.is_reloading_list = 1;
 	lib_ctx.is_delay_destory_actived_device = 0;
-	lib_ctx.detach_device_handle = NULL;
-	lib_ctx.detach_event_flag = 0;
+
+	/* Windows reports the devices as removed when the machine sleeps. Don't
+	 * drop them from the list on waking up while they are still connected. */
+	pthread_mutex_lock(&lib_ctx.hotplug_mutex);
+	lib_ctx.hotplug_detach_pending = 0;
+	pthread_mutex_unlock(&lib_ctx.hotplug_mutex);
+
 	process_attach_event(0);
 	lib_ctx.is_reloading_list = 0;
 

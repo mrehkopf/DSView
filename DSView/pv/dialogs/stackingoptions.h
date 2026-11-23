@@ -17,6 +17,7 @@
 #include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QLabel>
+#include <QPushButton>
 #include <QSpinBox>
 #include <QVector>
 
@@ -50,6 +51,7 @@ private:
     {
         QLabel *label = NULL;
         QComboBox *device = NULL;
+        QPushButton *identify = NULL;
         QDoubleSpinBox *threshold = NULL;
         QComboBox *filter = NULL;
         QComboBox *sync_channel = NULL;
@@ -62,6 +64,8 @@ private:
     void load_config();
     void select_unused_device(int analyzer);
     void update_rows();
+    void update_identify_buttons();
+    void identify(int analyzer);
     int analyzer_count() const;
     ds_device_handle selected_handle(const QComboBox *combo) const;
     QString channel_label(int analyzer, int physical_index) const;

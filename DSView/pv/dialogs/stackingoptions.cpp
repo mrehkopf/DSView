@@ -26,6 +26,7 @@
 #include "../sigsession.h"
 #include "../ui/dscombobox.h"
 #include "../ui/langresource.h"
+#include "../ui/msgbox.h"
 #include "../ui/xspinbox.h"
 #include "../view/signal.h"
 
@@ -96,12 +97,12 @@ StackingOptions::StackingOptions(QWidget *parent, SigSession *session) :
     QGridLayout *grid = new QGridLayout;
     grid->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_DEVICE), "Device"), this), 0, 1);
     if (_have_threshold)
-        grid->addWidget(new QLabel(dsl_text("Threshold Level"), this), 0, 2);
+        grid->addWidget(new QLabel(dsl_text("Threshold Level"), this), 0, 3);
     if (_have_filter)
-        grid->addWidget(new QLabel(dsl_text("Filter Targets"), this), 0, 3);
-    grid->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SECONDARY_SYNC_INPUT), "Sync input"), this), 0, 4);
-    grid->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SECONDARY_MANUAL_SHIFT), "Manual alignment"), this), 0, 5);
-    grid->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_REFERENCE_INPUT), "Reference input"), this), 0, 6);
+        grid->addWidget(new QLabel(dsl_text("Filter Targets"), this), 0, 4);
+    grid->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SECONDARY_SYNC_INPUT), "Sync input"), this), 0, 5);
+    grid->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SECONDARY_MANUAL_SHIFT), "Manual alignment"), this), 0, 6);
+    grid->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STACKING_REFERENCE_INPUT), "Reference input"), this), 0, 7);
 
     const QString master_role = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_MASTER), "Master");
     const QString secondary_role = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SECONDARY), "Secondary");
@@ -112,11 +113,19 @@ StackingOptions::StackingOptions(QWidget *parent, SigSession *session) :
         row.label = new QLabel(QString("%1 (%2)").arg(LogicStackingConfig::analyzer_label(analyzer),
                                                       analyzer == 0 ? master_role : secondary_role), this);
         row.device = new DsComboBox(this);
+        row.identify = new QPushButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_IDENTIFY), "Identify"), this);
+        row.identify->setToolTip(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_IDENTIFY_TIP),
+                                     "Blinks the device's LED red and green for two seconds."));
         row.reference_channel = new_channel_combo();
 
         grid->addWidget(row.label, analyzer + 1, 0);
         grid->addWidget(row.device, analyzer + 1, 1);
-        grid->addWidget(row.reference_channel, analyzer + 1, 6);
+        grid->addWidget(row.identify, analyzer + 1, 2);
+        grid->addWidget(row.reference_channel, analyzer + 1, 7);
+
+        connect(row.identify, &QPushButton::clicked, this, [this, analyzer](){ identify(analyzer); });
+        connect(row.device, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                this, [this](int){ update_identify_buttons(); });
 
         if (_have_threshold){
             row.threshold = new XDoubleSpinBox(this);
@@ -124,11 +133,11 @@ StackingOptions::StackingOptions(QWidget *parent, SigSession *session) :
             row.threshold->setDecimals(1);
             row.threshold->setSingleStep(0.1);
             row.threshold->setSuffix(" V");
-            grid->addWidget(row.threshold, analyzer + 1, 2);
+            grid->addWidget(row.threshold, analyzer + 1, 3);
         }
         if (_have_filter){
             row.filter = new_filter_combo();
-            grid->addWidget(row.filter, analyzer + 1, 3);
+            grid->addWidget(row.filter, analyzer + 1, 4);
         }
 
         if (analyzer == 0)
@@ -141,8 +150,8 @@ StackingOptions::StackingOptions(QWidget *parent, SigSession *session) :
         row.manual_shift_ns->setSuffix(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_NS), " ns"));
         row.manual_shift_ns->setSingleStep(1.0);
 
-        grid->addWidget(row.sync_channel, analyzer + 1, 4);
-        grid->addWidget(row.manual_shift_ns, analyzer + 1, 5);
+        grid->addWidget(row.sync_channel, analyzer + 1, 5);
+        grid->addWidget(row.manual_shift_ns, analyzer + 1, 6);
     }
     grid->setColumnStretch(1, 1);
 
@@ -394,7 +403,7 @@ void StackingOptions::update_rows()
     for (int analyzer = 0; analyzer < _rows.size(); analyzer++){
         const AnalyzerRow &row = _rows[analyzer];
         const bool shown = analyzer < count;
-        QWidget *widgets[7] = {row.label, row.device, row.threshold, row.filter,
+        QWidget *widgets[8] = {row.label, row.device, row.identify, row.threshold, row.filter,
                                row.sync_channel, row.manual_shift_ns, row.reference_channel};
         for (QWidget *widget : widgets){
             if (widget != NULL)
@@ -403,6 +412,7 @@ void StackingOptions::update_rows()
     }
 
     on_enabled_changed(_enable->isChecked());
+    update_identify_buttons();
 
     // adjustSize() caps a window at 2/3 of the screen width, which the table
     // exceeds on small screens; then the device names get cut off first
@@ -452,6 +462,27 @@ void StackingOptions::on_reference_changed()
     for (const AnalyzerRow &row : _rows)
         row.reference_channel->setEnabled(enabled);
     _reference_edge_mode->setEnabled(enabled);
+}
+
+// The buttons work whether or not stacking is enabled, to find the analyzers
+void StackingOptions::update_identify_buttons()
+{
+    for (const AnalyzerRow &row : _rows){
+        if (row.identify != NULL)
+            row.identify->setEnabled(selected_handle(row.device) != NULL_HANDLE);
+    }
+}
+
+void StackingOptions::identify(int analyzer)
+{
+    const ds_device_handle handle = selected_handle(_rows[analyzer].device);
+    if (handle == NULL_HANDLE)
+        return;
+
+    if (!_session->identify_device(handle)){
+        MsgBox::Show(QString(), L_S(STR_PAGE_MSG, S_ID(IDS_MSG_IDENTIFY_FAILED),
+            "The device's LED could not be blinked. It may be unplugged or in use by another program."), this);
+    }
 }
 
 ds_device_handle StackingOptions::selected_handle(const QComboBox *combo) const

@@ -1444,6 +1444,7 @@ SR_PRIV int dsl_config_list(int key, GVariant **data, const struct sr_dev_inst *
 
 SR_PRIV int dsl_dev_open(struct sr_dev_driver *di, struct sr_dev_inst *sdi, gboolean *fpga_done);
 SR_PRIV int dsl_dev_close(struct sr_dev_inst *sdi);
+SR_PRIV int dsl_dev_set_led(struct sr_dev_inst *sdi, int leds);
 SR_PRIV int dsl_dev_acquisition_stop(const struct sr_dev_inst *sdi, void *cb_data);
 SR_PRIV int dsl_dev_status_get(const struct sr_dev_inst *sdi, struct sr_status *status, gboolean prg);
 

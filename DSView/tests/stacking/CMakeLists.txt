@@ -29,5 +29,12 @@ target_include_directories(stackingmerger-test PRIVATE
 target_link_libraries(stackingmerger-test PRIVATE Qt${QT_VERSION_MAJOR}::Core ${GLIB_LIBRARIES})
 target_compile_features(stackingmerger-test PRIVATE cxx_std_14)
 
+add_executable(stackingrelink-test stackingrelink.cpp)
+target_include_directories(stackingrelink-test PRIVATE
+    ${MERGER_TREE} ${REPO_DIR}/libsigrok4DSL ${REPO_DIR}/common ${GLIB_INCLUDE_DIRS})
+target_link_libraries(stackingrelink-test PRIVATE Qt${QT_VERSION_MAJOR}::Core ${GLIB_LIBRARIES})
+target_compile_features(stackingrelink-test PRIVATE cxx_std_14)
+
 enable_testing()
 add_test(NAME stackingmerger COMMAND stackingmerger-test)
+add_test(NAME stackingrelink COMMAND stackingrelink-test)

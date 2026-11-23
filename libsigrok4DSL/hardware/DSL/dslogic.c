@@ -1657,5 +1657,6 @@ SR_PRIV struct sr_dev_driver DSLogic_driver_info = {
     .dev_status_get = dev_status_get,
 	.dev_acquisition_start = dev_acquisition_start,
 	.dev_acquisition_stop = dev_acquisition_stop,
+	.dev_set_led = dsl_dev_set_led,
 	.priv = NULL,
 };

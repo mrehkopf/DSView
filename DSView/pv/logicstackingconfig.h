@@ -65,6 +65,10 @@ struct LogicStackingSecondary
     int filter = -1;
     // Inputs to capture and show; the sync input is captured regardless
     uint32_t channels = LogicStackingAllChannels;
+    // Device name and unique id (the USB port), kept while the analyzer is
+    // unplugged so it can be found again; see LogicStackingConfig::relink()
+    QString name;
+    QString unique_id;
 
     bool operator==(const LogicStackingSecondary &other) const
     {
@@ -74,7 +78,9 @@ struct LogicStackingSecondary
                reference_channel == other.reference_channel &&
                threshold == other.threshold &&
                filter == other.filter &&
-               channels == other.channels;
+               channels == other.channels &&
+               name == other.name &&
+               unique_id == other.unique_id;
     }
 };
 
@@ -94,10 +100,90 @@ struct LogicStackingConfig
     int channel_count = LogicStackingChannelsPerAnalyzer;
     // The master's selected inputs
     uint32_t master_channels = LogicStackingAllChannels;
+    // The master's device name and unique id, as for a secondary
+    QString master_name;
+    QString master_unique_id;
 
     int analyzer_count() const
     {
         return 1 + (int)secondaries.size();
+    }
+
+    ds_device_handle analyzer_handle(int analyzer) const
+    {
+        return analyzer == 0 ? master_handle : secondaries[analyzer - 1].handle;
+    }
+
+    const QString &analyzer_name(int analyzer) const
+    {
+        return analyzer == 0 ? master_name : secondaries[analyzer - 1].name;
+    }
+
+    const QString &analyzer_unique_id(int analyzer) const
+    {
+        return analyzer == 0 ? master_unique_id : secondaries[analyzer - 1].unique_id;
+    }
+
+    // Whether a device unique id names the USB port, "USB 8-3.2.1". Where the
+    // port is unknown it is the bus and address, "USB 8.61", which change
+    // whenever the device is plugged in again, as in sessions of older builds.
+    static bool is_port_id(const QString &unique_id)
+    {
+        return unique_id.startsWith("USB ") && unique_id.contains('-');
+    }
+
+    // Takes the name and unique id of each analyzer whose device is in the
+    // list. An analyzer whose device isn't (unplugged, or not found when a
+    // session was loaded) gets the device now plugged into its USB port, if
+    // no other analyzer has it. Returns whether a handle changed.
+    bool relink(const ds_device_base_info *devices, int count)
+    {
+        const int analyzers = analyzer_count();
+        std::vector<bool> listed(analyzers, false);
+        std::vector<bool> claimed(count > 0 ? count : 0, false);
+        bool changed = false;
+
+        for (int analyzer = 0; analyzer < analyzers; analyzer++){
+            const ds_device_handle handle = analyzer_handle(analyzer);
+            for (int i = 0; i < count && handle != NULL_HANDLE; i++){
+                if (claimed[i] || devices[i].handle != handle)
+                    continue;
+
+                claimed[i] = true;
+                listed[analyzer] = true;
+                set_analyzer_device(analyzer, devices[i]);
+                break;
+            }
+        }
+
+        for (int analyzer = 0; analyzer < analyzers; analyzer++){
+            if (listed[analyzer] || !is_port_id(analyzer_unique_id(analyzer)))
+                continue;
+
+            for (int i = 0; i < count; i++){
+                if (claimed[i] ||
+                    QString::fromLocal8Bit(devices[i].unique_id) != analyzer_unique_id(analyzer))
+                    continue;
+
+                claimed[i] = true;
+                changed = changed || devices[i].handle != analyzer_handle(analyzer);
+                set_analyzer_device(analyzer, devices[i]);
+                break;
+            }
+        }
+
+        return changed;
+    }
+
+    void set_analyzer_device(int analyzer, const ds_device_base_info &device)
+    {
+        ds_device_handle &handle = analyzer == 0 ? master_handle : secondaries[analyzer - 1].handle;
+        QString &name = analyzer == 0 ? master_name : secondaries[analyzer - 1].name;
+        QString &unique_id = analyzer == 0 ? master_unique_id : secondaries[analyzer - 1].unique_id;
+
+        handle = device.handle;
+        name = QString::fromLocal8Bit(device.name);
+        unique_id = QString::fromLocal8Bit(device.unique_id);
     }
 
     bool uses_reference() const

@@ -160,7 +160,10 @@ DeviceOptions::DeviceOptions(QWidget *parent) :
 
     //button
     auto button_box = new QDialogButtonBox(QDialogButtonBox::Ok, Qt::Horizontal, this);
-	this->layout()->addWidget(button_box); 
+    // While stacking, each analyzer's channels have their own button
+    if (_device_agent->is_hardware() && !_device_agent->is_logic_stacking())
+        button_box->addButton(new_identify_button(_device_agent->handle()), QDialogButtonBox::ActionRole);
+    this->layout()->addWidget(button_box); 
    
     _device_agent->get_config_int16(SR_CONF_OPERATION_MODE, _opt_mode);
 
@@ -516,6 +519,23 @@ QString DeviceOptions::stacking_count_conflicts(int channel_count) const
 }
 
 // One row of channel modes for all analyzers, then each analyzer's inputs
+QPushButton* DeviceOptions::new_identify_button(ds_device_handle handle)
+{
+    QPushButton *button = new QPushButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_IDENTIFY), "Identify"));
+    button->setToolTip(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_IDENTIFY_TIP),
+                           "Blinks the device's LED red and green for two seconds."));
+    button->setEnabled(handle != NULL_HANDLE);
+
+    connect(button, &QPushButton::clicked, this, [this, handle](){
+        if (!AppControl::Instance()->GetSession()->identify_device(handle)){
+            MsgBox::Show(QString(), L_S(STR_PAGE_MSG, S_ID(IDS_MSG_IDENTIFY_FAILED),
+                "The device's LED could not be blinked. It may be unplugged or in use by another program."), this);
+        }
+    });
+
+    return button;
+}
+
 void DeviceOptions::stacking_probes(QVBoxLayout &layout)
 {
     layout.setSpacing(2);
@@ -553,8 +573,14 @@ void DeviceOptions::stacking_probes(QVBoxLayout &layout)
         QLabel *title = new QLabel(QString("%1 (%2)").arg(pv::LogicStackingConfig::analyzer_label(analyzer),
                                                           analyzer == 0 ? master_role : secondary_role));
         title->setFont(font);
-        layout.addWidget(title);
-        contentHeight += title->sizeHint().height() + 6;
+        QPushButton *identify = new_identify_button(_stacking.analyzer_handle(analyzer));
+        identify->setFont(font);
+        QHBoxLayout *title_lay = new QHBoxLayout();
+        title_lay->addWidget(title);
+        title_lay->addWidget(identify);
+        title_lay->addStretch(1);
+        layout.addLayout(title_lay);
+        contentHeight += std::max(title->sizeHint().height(), identify->sizeHint().height()) + 6;
 
         QWidget *channel_panel = new QWidget();
         QGridLayout *channel_grid = new QGridLayout();

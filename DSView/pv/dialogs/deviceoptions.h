@@ -110,6 +110,7 @@ private:
     void stacking_probes(QVBoxLayout& layout);
     void update_stacking_channels();
     QString stacking_count_conflicts(int channel_count) const;
+    QPushButton* new_identify_button(ds_device_handle handle);
     void analog_probes(QGridLayout& layout);
     QString dynamic_widget(QLayout *lay); 
 

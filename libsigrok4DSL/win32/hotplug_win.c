@@ -135,8 +135,9 @@ static int hotplug_wait_timout_win(struct sr_context *ctx)
 		return SR_OK;
 
 	/*
-	 * One event per call, removal first: lib_main treats a removal
-	 * followed by an arrival within 500ms as a reconnection.
+	 * One event per call, removal first. lib_main gathers the events until
+	 * none came for 200ms, then drops the listed devices that are gone and
+	 * scans for new ones.
 	 */
 	if (pending_detach > 0) {
 		InterlockedDecrement(&pending_detach);

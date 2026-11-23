@@ -52,6 +52,7 @@ public:
 protected:
     void accept();
     void reject();  
+    void showEvent(QShowEvent *event) override;
 
 private slots:
     void on_button(QAbstractButton* btn);

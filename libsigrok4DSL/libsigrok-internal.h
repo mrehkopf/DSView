@@ -59,12 +59,6 @@
 
 #define DS_VENDOR_ID	0x2A0E
 
-enum device_transaction_types
-{
-	DEV_TRANS_NONE = 0,
-	DEV_TRANS_OPEN = 1
-};
-
 /** global variable */
 extern char DS_RES_PATH[500];
 extern struct ds_trigger *trigger;
@@ -135,6 +129,8 @@ struct sr_dev_driver {
 			void *cb_data);
     int (*dev_acquisition_stop) (const struct sr_dev_inst *sdi,
 			void *cb_data);
+	/* Optional: sets the device's LEDs (DS_LED_*), also while it isn't open */
+	int (*dev_set_led) (struct sr_dev_inst *sdi, int leds);
 
 	/* Dynamic */
 	void *priv;

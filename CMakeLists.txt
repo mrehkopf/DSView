@@ -399,6 +399,7 @@ set(DSView_SOURCES
     DSView/pv/utility/path.cpp
     DSView/pv/utility/array.cpp
     DSView/pv/deviceagent.cpp
+    DSView/pv/deviceidentifier.cpp
     DSView/pv/ui/langresource.cpp
     DSView/pv/ui/fn.cpp
     DSView/pv/ui/xtoolbutton.cpp
@@ -671,6 +672,11 @@ if(WIN32)
     list(APPEND PULSEVIEW_LINK_LIBS "-llzma -llcms2")
     # CM_Register_Notification() for USB hotplug.
     list(APPEND DSVIEW_LINK_LIBS cfgmgr32)
+endif()
+
+if(APPLE)
+    # IOKit location IDs identify the analyzers by their USB port.
+    list(APPEND DSVIEW_LINK_LIBS "-framework IOKit" "-framework CoreFoundation")
 endif()
 
 add_executable(${PROJECT_NAME}
