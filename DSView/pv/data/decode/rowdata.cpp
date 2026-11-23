@@ -188,6 +188,28 @@ bool RowData::get_annotation_spans(std::vector<AnnotationSpan> &dest,
     return true;
 }
 
+void RowData::get_annotations_near(std::vector<Annotation> &dest,
+                                   uint64_t start_sample, uint64_t end_sample)
+{
+    std::lock_guard<std::mutex> lock(_global_visitor_mutex);
+
+    // Annotations before this one all end before start_sample.
+    size_t i = std::lower_bound(_max_end.begin(), _max_end.end(), start_sample) - _max_end.begin();
+
+    for (; i < _annotations.size(); i++) {
+        const Annotation *a = _annotations[i];
+
+        if (a->start_sample() > end_sample) {
+            // Without overlaps, the starts are sorted.
+            if (_ordered)
+                break;
+            continue;
+        }
+        if (a->end_sample() >= start_sample)
+            dest.push_back(*a);
+    }
+}
+
 uint64_t RowData::get_annotation_index(uint64_t start_sample)
 {
     std::lock_guard<std::mutex> lock(_global_visitor_mutex);

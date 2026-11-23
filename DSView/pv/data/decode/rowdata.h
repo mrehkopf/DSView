@@ -83,6 +83,15 @@ public:
                               double samples_per_pixel, double merge_pixels,
                               bool merge_instants);
 
+    /**
+     * Copies of the annotations that touch [start_sample, end_sample], both
+     * ends included, so instants on either end count. For looking up what
+     * is under the mouse: the copies stay valid after the row is cleared
+     * (their texts don't, see Annotation::annotations()).
+     */
+    void get_annotations_near(std::vector<Annotation> &dest,
+                              uint64_t start_sample, uint64_t end_sample);
+
     void clear();
 
 private:

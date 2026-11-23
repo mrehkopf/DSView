@@ -121,6 +121,11 @@ public:
         const decode::Row &row, uint64_t start_sample, uint64_t end_sample,
         double samples_per_pixel, double merge_pixels, bool merge_instants);
 
+    // See RowData::get_annotations_near().
+    void get_annotations_near(
+        std::vector<pv::data::decode::Annotation> &dest,
+        const decode::Row &row, uint64_t start_sample, uint64_t end_sample);
+
     uint64_t get_annotation_index(
         const decode::Row &row, uint64_t start_sample);
     uint64_t get_max_annotation(const decode::Row &row);

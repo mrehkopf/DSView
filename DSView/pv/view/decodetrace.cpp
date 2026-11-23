@@ -333,87 +333,201 @@ void DecodeTrace::paint_mid(QPainter &p, int left, int right, QColor fore, QColo
 
     const int annotation_height = _view->get_signalHeight();
 
-    // Iterate through the rows
-    assert(_view);
-    int y =  get_y() - (_totalHeight - annotation_height)*0.5;
+    for_each_row([&](const Row *row, const QString &heading, int y, int local_row) {
+        _cur_row_headings.push_back(heading);
+
+        if (row == NULL) {
+            draw_unshown_row(p, y, annotation_height, left, right, L_S(STR_PAGE_DLG, S_ID(IDS_DLG_UNSHOWN), "Unshown"), fore, back);
+            return;
+        }
+
+        double min_annWidth;
+        if (!row_detailed(*row, samples_per_pixel, min_annWidth)) {
+            draw_nodetail(p, annotation_height, left, right, y, local_row, fore, back);
+            return;
+        }
+
+        double last_x = -1;
+
+        // Annotations narrower than a pixel next to each other
+        // make a solid bar; draw those runs as one bar.
+        const double merge_pixels = 1.0;
+        const bool merge_instants = min(min_annWidth, (double)annotation_height) < merge_pixels;
+        std::vector<AnnotationSpan> spans;
+
+        if (_decoder_stack->get_annotation_spans(spans, *row,
+                start_sample, end_sample, samples_per_pixel,
+                merge_pixels, merge_instants)) {
+            for (const AnnotationSpan &span : spans) {
+                if (span.last == NULL)
+                    draw_annotation(*span.ann, p,
+                        annotation_height, left, right,
+                        samples_per_pixel, pixels_offset, y,
+                        local_row, min_annWidth, fore, back, last_x);
+                else
+                    draw_annotation_run(*span.ann, *span.last, p,
+                        annotation_height, left, right,
+                        samples_per_pixel, pixels_offset, y,
+                        local_row, min_annWidth);
+            }
+        }
+        else {
+            // Overlapping or out of order: check every annotation.
+            std::vector<Annotation*> annotations;
+            _decoder_stack->get_annotation_subset(annotations, *row,
+                start_sample, end_sample);
+
+            for(Annotation *a : annotations){
+                draw_annotation(*a, p,
+                    annotation_height, left, right,
+                    samples_per_pixel, pixels_offset, y,
+                    local_row, min_annWidth, fore, back, last_x);
+            }
+        }
+    });
+}
+
+void DecodeTrace::for_each_row(const std::function<void(const pv::data::decode::Row *row,
+    const QString &heading, int y, int local_row)> &visit)
+{
+    using namespace pv::data::decode;
+
+    const int annotation_height = _view->get_signalHeight();
+    int y = get_y() - (_totalHeight - annotation_height)*0.5;
+
+    for(auto dec :_decoder_stack->stack()) {
+        if (!dec->shown()) {
+            visit(NULL, QString::fromUtf8(dec->decoder()->name), y, 0);
+            y += annotation_height;
+            continue;
+        }
+
+        int local_row = 0;
+        const std::map<const Row, bool> rows = _decoder_stack->get_rows_gshow();
+
+        for (auto i = rows.begin(); i != rows.end(); i++) {
+            if ((*i).first.decoder() == dec->decoder() &&
+                _decoder_stack->has_annotations((*i).first)) {
+                if ((*i).second) {
+                    visit(&(*i).first, (*i).first.title(), y, local_row);
+                    y += annotation_height;
+                }
+            }
+            local_row++;
+        }
+    }
+}
+
+bool DecodeTrace::row_detailed(const pv::data::decode::Row &row,
+    double samples_per_pixel, double &min_annWidth)
+{
+    const uint64_t min_annotation = _decoder_stack->get_min_annotation(row);
+    min_annWidth = min_annotation / samples_per_pixel;
+
+    const uint64_t max_annotation = _decoder_stack->get_max_annotation(row);
+    const double max_annWidth = max_annotation / samples_per_pixel;
+
+    return (max_annWidth > 100) ||
+        (max_annWidth > 10 && (min_annWidth > 1 || samples_per_pixel < 50)) ||
+        (max_annWidth == 0 && samples_per_pixel < 10);
+}
+
+bool DecodeTrace::annotation_at(const QPoint &pt, AnnotationHover &hover)
+{
+    using namespace pv::data::decode;
 
     assert(_decoder_stack);
 
-    for(auto dec :_decoder_stack->stack()) {
-        int local_row = 0;
-        if (dec->shown()) {
-            const std::map<const pv::data::decode::Row, bool> rows = _decoder_stack->get_rows_gshow();
-            for (std::map<const pv::data::decode::Row, bool>::const_iterator i = rows.begin();
-                i != rows.end(); i++) {
-                if ((*i).first.decoder() == dec->decoder() &&
-                    _decoder_stack->has_annotations((*i).first)) {
-                    if ((*i).second) {
-                        const Row &row = (*i).first;
+    if (_view == NULL || _delete_flag || abs(pt.y() - get_y()) > _totalHeight / 2)
+        return false;
 
-                        const uint64_t min_annotation =
-                                _decoder_stack->get_min_annotation(row);
-                        const double min_annWidth = min_annotation / samples_per_pixel;
+    // A new decode clears the annotation texts before the rows, on the
+    // decode thread. Only read them once it's done, like the control
+    // interface does.
+    if (_session->is_decode_pending(this))
+        return false;
 
-                        const uint64_t max_annotation =
-                                _decoder_stack->get_max_annotation(row);
-                        const double max_annWidth = max_annotation / samples_per_pixel;
-                        
-                        if ((max_annWidth > 100) ||
-                            (max_annWidth > 10 && (min_annWidth > 1 || samples_per_pixel < 50)) ||
-                            (max_annWidth == 0 && samples_per_pixel < 10)) {
-                            double last_x = -1;
+    const double samplerate = _decoder_stack->samplerate();
+    const double samples_per_pixel = (samplerate == 0.0 ? 1.0 : samplerate) * _view->scale();
+    if (samples_per_pixel <= 0)
+        return false;
 
-                            // Annotations narrower than a pixel next to each other
-                            // make a solid bar; draw those runs as one bar.
-                            const double merge_pixels = 1.0;
-                            const bool merge_instants = min(min_annWidth, (double)annotation_height) < merge_pixels;
-                            std::vector<AnnotationSpan> spans;
+    const int64_t pixels_offset = _view->x_offset();
+    const int h = _view->get_signalHeight();
+    const double x = pt.x();
 
-                            if (_decoder_stack->get_annotation_spans(spans, row,
-                                    start_sample, end_sample, samples_per_pixel,
-                                    merge_pixels, merge_instants)) {
-                                for (const AnnotationSpan &span : spans) {
-                                    if (span.last == NULL)
-                                        draw_annotation(*span.ann, p,
-                                            annotation_height, left, right,
-                                            samples_per_pixel, pixels_offset, y,
-                                            local_row, min_annWidth, fore, back, last_x);
-                                    else
-                                        draw_annotation_run(*span.ann, *span.last, p,
-                                            annotation_height, left, right,
-                                            samples_per_pixel, pixels_offset, y,
-                                            local_row, min_annWidth);
-                                }
-                            }
-                            else {
-                                // Overlapping or out of order: check every annotation.
-                                std::vector<Annotation*> annotations;
-                                _decoder_stack->get_annotation_subset(annotations, row,
-                                    start_sample, end_sample);
-
-                                for(Annotation *a : annotations){
-                                    draw_annotation(*a, p,
-                                        annotation_height, left, right,
-                                        samples_per_pixel, pixels_offset, y,
-                                        local_row, min_annWidth, fore, back, last_x);
-                                }
-                            }
-                        }
-                        else {
-                            draw_nodetail(p, annotation_height, left, right, y, local_row, fore, back);
-                        }
-                        y += annotation_height;
-                        _cur_row_headings.push_back(row.title());
-                    }
-                }
-                local_row++;
-            }
-        } else {
-            draw_unshown_row(p, y, annotation_height, left, right, L_S(STR_PAGE_DLG, S_ID(IDS_DLG_UNSHOWN), "Unshown"), fore, back);
-            y += annotation_height;
-            _cur_row_headings.push_back(dec->decoder()->name);
-        }
+    // paint_mid() draws nothing outside the first decoder's region.
+    const double cursor_sample = (x + pixels_offset) * samples_per_pixel;
+    for(auto dec : _decoder_stack->stack()) {
+        if (cursor_sample < dec->decode_start() || cursor_sample > (double)dec->decode_end() + 1)
+            return false;
+        break;
     }
+
+    // How far off an annotation the mouse may be, for instants and ranges
+    // drawn as a line.
+    const double tolerance = 3;
+    bool found = false;
+    bool row_hit = false;
+
+    for_each_row([&](const Row *row, const QString &heading, int y, int local_row) {
+        (void)heading;
+        (void)local_row;
+
+        const int top = y - h / 2;
+        if (row_hit || pt.y() < top || pt.y() >= top + h)
+            return;
+        row_hit = true;
+
+        double min_annWidth;
+        if (row == NULL || !row_detailed(*row, samples_per_pixel, min_annWidth))
+            return;
+
+        // Drawn like draw_instant().
+        const double instant_half = max(min(min_annWidth, (double)h) / 2, 0.5);
+        const double reach = tolerance + instant_half;
+        const uint64_t first = (uint64_t)max(floor((x - reach + pixels_offset) * samples_per_pixel), 0.0);
+        const uint64_t last = (uint64_t)max(ceil((x + reach + pixels_offset) * samples_per_pixel), 0.0);
+
+        std::vector<Annotation> candidates;
+        _decoder_stack->get_annotations_near(candidates, *row, first, last);
+
+        const Annotation *best = NULL;
+        double best_dist = 0;
+
+        for (const Annotation &a : candidates) {
+            double lo = a.start_sample() / samples_per_pixel - pixels_offset;
+            double hi = a.end_sample() / samples_per_pixel - pixels_offset;
+            if (a.start_sample() == a.end_sample()) {
+                lo -= instant_half;
+                hi += instant_half;
+            }
+
+            const double dist = x < lo ? lo - x : (x > hi ? x - hi : 0);
+            // Later ones are drawn on top, so they win ties.
+            if (dist <= tolerance && (best == NULL || dist <= best_dist)) {
+                best = &a;
+                best_dist = dist;
+            }
+        }
+
+        if (best == NULL)
+            return;
+
+        const std::vector<QString> &texts = best->annotations();
+        // The texts run from longest to shortest; draw_range() shows the
+        // first that fits.
+        hover.text = texts.empty() ? QString() : texts.front();
+        hover.row_title = row->title();
+        hover.start_sample = best->start_sample();
+        hover.end_sample = best->end_sample();
+        hover.samplerate = samplerate;
+        hover.top = top;
+        hover.bottom = top + h;
+        found = true;
+    });
+
+    return found;
 }
 
 void DecodeTrace::paint_fore(QPainter &p, int left, int right, QColor fore, QColor back)

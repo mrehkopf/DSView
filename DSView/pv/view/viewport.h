@@ -37,6 +37,7 @@
 #include <chrono>
 
 #include "../view/view.h"
+#include "decodetrace.h"
 #include "../dsvdef.h"
 #include "../interface/icallbacks.h"
 #include "../ui/uimanager.h"
@@ -107,7 +108,8 @@ public:
         NO_MEASURE,
         LOGIC_FREQ,
         LOGIC_EDGE_CNT,
-        DSO_VALUE
+        DSO_VALUE,
+        DECODE_ANN      // a decoder annotation, in _ann_hover
     };
 
 public:
@@ -155,6 +157,7 @@ private:
     void paintSignals(QPainter& p, QColor fore, QColor back);
     void paintProgress(QPainter& p, QColor fore, QColor back);
     void paintMeasure(QPainter &p, QColor fore, QColor back);
+    void paintAnnotationHover(QPainter &p, QColor fore, QColor back);
     void paintCursors(QPainter &p);
     void paint_ref_waves(QPainter &p);
     void paintYScaleBadge(QPainter &p, QColor fore, QColor back);
@@ -245,6 +248,8 @@ private:
     QString     _em_rising;
     QString     _em_falling;
     QString     _em_edges;
+
+    AnnotationHover _ann_hover;
 
     QTimer      _trigger_timer;
     bool        _is_checked_trig;

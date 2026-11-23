@@ -243,6 +243,15 @@ bool DecoderStack::get_annotation_spans(
                                                 samples_per_pixel, merge_pixels, merge_instants);
 }
 
+void DecoderStack::get_annotations_near(
+    std::vector<pv::data::decode::Annotation> &dest,
+    const Row &row, uint64_t start_sample, uint64_t end_sample)
+{
+    auto iter = _rows.find(row);
+    if (iter != _rows.end())
+        (*iter).second->get_annotations_near(dest, start_sample, end_sample);
+}
+
 uint64_t DecoderStack::get_annotation_index(
     const Row &row, uint64_t start_sample)
 {  

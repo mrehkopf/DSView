@@ -30,6 +30,7 @@
 #include <QFormLayout>
 #include <QWidget>
 #include <QString>
+#include <functional>
 
 #include "trace.h"
 #include "../prop/binding/decoderoptions.h"
@@ -55,6 +56,19 @@ class Row;
 }
 
 namespace view {
+
+// The annotation under the mouse, copied out of the decoder stack so it stays
+// valid when the decoder runs again.
+struct AnnotationHover
+{
+    QString row_title;
+    QString text;           // the longest of the annotation's texts
+    uint64_t start_sample;
+    uint64_t end_sample;
+    double samplerate;      // 0 if unknown
+    int top;                // the row, in viewport coordinates
+    int bottom;
+};
 
 //create by  SigSession
 class DecodeTrace : public Trace
@@ -144,10 +158,25 @@ public:
 
 	bool create_popup(bool isnew);
 
+    /**
+     * Finds the annotation drawn at pt (viewport coordinates), or within a
+     * few pixels of it. Rows drawn without detail have none.
+     */
+    bool annotation_at(const QPoint &pt, AnnotationHover &hover);
+
 protected:
     void paint_type_options(QPainter &p, int right, const QPoint pt, QColor fore);
 
 private: 
+    // Calls visit for each row paint_mid() draws, top to bottom, with the
+    // row's centre y. row is NULL for a decoder that isn't shown.
+    void for_each_row(const std::function<void(const pv::data::decode::Row *row,
+        const QString &heading, int y, int local_row)> &visit);
+
+    // Whether the row is drawn annotation by annotation at this zoom, rather
+    // than as "Zoom in for details".
+    bool row_detailed(const pv::data::decode::Row &row,
+        double samples_per_pixel, double &min_annWidth);
  
     void draw_annotation(const pv::data::decode::Annotation &a, QPainter &p,
         int text_height, int left, int right,
