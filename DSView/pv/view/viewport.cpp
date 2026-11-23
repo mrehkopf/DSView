@@ -2073,6 +2073,15 @@ void Viewport::measure()
                 _measure_type = NO_MEASURE;
             }
         }
+
+        if (_action_type == NO_ACTION && _measure_type == NO_MEASURE) {
+            for (auto t : _view.session().get_decode_signals()) {
+                if (t->annotation_at(_mouse_point, _ann_hover)) {
+                    _measure_type = DECODE_ANN;
+                    break;
+                }
+            }
+        }
     }
     else if (_type == FFT_VIEW) {
         for(auto t : _view.session().get_spectrum_traces()) {
@@ -2263,6 +2272,11 @@ void Viewport::paintMeasure(QPainter &p, QColor fore, QColor back)
             p.drawText(measure6_rect, Qt::AlignLeft | Qt::AlignVCenter, label_duty_str);
             p.drawText(measure6_rect, Qt::AlignRight | Qt::AlignVCenter, _mm_duty);
         }
+    }
+
+    if (_action_type == NO_ACTION &&
+        _measure_type == DECODE_ANN) {
+        paintAnnotationHover(p, fore, back);
     }
 
     if (_action_type == NO_ACTION &&
@@ -2658,6 +2672,132 @@ QString Viewport::get_measure(QString option)
         return _mm_duty;
     else
         return View::Unknown_Str;
+}
+
+void Viewport::paintAnnotationHover(QPainter &p, QColor fore, QColor back)
+{
+    const AnnotationHover &h = _ann_hover;
+    QColor active_color = back.black() > 0x80 ? View::Orange : View::Purple;
+    QColor active_color2 = back.black() > 0x80 ? Qt::yellow : Qt::darkRed;
+
+    // Mark the annotation's ends, like the edges of a logic measurement, so
+    // they can be lined up with the signals. Positions as DecodeTrace draws
+    // them.
+    const double samples_per_pixel = (h.samplerate == 0.0 ? 1.0 : h.samplerate) * _view.scale();
+    const double startX = h.start_sample / samples_per_pixel - _view.x_offset();
+    const double endX = h.end_sample / samples_per_pixel - _view.x_offset();
+
+    QColor edge_color = fore;
+    edge_color.setAlpha(140);
+    p.setPen(QPen(edge_color, 1, Qt::DashLine));
+    p.drawLine(QLineF(startX, 0, startX, _view.get_view_height()));
+    if (h.end_sample != h.start_sample)
+        p.drawLine(QLineF(endX, 0, endX, _view.get_view_height()));
+    p.setPen(QPen(active_color, 1));
+    p.drawLine(QLineF(startX, h.top, startX, h.bottom));
+    if (h.end_sample != h.start_sample)
+        p.drawLine(QLineF(endX, h.top, endX, h.bottom));
+
+    if (!_measure_en)
+        return;
+
+    const double sc = _view.get_trace_font_scale();
+    QFont font = p.font();
+    font.setStretch(QFont::Unstretched);
+    font.setBold(false);
+    font.setPointSizeF(AppConfig::Instance().GetTraceFontSize() * sc);
+    QFont value_font = font;
+    value_font.setBold(true);
+
+    const bool has_duration = h.end_sample > h.start_sample;
+    const uint64_t length = has_duration ? h.end_sample - h.start_sample : 0;
+    const QString duration_label = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DECODE_DURATION), "Duration: ");
+    const QString duration_time = h.samplerate > 0 ?
+        _view.get_ruler()->format_real_time(length, (uint64_t)h.samplerate) : QString();
+    const QString duration_samples = _view.get_ruler()->format_samples(length) + " "
+        + L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SAMPLES), " samples");
+
+    const double pad = 5.0 * sc;
+    const double gap = 3.0 * sc;
+    const double view_w = _view.get_view_width() - _view.verticalScrollBar()->geometry().width();
+    // As for the logic popup: what the status bar covers is not ours.
+    const double view_h = this->height() - _view.get_status_overlap();
+    const int max_text_w = max(100, (int)(view_w - 2 * pad - MousePointerClearance - MouseEdgeClearance));
+    const int wrap = Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap | Qt::TextWrapAnywhere;
+
+    p.setFont(font);
+    const QFontMetrics fm = p.fontMetrics();
+    const int line_h = fm.height();
+    const QRect title_r = p.boundingRect(QRect(0, 0, max_text_w, INT_MAX), wrap, h.row_title);
+    int content_w = title_r.width();
+    int duration_w = 0;
+    if (has_duration) {
+        duration_w = fm.horizontalAdvance(duration_label) +
+            max(fm.horizontalAdvance(duration_time), fm.horizontalAdvance(duration_samples)) + (int)(20 * sc);
+        content_w = max(content_w, duration_w);
+    }
+    p.setFont(value_font);
+    const QRect value_r = h.text.isEmpty() ? QRect() :
+        p.boundingRect(QRect(0, 0, max_text_w, INT_MAX), wrap, h.text);
+    content_w = min(max(content_w, value_r.width()), max_text_w);
+
+    double box_h = pad + title_r.height();
+    if (!h.text.isEmpty())
+        box_h += gap + value_r.height();
+    if (has_duration)
+        box_h += gap + (duration_time.isEmpty() ? 1 : 2) * line_h;
+    box_h += pad;
+    const double box_w = content_w + 2 * pad;
+
+    const double left = _view.hover_point().x();
+    const double top = _view.hover_point().y();
+    double box_x, box_y;
+    if (left + box_w > view_w)
+        box_x = left - box_w - MouseEdgeClearance;
+    else
+        box_x = left + MousePointerClearance;
+    if (top + box_h > view_h) {
+        box_y = top - box_h - MousePointerClearance;
+        if (left + box_w <= view_w)
+            box_x = left + MouseEdgeClearance;
+    } else {
+        box_y = top + MousePointerClearance;
+    }
+    box_x = max(box_x, 0.0);
+    box_y = max(box_y, 0.0);
+
+    p.setPen(Qt::NoPen);
+    p.setBrush(back.black() > 0x80 ? View::TransparentLightBlue : View::TransparentLightYellow);
+    p.drawRect(QRectF(box_x, box_y, box_w, box_h));
+
+    double y = box_y + pad;
+    const double x = box_x + pad;
+
+    p.setFont(font);
+    p.setPen(active_color2);
+    p.drawText(QRectF(x, y, content_w, title_r.height()), wrap, h.row_title);
+    y += title_r.height();
+
+    if (!h.text.isEmpty()) {
+        y += gap;
+        p.setFont(value_font);
+        p.setPen(active_color);
+        p.drawText(QRectF(x, y, content_w, value_r.height()), wrap, h.text);
+        y += value_r.height();
+    }
+
+    if (has_duration) {
+        y += gap;
+        p.setFont(font);
+        p.setPen(active_color);
+        const QRectF row(x, y, content_w, line_h);
+        p.drawText(row, Qt::AlignLeft | Qt::AlignVCenter, duration_label);
+        if (!duration_time.isEmpty()) {
+            p.drawText(row, Qt::AlignRight | Qt::AlignVCenter, duration_time);
+            y += line_h;
+        }
+        p.drawText(QRectF(x, y, content_w, line_h), Qt::AlignRight | Qt::AlignVCenter, duration_samples);
+    }
 }
 
 void Viewport::set_measure_en(int enable)
