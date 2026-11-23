@@ -35,12 +35,28 @@
 #include "pv/appcontrol.h"
 #include "pv/log.h" 
 #include "pv/ui/langresource.h"
+#include "pv/control/controlmode.h"
 #include <QDateTime>
 #include <string>
 #include <ds_types.h>
 
 #ifdef _WIN32
 #include <windows.h>
+#else
+#include <csignal>
+#include <QTimer>
+
+// A headless DSView has no window to close; let Ctrl-C and SIGTERM take the
+// normal exit path, which saves the device profile and releases the device.
+// A second signal falls back to the default action.
+static volatile sig_atomic_t quit_signal = 0;
+
+static void on_quit_signal(int sig)
+{
+	if (quit_signal)
+		std::signal(sig, SIG_DFL);
+	quit_signal = 1;
+}
 #endif 
 
 void usage()
@@ -54,6 +70,13 @@ void usage()
 		"  -v, -V, --version               Show release version\n"
 		"  -s, --storelog                  Save log to locale file\n"
 		"  -h, -?, --help                  Show help option\n"
+		"\n"
+		"Control Options (see doc/control-interface.md):\n"
+		"  --control[=NAME]                Accept commands from dsview-ctl and other\n"
+		"                                  clients on a local socket\n"
+		"  --non-interactive               Don't show dialogs; answer them with No/Cancel\n"
+		"  --headless                      Run without a display; implies --control\n"
+		"                                  and --non-interactive\n"
 		"\n", DS_BIN_NAME, DS_DESCRIPTION);
 }
 
@@ -64,6 +87,10 @@ int main(int argc, char *argv[])
 	const char *open_file = NULL;
 	int logLevel = -1;
 	bool bStoreLog = false;
+	bool bControl = false;
+	const char *control_name = NULL;
+	bool bNonInteractive = false;
+	bool bHeadless = false;
 
 	//----------------------rebuild command param
 #ifdef _WIN32
@@ -103,6 +130,9 @@ int main(int argc, char *argv[])
 			{"version", no_argument, 0, 'v'},
 			{"storelog", no_argument, 0, 's'},
 			{"help", no_argument, 0, 'h'},
+			{"control", optional_argument, 0, 1000},
+			{"non-interactive", no_argument, 0, 1001},
+			{"headless", no_argument, 0, 1002},
 			{0, 0, 0, 0}
 		};
 
@@ -130,6 +160,19 @@ int main(int argc, char *argv[])
 		case '?':
 			usage();
 			return 0;
+
+		case 1000: // --control[=NAME]
+			bControl = true;
+			control_name = optarg;
+			break;
+
+		case 1001: // --non-interactive
+			bNonInteractive = true;
+			break;
+
+		case 1002: // --headless
+			bHeadless = true;
+			break;
 		}
 	}
 
@@ -139,6 +182,13 @@ int main(int argc, char *argv[])
     } 
 	else if (argcFinal - optind == 1){
         open_file = argvFinal[argcFinal - 1];		
+	}
+
+	// Without a display, Qt draws into memory. An explicit QT_QPA_PLATFORM wins.
+	if (bHeadless){
+		bControl = true;
+		if (qgetenv("QT_QPA_PLATFORM").isEmpty())
+			qputenv("QT_QPA_PLATFORM", "offscreen");
 	}
 
 	//----------------------HightDpiScaling
@@ -180,6 +230,15 @@ bool bHighScale = true;
     // Wayland app_id / taskbar matching: must equal the installed desktop file's
     // basename, which is also the AppStream component id.
     QGuiApplication::setDesktopFileName("io.github.mrehkopf.dsview");
+
+	// The default socket path needs QStandardPaths, so after QApplication.
+	pv::control::ControlMode::SetHeadless(bHeadless);
+	pv::control::ControlMode::SetNonInteractive(bNonInteractive);
+	if (bControl){
+		QString name = control_name != NULL ? QString::fromLocal8Bit(control_name)
+		                                    : pv::control::ControlMode::DefaultServerName();
+		pv::control::ControlMode::SetServerName(name);
+	}
 
 	//----------------------init log
 	dsv_log_init(); // Don't call before QApplication be inited
@@ -254,7 +313,24 @@ bool bHighScale = true;
 		pv::MainFrame w;
 		control->Start();
 		w.ShowFormInit();  
-		w.ShowHelpDocAsync();  //to show the dailog for open help document
+
+#ifndef _WIN32
+		if (pv::control::ControlMode::IsHeadless()){
+			std::signal(SIGINT, on_quit_signal);
+			std::signal(SIGTERM, on_quit_signal);
+			QTimer *quit_poll = new QTimer(&w);
+			QObject::connect(quit_poll, &QTimer::timeout, &w, [&w](){
+				if (quit_signal == 1){
+					quit_signal = 2;
+					w.close();
+				}
+			});
+			quit_poll->start(200);
+		}
+#endif
+
+		if (!pv::control::ControlMode::IsNonInteractive())
+			w.ShowHelpDocAsync();  //to show the dailog for open help document
 		
 		ret = a.exec(); //Run the application
 		control->Stop();

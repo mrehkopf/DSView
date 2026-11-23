@@ -246,6 +246,14 @@ public:
     void rst_decoder(int index); 
     void rst_decoder_by_key_handel(void *handel);
 
+    // Decodes the data there is with this decoder, as rst_decoder does but
+    // without the options dialog. For the control interface.
+    void decode_now(view::DecodeTrace *trace);
+    // The trace is decoding or waits to, for the control interface.
+    bool is_decode_pending(view::DecodeTrace *trace);
+    // Some decoder is decoding or waits to.
+    bool is_decode_busy();
+
     inline pv::data::DecoderModel* get_decoder_model(){
          return _decoder_model;
     }
@@ -461,6 +469,7 @@ public:
     bool have_hardware_data();
     struct ds_device_base_info* get_device_list(int &out_count, int &actived_index);
     void add_msg_listener(IMessageListener *ln);
+    void remove_msg_listener(IMessageListener *ln);
     void broadcast_msg(int msg);    
     bool have_new_realtime_refresh(bool keep);
     view::DecodeTrace* get_decoder_trace(int index);
@@ -624,6 +633,7 @@ private:
     mutable std::mutex      _decode_task_mutex;  
     std::thread             _decode_thread;
     volatile bool           _is_decoding;
+    view::DecodeTrace       *_decode_current; // taken from _decode_tasks, only compared
  
 	std::vector<view::Signal*>      _signals; 
     std::vector<view::DecodeTrace*> _decode_traces;

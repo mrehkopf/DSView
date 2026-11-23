@@ -28,10 +28,6 @@
         "text": "Information"
     }, 
     {
-        "id": "IDS_MSG_CONTINUE",
-        "text": "Continue"
-    },
-    {
         "id": "IDS_MSG_AUTO_CALIB_START",
         "text": "Auto Calibration program will be initiated. Don't connect any probes. \nThis may take a while!"
     },
@@ -168,10 +164,6 @@
         "text": "Search cursor at the end position!"
     },
     {
-        "id": "IDS_MSG_TRIGGER",
-        "text": "Trigger"
-    },
-    {
         "id": "IDS_MSG_STREAM_NO_AD_TRIGGER",
         "text": "Stream Mode Don't Support Advanced Trigger!"
     },
@@ -180,16 +172,8 @@
         "text": "Advanced Trigger need DSLogic Hardware Support!"
     },
     {
-        "id": "IDS_MSG_SET_TRI_MULTI_CHANNEL",
-        "text": "Trigger setted on multiple channels!\nCapture will Only triggered when all setted channels fullfill at one sample"
-    },
-    {
         "id": "IDS_MSG_NOT_SHOW_AGAIN",
         "text": "Not Show Again"
-    },
-    {
-        "id": "IDS_MSG_CLEAR_TRIG",
-        "text": "Clear Trig"
     },
     {
         "id": "IDS_MSG_IGNORE",

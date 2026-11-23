@@ -37,6 +37,7 @@
 #include <QSignalBlocker>
 #include <QScopedValueRollback>
 #include <math.h>
+#include <algorithm>
 #include <libsigrok.h>
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
@@ -64,6 +65,19 @@ namespace {
 QString bus_text(const char *key, const char *fallback)
 {
     return QString::fromUtf8(L_S(STR_PAGE_DLG, key, fallback));
+}
+
+const QString AllDontCare = QStringLiteral("X X X X X X X X X X X X X X X X");
+
+// The channels with a condition, without the don't-care ones.
+trigger::ChannelPattern conditions_only(const trigger::ChannelPattern &pattern)
+{
+    trigger::ChannelPattern result;
+    for (auto it = pattern.cbegin(); it != pattern.cend(); ++it) {
+        if (QStringLiteral("01RFC").contains(it.value()))
+            result.insert(it.key(), it.value());
+    }
+    return result;
 }
 }
 
@@ -347,7 +361,6 @@ void TriggerDock::device_updated()
     }
 
     this->setEnabled(_session->is_loop_mode() == false);
-    _acknowledged_simple_trigger.clear();
     update_view();
 }
 
@@ -768,7 +781,6 @@ void TriggerDock::change_bus_pattern(bool clear)
     {
         const QScopedValueRollback<bool> applying(_applying_bus, true);
         if (_simple_radioButton->isChecked()) {
-            const bool acknowledged = !clear || _acknowledged_simple_trigger == simple_pattern();
             for (auto signal : _session->get_signals()) {
                 auto logic = qobject_cast<view::LogicSignal *>(signal);
                 if (logic && assignments.contains(logic->get_index())) {
@@ -777,9 +789,6 @@ void TriggerDock::change_bus_pattern(bool clear)
                         view::LogicSignal::HIGTRIG : view::LogicSignal::LOWTRIG);
                 }
             }
-            // Acknowledge only this exact configuration; subsequent manual edits invalidate it.
-            // Clearing must not acknowledge unrelated trigger conditions for the first time.
-            _acknowledged_simple_trigger = acknowledged ? simple_pattern() : trigger::ChannelPattern();
         } else {
             const int stage = _stage_tabWidget->currentIndex();
             if (_adv_tabWidget->currentIndex() != 0 || stage < 0 ||
@@ -806,7 +815,6 @@ void TriggerDock::on_simple_trigger_changed()
 {
     if (_applying_bus)
         return;
-    _acknowledged_simple_trigger.clear();
     update_bus_editor();
 }
 
@@ -864,7 +872,6 @@ QJsonObject TriggerDock::get_session()
 
 void TriggerDock::set_session(QJsonObject ses)
 {
-    _acknowledged_simple_trigger.clear();
     _position_slider->setValue(ses["triggerPos"].toDouble());
     stages_comboBox->setCurrentIndex(ses["triggerStages"].toDouble());
     _adv_tabWidget->setCurrentIndex(ses["triggerTab"].toDouble());
@@ -1366,10 +1373,7 @@ void TriggerDock::lineEdit_highlight(PopupLineEdit *dst) {
 }
 
 void TriggerDock::try_commit_trigger()
-{   
-    AppConfig &app = AppConfig::Instance(); 
-    int num = 0;
-
+{
     int mode = _session->get_device()->get_work_mode();
     bool bInstant = _session->is_instant();
 
@@ -1385,39 +1389,7 @@ void TriggerDock::try_commit_trigger()
         for(auto s : _session->get_signals()){ 
             if (s->signal_type() == SR_CHANNEL_LOGIC) {
                 view::LogicSignal *logicSig = (view::LogicSignal*)s;
-                if (logicSig->commit_trig())
-                    num++;
-            }
-        }
-
-        if (app.appOptions.warnofMultiTrig && num > 1 &&
-            _acknowledged_simple_trigger != simple_pattern())
-        {
-            dialogs::DSMessageBox msg(this);
-            msg.mBox()->setText(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_TRIGGER), "Trigger"));
-            msg.mBox()->setInformativeText(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_SET_TRI_MULTI_CHANNEL), 
-                                          "Trigger setted on multiple channels!\nCapture will Only triggered when all setted channels fullfill at one sample"));
-            msg.mBox()->setIcon(QMessageBox::Information);
-
-            QPushButton *noMoreButton = msg.mBox()->addButton(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_NOT_SHOW_AGAIN), "Not Show Again"), QMessageBox::ActionRole);
-            QPushButton *cancelButton = msg.mBox()->addButton(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_CLEAR_TRIG), "Clear Trig"), QMessageBox::ActionRole);
-            msg.mBox()->addButton(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_CONTINUE), "Continue"), QMessageBox::ActionRole);
-
-            msg.exec();
-
-            if (msg.mBox()->clickedButton() == cancelButton) {
-                for(auto s : _session->get_signals()){
-                    if (s->signal_type() == SR_CHANNEL_LOGIC) {
-                        view::LogicSignal *logicSig = (view::LogicSignal*)s;
-                        logicSig->set_trig(view::LogicSignal::NONTRIG);
-                        logicSig->commit_trig();
-                    }
-                }
-            }
-
-            if (msg.mBox()->clickedButton() == noMoreButton)
-            {
-                app.appOptions.warnofMultiTrig  = false;              
+                logicSig->commit_trig();
             }
         }
     }
@@ -1487,6 +1459,193 @@ void TriggerDock::on_serial_hex_changed()
     }
 
     _is_serial_val_setting = false;
+}
+
+//------------------------------------------------------------- control interface
+
+TriggerDock::ControlStage::ControlStage() :
+    or_logic(false),
+    contiguous(false),
+    count(1)
+{
+    negate[0] = negate[1] = false;
+}
+
+PopupLineEdit *TriggerDock::ext32_field(const QVector<PopupLineEdit *> &list, int i) const
+{
+    // The fields for channels 16-31 exist only with 32 trigger channels.
+    if (_cur_ch_num != 32 || i < 0 || i >= list.size())
+        return nullptr;
+    return list.at(i);
+}
+
+trigger::ChannelPattern TriggerDock::read_pattern(PopupLineEdit *low, PopupLineEdit *high) const
+{
+    auto pattern = trigger::decode_stage_pattern(low->text(), 0);
+    if (high) {
+        const auto upper = trigger::decode_stage_pattern(high->text(), 16);
+        for (auto it = upper.cbegin(); it != upper.cend(); ++it)
+            pattern.insert(it.key(), it.value());
+    }
+    return conditions_only(pattern);
+}
+
+void TriggerDock::write_pattern(PopupLineEdit *low, PopupLineEdit *high,
+                                const trigger::ChannelPattern &pattern)
+{
+    // Full width and upper case: the trigger commit reads every position, and
+    // takes anything but X 1 R F C as a low level.
+    low->setText(trigger::patch_stage_pattern(AllDontCare, 0, pattern));
+    lineEdit_highlight(low);
+    if (high) {
+        high->setText(trigger::patch_stage_pattern(AllDontCare, 16, pattern));
+        lineEdit_highlight(high);
+    }
+}
+
+TriggerDock::ControlTrigger TriggerDock::control_trigger() const
+{
+    ControlTrigger t;
+
+    if (_simple_radioButton->isChecked())
+        t.mode = SIMPLE_TRIGGER;
+    else
+        t.mode = _adv_tabWidget->currentIndex() == 1 ? SERIAL_TRIGGER : ADV_TRIGGER;
+
+    t.position = _position_slider->value();
+    t.simple = conditions_only(simple_pattern());
+
+    const int stages = stages_comboBox->currentIndex() + 1;
+    for (int i = 0; i < stages && i < _value0_lineEdit_list.size(); i++) {
+        ControlStage s;
+        s.pattern[0] = read_pattern(_value0_lineEdit_list.at(i), ext32_field(_value0_ext32_lineEdit_list, i));
+        s.pattern[1] = read_pattern(_value1_lineEdit_list.at(i), ext32_field(_value1_ext32_lineEdit_list, i));
+        s.negate[0] = _inv0_comboBox_list.at(i)->currentIndex() == 1;
+        s.negate[1] = _inv1_comboBox_list.at(i)->currentIndex() == 1;
+        s.or_logic = _logic_comboBox_list.at(i)->currentIndex() == 0;
+        s.contiguous = _contiguous_checkbox_list.at(i)->isChecked();
+        // An untouched Counter field reads as 0, which the hardware takes as 1.
+        s.count = std::max(1, _count_spinBox_list.at(i)->value());
+        t.stages.push_back(s);
+    }
+
+    const bool ext32 = _cur_ch_num == 32;
+    t.serial.start = read_pattern(_serial_start_lineEdit, ext32 ? _serial_start_ext32_lineEdit : nullptr);
+    t.serial.stop = read_pattern(_serial_stop_lineEdit, ext32 ? _serial_stop_ext32_lineEdit : nullptr);
+    t.serial.clock = read_pattern(_serial_edge_lineEdit, ext32 ? _serial_edge_ext32_lineEdit : nullptr);
+    t.serial.channel = _serial_data_comboBox->currentText().toInt();
+    t.serial.bits = _serial_bits_comboBox->currentText().toInt();
+    t.serial.value = _serial_value_lineEdit->text().remove(QLatin1Char(' ')).toUpper();
+
+    return t;
+}
+
+void TriggerDock::control_changed()
+{
+    update_bus_editor();
+    emit trigger_changed();
+}
+
+void TriggerDock::set_control_position(int position)
+{
+    _position_slider->setValue(position);
+}
+
+void TriggerDock::set_control_simple(const trigger::ChannelPattern &conditions)
+{
+    {
+        const QScopedValueRollback<bool> applying(_applying_bus, true);
+        for (auto signal : _session->get_signals()) {
+            auto logic = qobject_cast<view::LogicSignal *>(signal);
+            if (!logic)
+                continue;
+            int trig = view::LogicSignal::NONTRIG;
+            switch (conditions.value(logic->get_index(), QLatin1Char('X')).toLatin1()) {
+                case 'R': trig = view::LogicSignal::POSTRIG; break;
+                case '1': trig = view::LogicSignal::HIGTRIG; break;
+                case 'F': trig = view::LogicSignal::NEGTRIG; break;
+                case '0': trig = view::LogicSignal::LOWTRIG; break;
+                case 'C': trig = view::LogicSignal::EDGTRIG; break;
+            }
+            logic->set_trig(trig);
+        }
+    }
+    control_changed();
+}
+
+void TriggerDock::set_control_stages(const QVector<ControlStage> &stages)
+{
+    {
+        const QScopedValueRollback<bool> applying(_applying_bus, true);
+        // Stages past the active ones go back to their defaults.
+        for (int i = 0; i < TriggerStages && i < _value0_lineEdit_list.size(); i++) {
+            const ControlStage s = i < stages.size() ? stages.at(i) : ControlStage();
+            write_pattern(_value0_lineEdit_list.at(i), ext32_field(_value0_ext32_lineEdit_list, i), s.pattern[0]);
+            write_pattern(_value1_lineEdit_list.at(i), ext32_field(_value1_ext32_lineEdit_list, i), s.pattern[1]);
+            _inv0_comboBox_list.at(i)->setCurrentIndex(s.negate[0] ? 1 : 0);
+            _inv1_comboBox_list.at(i)->setCurrentIndex(s.negate[1] ? 1 : 0);
+            _logic_comboBox_list.at(i)->setCurrentIndex(s.or_logic ? 0 : 1);
+            _contiguous_checkbox_list.at(i)->setChecked(s.contiguous);
+            _count_spinBox_list.at(i)->setValue(s.count);
+        }
+        const int count = std::max(1, std::min((int)stages.size(), (int)TriggerStages));
+        stages_comboBox->setCurrentIndex(count - 1);
+    }
+    control_changed();
+}
+
+void TriggerDock::set_control_mode(int mode)
+{
+    {
+        const QScopedValueRollback<bool> applying(_applying_bus, true);
+        // Not click(): adv_trigger() may show a message box. The caller has
+        // checked advanced_available().
+        if (mode == SIMPLE_TRIGGER) {
+            _simple_radioButton->setChecked(true);
+            simple_trigger();
+        }
+        else {
+            _adv_tabWidget->setCurrentIndex(mode == SERIAL_TRIGGER ? 1 : 0);
+            _adv_radioButton->setChecked(true);
+            widget_enable(0);
+            update_trigger_mode();
+        }
+    }
+    control_changed();
+}
+
+int TriggerDock::max_position() const
+{
+    return _position_slider->maximum();
+}
+
+bool TriggerDock::advanced_available(QString &reason) const
+{
+    // As adv_trigger() decides.
+    if (!_session->get_device()->is_hardware_logic()) {
+        reason = "The advanced and serial triggers need DSLogic hardware.";
+        return false;
+    }
+    bool stream = false;
+    _session->get_device()->get_config_bool(SR_CONF_STREAM, stream);
+    if (stream) {
+        reason = "Stream mode doesn't support the advanced and serial triggers.";
+        return false;
+    }
+    return true;
+}
+
+QSet<int> TriggerDock::trigger_channels() const
+{
+    QSet<int> channels;
+    for (auto signal : _session->get_signals()) {
+        auto logic = qobject_cast<view::LogicSignal *>(signal);
+        // Stacking leaves the secondary's channels out of the trigger.
+        if (logic && logic->enabled() && logic->trigger_options_enabled() &&
+            logic->get_index() >= 0 && logic->get_index() < _cur_ch_num)
+            channels.insert(logic->get_index());
+    }
+    return channels;
 }
 
 void TriggerDock::UpdateLanguage()

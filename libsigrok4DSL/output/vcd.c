@@ -40,6 +40,7 @@ struct context {
 	int *channel_index;
 	uint64_t samplerate;
 	uint64_t samplecount;
+	uint64_t first_sample;
 };
 
 /*
@@ -88,6 +89,11 @@ static int init(struct sr_output *o, GHashTable *options)
 
 	o->priv = ctx;
 	ctx->num_enabled_channels = num_enabled_channels;
+
+	/* Timestamps count from the start of the capture, also when only a
+	 * range of it is exported (like the CSV module). */
+	ctx->samplecount = o->start_sample_index;
+	ctx->first_sample = o->start_sample_index;
 	ctx->channel_index = g_try_malloc0(sizeof(int) * ctx->num_enabled_channels);
 
 	if (ctx->channel_index == NULL){
@@ -247,7 +253,7 @@ static int receive(const struct sr_output *o, const struct sr_datafeed_packet *p
 						>> (index % 8)) & 1;
 
 				/* VCD only contains deltas/changes of signals. */
-				if (prevbit == curbit && ctx->samplecount > 0)
+				if (prevbit == curbit && ctx->samplecount > ctx->first_sample)
 					continue;
 
 				/* Output timestamp of subsequent signal changes. */

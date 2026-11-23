@@ -22,6 +22,7 @@
   
 
 #include <stdexcept>
+#include <atomic>
 #include <algorithm>
 #include <assert.h>
 
@@ -70,6 +71,7 @@ DecoderStack::DecoderStack(pv::SigSession *session,
     _progress = 0;
     _is_decoding = false;
     _result_count = 0;
+    _generation = 0;
     
     _stack.push_back(new decode::Decoder(dec));
  
@@ -363,6 +365,32 @@ bool DecoderStack::list_annotation(pv::data::decode::Annotation *ann,
 }
 
 
+std::vector<Row> DecoderStack::all_rows()
+{
+    // In stack order. _rows orders the decoders by their address, which
+    // changes from run to run.
+    std::vector<Row> rows;
+    for (auto dec : _stack){
+        for (auto i = _rows.begin(); i != _rows.end(); i++){
+            if ((*i).first.decoder() == dec->decoder())
+                rows.push_back((*i).first);
+        }
+    }
+    return rows;
+}
+
+uint64_t DecoderStack::row_annotation_count(const Row &row)
+{
+    auto i = _rows.find(row);
+    return i == _rows.end() ? 0 : (*i).second->get_annotation_size();
+}
+
+bool DecoderStack::row_annotation(const Row &row, uint64_t index, Annotation &ann)
+{
+    auto i = _rows.find(row);
+    return i != _rows.end() && (*i).second->get_annotation(&ann, index);
+}
+
 bool DecoderStack::list_row_title(int row, QString &title)
 { 
     for (auto i = _rows.begin();i != _rows.end(); i++) {
@@ -384,6 +412,9 @@ void DecoderStack::clear()
 
 void DecoderStack::init()
 {
+    static std::atomic<uint64_t> generations(0);
+    _generation = ++generations;
+
     _sample_count = 0; 
     _samples_decoded = 0;
     _error_message = QString();

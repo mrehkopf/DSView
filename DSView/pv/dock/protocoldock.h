@@ -82,8 +82,11 @@ public:
     ProtocolDock(QWidget *parent, view::View &view, SigSession *session);
     ~ProtocolDock();
 
-    void del_all_protocol(); 
+    void del_all_protocol();
     bool add_protocol_by_id(QString id, bool silent, std::list<pv::data::decode::Decoder*> &sub_decoders);
+    // Removes the session's decoder at this index without asking, for the
+    // control interface. False if there is none.
+    bool remove_protocol(int index);
 
     void reset_view();
     void update_view_status();

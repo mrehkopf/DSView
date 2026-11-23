@@ -108,6 +108,8 @@
 #include "dsvdef.h"
 #include <thread>
 #include "ui/uimanager.h"
+#include "control/controlmode.h"
+#include "control/controlserver.h"
 
 namespace pv
 {
@@ -254,6 +256,7 @@ namespace pv
         _msg = NULL;
         _frame = parent;
         _restoring_dock_layout = false;
+        _control_server = NULL;
 
         assert(title_bar);
         assert(_frame);
@@ -267,6 +270,7 @@ namespace pv
 
         _is_auto_switch_device = false;
         _is_save_confirm_msg = false;
+        _control_quitting = false;
 
         _stacking_return_timer.setSingleShot(true);
         connect(&_stacking_return_timer, &QTimer::timeout, this, [this](){
@@ -276,6 +280,21 @@ namespace pv
         _pattern_mode = "random";
 
         setup_ui();
+
+        // After setup_ui(): the server registers its message listener after
+        // ours, and the first device is already open.
+        if (control::ControlMode::ServerEnabled())
+        {
+            _control_server = new control::ControlServer(_session, this, _sampling_bar, _trigger_widget, _protocol_widget, this);
+
+            if (!_control_server->listen(control::ControlMode::ServerName())
+                && control::ControlMode::IsHeadless())
+            {
+                // Nothing else can reach a headless DSView.
+                dsv_err("No control server, exiting.");
+                QTimer::singleShot(0, qApp, [](){ QCoreApplication::exit(2); });
+            }
+        }
 
         setContextMenuPolicy(Qt::NoContextMenu);
 
@@ -558,6 +577,9 @@ namespace pv
             break;
         }
 
+        if (_control_server != NULL)
+            _control_server->notify_session_error(title, details);
+
         pv::dialogs::DSMessageBox msg(this, title);
         msg.mBox()->setText(details);
         msg.mBox()->setStandardButtons(QMessageBox::Ok);
@@ -585,8 +607,11 @@ namespace pv
             save_config_to_file(sessionFile);
         }
 
-        app.frameOptions.windowState = saveState(DOCK_LAYOUT_VERSION);
-        app.SaveFrame();
+        // Dock sizes on the offscreen screen are not the user's layout.
+        if (!control::ControlMode::IsHeadless()){
+            app.frameOptions.windowState = saveState(DOCK_LAYOUT_VERSION);
+            app.SaveFrame();
+        }
     }
 
     QString MainWindow::gen_config_file_path(bool isNewFormat)
@@ -1467,6 +1492,63 @@ namespace pv
         return save_config_to_file(name);
     }
 
+    // Like on_load_file, but tells the control client whether it worked.
+    bool MainWindow::control_open_file(const QString &path)
+    {
+        if (_device_agent->is_hardware()){
+            save_config();
+        }
+
+        try
+        {
+            if (_session->set_file(path))
+                return true;
+        }
+        catch (QString e)
+        {
+            dsv_err("Failed to load file: %s", e.toUtf8().data());
+        }
+
+        if (!_device_agent->have_instance()){
+            _session->set_default_device();
+        }
+        return false;
+    }
+
+    bool MainWindow::control_load_config(const QString &path)
+    {
+        return load_config_from_file(path);
+    }
+
+    bool MainWindow::control_store_config(const QString &path)
+    {
+        return save_config_to_file(path);
+    }
+
+    QString MainWindow::control_default_config()
+    {
+        return _file_bar->genDefaultSessionFile();
+    }
+
+    ISessionDataGetter *MainWindow::control_session_data()
+    {
+        return this;
+    }
+
+    void MainWindow::control_quit()
+    {
+        // The client decides what to save: no "Save captured data?". The rest
+        // is the normal exit path, which saves the device profile and releases
+        // the device.
+        _control_quitting = true;
+
+        QWidget *top = AppControl::Instance()->GetTopWindow();
+        if (top != NULL)
+            top->close();
+        else
+            QCoreApplication::quit();
+    }
+
     bool MainWindow::save_config_to_file(QString name)
     {
         if (name == ""){
@@ -1980,7 +2062,7 @@ namespace pv
         bool ret = false;
         _is_save_confirm_msg = true;
 
-        if (AppConfig::Instance().appOptions.dontAskSaveOnExit)
+        if (AppConfig::Instance().appOptions.dontAskSaveOnExit || _control_quitting)
         {
             _is_save_confirm_msg = false;
             return false;

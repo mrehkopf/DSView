@@ -37,6 +37,7 @@
 #include <QTimer>
 #include <QStringList>
 #include "dstimer.h"
+#include "control/controlhost.h"
 
 class QAction;
 class QMenuBar;
@@ -76,6 +77,10 @@ class SearchDock;
 namespace view {
 class View;
 }
+
+namespace control {
+class ControlServer;
+}
  
 //The mainwindow,referenced by MainFrame
 //TODO: create graph view,toolbar,and show device list
@@ -84,7 +89,8 @@ class MainWindow :
     public ISessionCallback,
     public IMainForm,
     public ISessionDataGetter,
-    public IMessageListener
+    public IMessageListener,
+    public control::IControlHost
 {
 	Q_OBJECT
 
@@ -204,6 +210,14 @@ private:
     //IMessageListener
     void OnMessage(int msg) override;
 
+    //control::IControlHost
+    bool control_open_file(const QString &path) override;
+    bool control_load_config(const QString &path) override;
+    bool control_store_config(const QString &path) override;
+    QString control_default_config() override;
+    ISessionDataGetter *control_session_data() override;
+    void control_quit() override;
+
 private: 
 	pv::view::View          *_view;
     dialogs::DSMessageBox   *_msg;
@@ -265,6 +279,7 @@ private:
     // port ends the wait
     std::vector<ds_device_handle> _stacking_wait_devices;
     QTimer          _stacking_return_timer;
+    bool            _control_quitting;
     QString         _pattern_mode;
     QWidget         *_frame;
     DsTimer         _delay_prop_msg_timer;
@@ -274,6 +289,8 @@ private:
 
     int         _key_value;
     bool        _key_vaild;
+
+    control::ControlServer  *_control_server;
 };
 
 } // namespace pv

@@ -96,6 +96,18 @@ public:
         return _is_busy;
     }
 
+    // Control interface: export or save without the file dialog. format is
+    // an output module id from sr_output_list() (csv, vcd, gnuplot); a save
+    // uses only the file name.
+    inline void SetExportTarget(const QString &file_name, const QString &format){
+        _file_name = file_name;
+        _suffix = format;
+    }
+
+    inline bool has_error(){
+        return _has_error;
+    }
+
 private:
     QList<QString> getSuportedExportFormats();
     double get_integer(GVariant * var);

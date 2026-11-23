@@ -32,6 +32,7 @@
 #include "../config/appconfig.h"
 #include "../ui/fn.h"
 #include "../ui/popupdlglist.h"
+#include "../control/controlmode.h"
 
 namespace pv {
 namespace dialogs {
@@ -122,6 +123,9 @@ void DSDialog::reject()
   
 void DSDialog::setTitle(QString title)
 {
+    // Also names the dialog in non-interactive mode reports.
+    setWindowTitle(title);
+
     if (_titlebar){
          _titlebar->setTitle(title);
     } 
@@ -134,6 +138,12 @@ void DSDialog::reload()
 
 int DSDialog::exec()
 { 
+    // Nobody can answer: behave as if Cancel was clicked.
+    if (control::ControlMode::IsNonInteractive()){
+        control::ControlMode::RecordSuppressedDialog(windowTitle(), "dialog not shown");
+        return QDialog::Rejected;
+    }
+
       //ok,cancel
     if (m_bBaseButton){
         _base_button = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,Qt::Horizontal, this);

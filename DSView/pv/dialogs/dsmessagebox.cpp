@@ -34,6 +34,7 @@
 #include "../config/appconfig.h"
 #include "../ui/fn.h"
 #include "../ui/popupdlglist.h"
+#include "../control/controlmode.h"
 
 namespace pv {
 namespace dialogs {
@@ -155,6 +156,16 @@ void DSMessageBox::on_button(QAbstractButton *btn)
 
 int DSMessageBox::exec()
 {
+    // Nobody can answer: behave as if No/Cancel was clicked.
+    if (control::ControlMode::IsNonInteractive()){
+        QString text = _msg->text();
+        if (!_msg->informativeText().isEmpty())
+            text += " " + _msg->informativeText();
+        control::ControlMode::RecordSuppressedDialog(windowTitle(), text);
+        _bClickYes = false;
+        return QDialog::Rejected;
+    }
+
     QFont font = this->font();
     font.setPointSizeF(AppConfig::Instance().appOptions.fontSize);
     ui::set_form_font(this, font);
