@@ -128,8 +128,14 @@ public:
     uint8_t *get_block_buf(int block_index, int sig_index, bool &sample);   
     uint64_t get_block_size(int block_index);
     
-    bool pattern_search(int64_t start, int64_t end, int64_t& index,
-                        std::map<uint16_t, QString> &pattern, bool isNext);
+    // For a search on another thread (pv/search/snapshotsource.h). The
+    // version changes whenever the data is cleared or replaced, and the
+    // calls below fail (-1) once it no longer matches. 0/1 is the result.
+    uint64_t data_version();
+    int search_level(uint64_t version, uint64_t index, int sig_index);
+    int search_next_change(uint64_t version, uint64_t pos, bool level, uint64_t last,
+                           int sig_index, uint64_t &found);
+    int search_has_channel(uint64_t version, int sig_index);
 
     inline void set_loop(bool bLoop){
         _is_loop = bLoop;
@@ -151,10 +157,6 @@ public:
         return _loop_offset;
     }
 
-    inline void cancel_search(){
-        _is_search_stop = true;
-    }
-
     int get_block_index_with_sample(uint64_t sample_index, uint64_t *out_offset);
 
 private:
@@ -171,9 +173,6 @@ private:
 
     bool get_pre_edge_self(uint64_t &index, bool last_sample,
                       double min_length, int sig_index);
-
-    bool pattern_search_self(int64_t start, int64_t end, int64_t& index,
-                        std::map<uint16_t, QString> &pattern, bool isNext);
 
     int get_ch_order(int sig_index);
 
@@ -262,7 +261,7 @@ private:
     std::vector<void*> _free_block_list;
     struct BlockIndex _cur_ref_block_indexs[CHANNEL_MAX_COUNT];
     int         _lst_free_block_index;
-    bool        _is_search_stop;
+    uint64_t    _data_version;
  
 	friend class LogicSnapshotTest::Pow2;
 	friend class LogicSnapshotTest::Basic;

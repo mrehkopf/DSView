@@ -21,6 +21,8 @@
 
 #include <cmath>
 #include <algorithm>
+#include <map>
+#include <mutex>
 #include <QApplication>
 #include <QCoreApplication>
 #include <QDir>
@@ -47,6 +49,9 @@
 #include "controldecoders.h"
 #include "controldata.h"
 #include "../data/logicsnapshot.h"
+#include "../search/searchjob.h"
+#include "../search/snapshotsource.h"
+#include "../trigger/decoderbus.h"
 #include "../view/signal.h"
 #include "../log.h"
 #include "DSView/config.h"
@@ -287,8 +292,10 @@ ControlServer::ControlServer(SigSession *session, IControlHost *host,
     _loading(false),
     _load_started(false),
     _stop_requested(false),
-    _trigger_armed(false)
+    _trigger_armed(false),
+    _search_job(new search::SearchJob(this))
 {
+    connect(_search_job, &search::SearchJob::finished, this, [this](){ on_search_finished(); });
     _load_timer.setSingleShot(true);
     connect(&_load_timer, SIGNAL(timeout()), this, SLOT(on_load_timeout()));
 
@@ -305,6 +312,8 @@ ControlServer::ControlServer(SigSession *session, IControlHost *host,
 ControlServer::~ControlServer()
 {
     _session->remove_msg_listener(this);
+    // Its thread writes into _search.
+    _search_job->stop();
 
     for (Waiter &w : _waiters)
         delete w.timer;
@@ -512,6 +521,7 @@ void ControlServer::dispatch(const Call &call, const QString &method, const QJso
         {"data.edges",      &ControlServer::m_data_edges},
         {"data.measure",    &ControlServer::m_data_measure},
         {"data.find",       &ControlServer::m_data_find},
+        {"data.search",     &ControlServer::m_data_search},
     };
 
     for (const auto &m : methods){
@@ -605,6 +615,10 @@ bool ControlServer::check_idle(const Call &call, bool allow_running)
     }
     if (_export){
         reply_error(call, ErrBusy, _export->save ? "A save is running." : "An export is running.");
+        return false;
+    }
+    if (_search){
+        reply_error(call, ErrBusy, "A search is running (data.search).");
         return false;
     }
     if (_loading){
@@ -743,6 +757,7 @@ void ControlServer::OnMessage(int msg)
         // Also for captures started from the toolbar, so the status always
         // describes the latest one.
         case DSV_MSG_START_COLLECT_WORK_PREV:
+            cancel_search("The search was stopped: a capture started.");
             _capture_error.clear();
             _stop_requested = false;
             // MainWindow has committed the trigger dock's settings by now.
@@ -765,6 +780,10 @@ void ControlServer::OnMessage(int msg)
 
         // However the file was selected (file.open, device.select, the GUI
         // or the command line), MainWindow replays its data next.
+        case DSV_MSG_CURRENT_DEVICE_CHANGE_PREV:
+            cancel_search("The search was stopped: another device was selected.");
+            break;
+
         case DSV_MSG_CURRENT_DEVICE_CHANGED:
             if (_device->have_instance() && _device->is_file()){
                 _loading = true;
@@ -3037,6 +3056,163 @@ void ControlServer::m_data_find(const Call &call, const QJsonObject &params)
     }
 
     reply(call, logicdata::find(snapshot, pattern, start, end, limit));
+}
+
+
+//------------------------------------------------------------- data.search
+
+struct ControlServer::SearchCall
+{
+    Call call;
+    uint64_t start = 0;
+    uint64_t end = 0;
+    double samplerate = 0;
+    search::Program program;
+    std::mutex lock;
+    std::vector<search::Match> matches;
+};
+
+void ControlServer::m_data_search(const Call &call, const QJsonObject &params)
+{
+    uint64_t start, end, limit = 100;
+    bool has_limit;
+    data::LogicSnapshot *snapshot = data_range(call, params, start, end);
+    if (snapshot == NULL)
+        return;
+
+    const QJsonValue qv = params.value("query");
+    if (!qv.isObject()){
+        reply_error(call, ErrInvalidParams, "\"query\" is the search, as in doc/search.md.");
+        return;
+    }
+    search::Query query;
+    QString json_error;
+    if (!search::from_json(qv.toObject(), query, json_error)){
+        reply_error(call, ErrInvalidParams, "\"query\": " + json_error);
+        return;
+    }
+    if (!param_uint64(params, "limit", limit, has_limit) || limit < 1 || limit > (uint64_t)ResultsMaxLimit){
+        reply_error(call, ErrInvalidParams,
+            QString("\"limit\" is from 1 to %1 matches.").arg(ResultsMaxLimit));
+        return;
+    }
+
+    // Buses by parallel decoder name; the first of a name wins.
+    std::map<QString, std::vector<int>> buses;
+    for (const trigger::DecoderBus &bus : trigger::parallel_decoder_buses(*_session)){
+        if (!bus.mapping.isEmpty() && !buses.count(bus.name))
+            buses[bus.name] = std::vector<int>(bus.mapping.begin(), bus.mapping.end());
+    }
+    search::BusResolver resolver = [buses](const QString &name, std::vector<int> &bits){
+        auto it = buses.find(name);
+        if (it == buses.end())
+            return false;
+        bits = it->second;
+        return true;
+    };
+
+    std::unique_ptr<search::SnapshotSource> source(new search::SnapshotSource(snapshot));
+    search::SnapshotSource *src = source.get();
+    std::unique_ptr<SearchCall> sc(new SearchCall);
+    search::Error error;
+    sc->samplerate = src->samplerate();
+    if (sc->samplerate <= 0)
+        error.code = search::ErrorCode::NoSamplerate;
+    else
+        search::compile(query, resolver, [src](int ch){ return src->has_channel(ch); },
+                        sc->samplerate, sc->program, error);
+    if (error){
+        reply_error(call, ErrInvalidParams, "\"query\": " + search::error_message(error) + ".");
+        return;
+    }
+
+    sc->call = call;
+    sc->start = start;
+    sc->end = end;
+    SearchCall *raw = sc.get();
+    _search = std::move(sc);
+    _search_job->start(raw->program, std::move(source), start, end, limit,
+        [raw](const search::Match &m){
+            std::lock_guard<std::mutex> lock(raw->lock);
+            raw->matches.push_back(m);
+        });
+}
+
+void ControlServer::cancel_search(const QString &why)
+{
+    if (!_search)
+        return;
+    _search_job->stop();
+    const Call call = _search->call;
+    _search.reset();
+    reply_error(call, ErrBusy, why);
+}
+
+void ControlServer::on_search_finished()
+{
+    if (!_search)
+        return;
+    std::unique_ptr<SearchCall> sc = std::move(_search);
+    const search::RunResult &r = _search_job->result();
+
+    switch (r.status){
+    case search::RunStatus::Cancelled:
+        reply_error(sc->call, ErrBusy, "The search was stopped.");
+        return;
+    case search::RunStatus::DataChanged:
+        reply_error(sc->call, ErrNoData, "The data changed during the search.");
+        return;
+    case search::RunStatus::TooMuchData:
+        reply_error(sc->call, ErrInvalidParams,
+            "A condition's window holds too many events; narrow the search.");
+        return;
+    default:
+        break;
+    }
+
+    const double rate = sc->samplerate;
+    const search::Program &prog = sc->program;
+    QJsonArray list;
+    for (const search::Match &m : sc->matches){
+        QJsonObject o;
+        o["sample"] = (double)m.start;
+        o["time"] = m.start / rate;
+        if (prog.state){
+            o["end"] = (double)m.end;
+            o["duration"] = (m.end - m.start) / rate;
+            if (m.start_unknown)
+                o["start_unknown"] = true;
+            if (m.end_unknown)
+                o["end_unknown"] = true;
+        }
+        if (!prog.conditions.empty()){
+            QJsonArray conds;
+            for (size_t i = 0; i < prog.conditions.size(); i++){
+                QJsonObject c;
+                if (search::reports_value(prog.conditions[i])){
+                    const search::ConditionValue &v = m.values[i];
+                    c["count"] = (double)v.count;
+                    if (v.has_delta){
+                        c["delta"] = (double)v.delta;
+                        c["delta_time"] = v.delta / rate;
+                    }
+                }
+                conds.append(c);
+            }
+            o["conditions"] = conds;
+        }
+        list.append(o);
+    }
+
+    QJsonObject result;
+    result["start"] = (double)sc->start;
+    result["end"] = (double)sc->end;
+    result["samplerate"] = rate;
+    result["matches"] = list;
+    // Search on from here; null when the range is done.
+    const bool more = r.status == search::RunStatus::Limit && r.next < sc->end;
+    result["next"] = more ? QJsonValue((double)r.next) : QJsonValue();
+    reply(sc->call, result);
 }
 
 } // namespace control

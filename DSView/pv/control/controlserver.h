@@ -56,6 +56,10 @@ class TriggerDock;
 class ProtocolDock;
 }
 
+namespace search {
+class SearchJob;
+}
+
 namespace control {
 
 // JSON-RPC 2.0 over a local socket, one message per line. Lets scripts and
@@ -142,6 +146,7 @@ private:
     };
 
     struct ConfigOption;
+    struct SearchCall;
 
     void handle_line(QLocalSocket *socket, const QByteArray &line);
     void dispatch(const Call &call, const QString &method, const QJsonObject &params);
@@ -189,6 +194,10 @@ private:
     void m_data_edges(const Call &call, const QJsonObject &params);
     void m_data_measure(const Call &call, const QJsonObject &params);
     void m_data_find(const Call &call, const QJsonObject &params);
+    void m_data_search(const Call &call, const QJsonObject &params);
+    void on_search_finished();
+    // Ends a running data.search with an error.
+    void cancel_search(const QString &why);
 
     // The captured logic data and the "start"/"end" range of a data call.
     // Replies with an error and returns NULL if there is none.
@@ -253,6 +262,9 @@ private:
     bool                    _stop_requested;
     bool                    _trigger_armed;   // the last capture waited for a trigger
     QString                 _capture_error;
+
+    search::SearchJob       *_search_job;
+    std::unique_ptr<SearchCall> _search;      // a data.search that runs
 };
 
 } // namespace control

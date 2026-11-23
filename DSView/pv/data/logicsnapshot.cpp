@@ -59,7 +59,7 @@ LogicSnapshot::LogicSnapshot() :
     _is_loop = false;
     _loop_offset = 0;
     _able_free = true;
-    _is_search_stop = false;
+    _data_version = 0;
 }
 
 LogicSnapshot::~LogicSnapshot()
@@ -92,6 +92,7 @@ void LogicSnapshot::free_data()
 void LogicSnapshot::init()
 {
     std::lock_guard<std::mutex> lock(_mutex);
+    _data_version++;
     init_all(); 
 }
 
@@ -111,6 +112,7 @@ void LogicSnapshot::init_all()
 void LogicSnapshot::clear()
 {
     std::lock_guard<std::mutex> lock(_mutex);
+    _data_version++;
     free_data();
     init_all();
 
@@ -119,6 +121,12 @@ void LogicSnapshot::clear()
 
 void LogicSnapshot::first_payload(const sr_datafeed_logic &logic, uint64_t total_sample_count, GSList *channels, bool able_free)
 {
+    {
+        // The rest changes the data without the lock.
+        std::lock_guard<std::mutex> lock(_mutex);
+        _data_version++;
+    }
+
     bool channel_changed = false;
     uint16_t channel_num = 0;
     _able_free = able_free;
@@ -1255,140 +1263,53 @@ bool LogicSnapshot::block_pre_edge(uint64_t *lbp, uint64_t &index, bool last_sam
     return (index >= block_start) && (index != 0);
 }
 
-bool LogicSnapshot::pattern_search(int64_t start, int64_t end, int64_t& index,
-                        std::map<uint16_t, QString> &pattern, bool isNext)
+uint64_t LogicSnapshot::data_version()
 {
     std::lock_guard<std::mutex> lock(_mutex);
-    
-    _is_search_stop = false;
-    start += _loop_offset;
-    end += _loop_offset;
-    index += _loop_offset;
-    _ring_sample_count += _loop_offset;
-
-    bool flag = pattern_search_self(start, end, index, pattern, isNext);
-
-    index -= _loop_offset;
-    _ring_sample_count -= _loop_offset;
-    return flag;
+    return _data_version;
 }
 
-bool LogicSnapshot::pattern_search_self(int64_t start, int64_t end, int64_t &index,
-                    std::map<uint16_t, QString> &pattern, bool isNext)
+int LogicSnapshot::search_has_channel(uint64_t version, int sig_index)
 {
-    if (pattern.empty()) {
-        return true;
-    }
-  
-    char flagList[CHANNEL_MAX_COUNT];
-    char lstValues[CHANNEL_MAX_COUNT];
-    int  chanIndexs[CHANNEL_MAX_COUNT];
-    int  count = 0;  
-    bool bEdgeFlag = false;
+    std::lock_guard<std::mutex> lock(_mutex);
+    if (version != _data_version)
+        return -1;
+    const int order = get_ch_order(sig_index);
+    return order != -1 && order < (int)_ch_data.size() && !_ch_data[order].empty();
+}
 
-    const int64_t to = isNext ? end + 1 : start - 1;
-    const int64_t step = isNext ? 1 : -1;
+int LogicSnapshot::search_level(uint64_t version, uint64_t index, int sig_index)
+{
+    std::lock_guard<std::mutex> lock(_mutex);
+    if (version != _data_version || index >= _ring_sample_count)
+        return -1;
+    const int order = get_ch_order(sig_index);
+    if (order == -1 || order >= (int)_ch_data.size() || _ch_data[order].empty())
+        return -1;
+    return get_sample_unlock(index, sig_index) ? 1 : 0;
+}
 
-    for (auto it = pattern.begin(); it != pattern.end(); it++){
-         char flag = *(it->second.toStdString().c_str());
-         int channel = it->first;
+int LogicSnapshot::search_next_change(uint64_t version, uint64_t pos, bool level, uint64_t last,
+                                      int sig_index, uint64_t &found)
+{
+    std::lock_guard<std::mutex> lock(_mutex);
+    if (version != _data_version || last >= _ring_sample_count)
+        return -1;
+    const int order = get_ch_order(sig_index);
+    if (order == -1 || order >= (int)_ch_data.size() || _ch_data[order].empty())
+        return -1;
+    if (pos >= last)
+        return 0;
 
-         if (flag != 'X' && has_data(channel)){
-             if (count >= CHANNEL_MAX_COUNT){
-                 assert(false);
-                 break;
-             }
-             flagList[count]  = flag;
-             chanIndexs[count] = channel;
-             count++;
-
-             if (flag == 'R' || flag == 'F' || flag == 'C'){
-                 bEdgeFlag = true;
-             }
-         }
-    }
-    if (count == 0){
-        return true;
-    }  
-
-    //find
-    bool ret = false;
-    char val = 0;
-    int macthed = 0;  
-
-    //get first edge values
-    if (bEdgeFlag){
-        for (int i=0; i < count; i++){
-            lstValues[i] =  (char)get_sample_self(index, chanIndexs[i]);
-        }
-        index += step;
-    }
-
-    if (index < start){
-        index = start;
-    }
-    if (index > end){
-        index = end;
-    }
-
-    while (index != to && !_is_search_stop)
-    {
-        macthed = 0;
-
-        for (int i = 0; i < count; i++)
-        {
-            if (_is_search_stop){
-                break;
-            }
-
-            val = (char)get_sample_self(index, chanIndexs[i]);
-
-            if (flagList[i] == '0')
-            {
-                macthed += !val;
-            }
-            else if (flagList[i] == '1')
-            {
-                macthed += val;
-            } 
-            else if (flagList[i] == 'R')
-            {
-                if (isNext)
-                    macthed += (lstValues[i] == 0 && val == 1);
-                else
-                    macthed += (lstValues[i] == 1 && val == 0);
-            }
-            else if (flagList[i] == 'F')
-            {
-                if (isNext)
-                    macthed += (lstValues[i] == 1 && val == 0);
-                else
-                    macthed += (lstValues[i] == 0 && val == 1);
-            }
-            else if (flagList[i] == 'C')
-            {   
-                if (isNext)
-                    macthed += (lstValues[i] == 0 && val == 1) || (lstValues[i] == 1 && val == 0);
-                else
-                    macthed += (lstValues[i] == 1 && val == 0) || (lstValues[i] == 0 && val == 1);
-            }
-            lstValues[i] = val;
-        }
-
-        // matched all
-        if (macthed == count)
-        {
-            ret = true;
-            if (!isNext){
-                index++; //move to prev position
-            }
-            break;
-        }
-
-        index += step;
-    }
-
-    return ret;
+    // As in control::logicdata::EdgeWalker::advance: from a sample with
+    // this level up to last (inclusive), the first that differs.
+    uint64_t index = pos;
+    if (!get_nxt_edge_unlock(index, level, last, 1, sig_index))
+        return 0;
+    if (index <= pos || index > last)
+        return 0;
+    found = index;
+    return 1;
 }
 
 bool LogicSnapshot::has_data(int sig_index)

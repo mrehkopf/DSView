@@ -23,42 +23,73 @@
 #ifndef DSVIEW_PV_SEARCHDOCK_H
 #define DSVIEW_PV_SEARCHDOCK_H
 
-#include <QDockWidget>
-#include <QPushButton>
-#include <QLabel>
-#include <QRadioButton>
-#include <QSlider>
-#include <QLineEdit>
-#include <QTableWidget>
-#include <QCheckBox>
-
-#include <QVector>
-#include <QGridLayout>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-
+#include <mutex>
 #include <vector>
+#include <QJsonObject>
+#include <QTimer>
+#include <QWidget>
 
-#include "../widgets/fakelineedit.h"
-#include "../ui/dscombobox.h"
 #include "../interface/icallbacks.h"
 #include "../ui/uimanager.h"
+#include "../search/searchengine.h"
+
+class QLabel;
+class QProgressBar;
+class QPushButton;
+class QTableView;
+class QModelIndex;
 
 namespace pv {
 
 class SigSession;
 
-namespace view {
-    class View;
+namespace data {
+class LogicSnapshot;
 }
 
-namespace widgets {
-    class FakeLineEdit;
+namespace view {
+class View;
+}
+
+namespace search {
+class SearchJob;
+}
+
+namespace dialogs {
+struct SearchSignal;
 }
 
 namespace dock {
 
-class SearchDock : public QWidget, public IUiWindow
+class SearchResultModel;
+
+// A value shown per match: a condition's count, or its delta.
+struct SearchColumn
+{
+    int condition;
+    bool count;
+};
+
+// Matches, compactly. values has one entry per column per match; NoValue
+// for a delta with no occurrence.
+struct SearchRows
+{
+    static const int64_t NoValue = INT64_MIN;
+    enum { StartUnknown = 1, EndUnknown = 2 };
+
+    std::vector<uint64_t> start;
+    std::vector<uint64_t> end;
+    std::vector<uint8_t> flags;
+    std::vector<int64_t> values;
+
+    inline size_t size() const { return start.size(); }
+    void append(const search::Match &m, const std::vector<SearchColumn> &columns);
+    void clear();
+};
+
+// The search bar under the waveforms: what is searched for, Previous and
+// Next, and the list of matches (doc/search.md).
+class SearchDock : public QWidget, public IUiWindow, public IMessageListener
 {
     Q_OBJECT
 
@@ -66,9 +97,14 @@ public:
     SearchDock(QWidget *parent, pv::view::View &view, SigSession *session);
     ~SearchDock();
 
-    void paintEvent(QPaintEvent *);
+    // The query, for the session file.
+    QJsonObject get_session();
+    void set_session(const QJsonObject &obj);
 
-private:     
+    // IMessageListener
+    void OnMessage(int msg) override;
+
+private:
     void retranslateUi();
     void reStyle();
 
@@ -77,23 +113,61 @@ private:
     void UpdateTheme() override;
     void UpdateFont() override;
 
-public slots:
+    std::vector<dialogs::SearchSignal> search_signals();
+    search::BusResolver bus_resolver();
+    data::LogicSnapshot *logic_snapshot();
+    bool results_current();
+    bool start_search();
+    void clear_results();
+    void jump(int direction);
+    bool jump_to(size_t index);
+    void update_summary();
+    void update_status();
+    void set_status(const QString &text);
+
+private slots:
+    void on_edit();
     void on_previous();
     void on_next();
-    void on_set();
-    void on_progress_cancel();
+    void on_run();
+    void on_list(bool show);
+    void on_poll();
+    void on_finished();
+    void on_row_activated(const QModelIndex &index);
 
 private:
     SigSession *_session;
     view::View &_view;
-    std::map<uint16_t, QString> _pattern;
 
-    QPushButton _pre_button;
-    QPushButton _nxt_button;
-    widgets::FakeLineEdit* _search_value;
-    QPushButton *_search_button;
-    bool         _is_busy;
-    bool         _is_cancel;
+    search::Query _query;
+    search::Program _program;
+    search::SearchJob *_job;
+    SearchResultModel *_model;
+
+    // Matches from the search thread, waiting for on_poll().
+    std::vector<SearchColumn> _columns;
+    std::mutex _pending_lock;
+    SearchRows _pending;
+
+    // What the results were found in.
+    data::LogicSnapshot *_results_snapshot;
+    uint64_t _results_version;
+    bool _have_results;
+    int _pending_jump;          // -1 previous, 1 next, 0 none
+    int64_t _current;           // the match last jumped to, in time order
+    uint64_t _polled_progress;  // where the search was when on_poll() last took matches
+    QString _message;           // the last outcome, shown next to the count
+
+    QTimer _poll;
+    QPushButton *_edit_button;
+    QPushButton *_pre_button;
+    QPushButton *_nxt_button;
+    QPushButton *_run_button;
+    QPushButton *_list_button;
+    QLabel *_status;
+    QProgressBar *_progress;
+    QTableView *_table;
+    QLabel *_stats;
 };
 
 } // namespace dock

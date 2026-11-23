@@ -1170,5 +1170,457 @@
     {
         "id": "IDS_DLG_IDENTIFY_TIP",
         "text": "Blinks the device's LED red and green for two seconds."
+    },
+    {
+        "id": "IDS_DLG_SRCH_ADD_CONDITION",
+        "text": "Add condition"
+    },
+    {
+        "id": "IDS_DLG_SRCH_ADD_OR",
+        "text": "Add alternative (or)"
+    },
+    {
+        "id": "IDS_DLG_SRCH_ADD_SIGNAL",
+        "text": "Add signal"
+    },
+    {
+        "id": "IDS_DLG_SRCH_AN_EVENT",
+        "text": "An event"
+    },
+    {
+        "id": "IDS_DLG_SRCH_A_STATE",
+        "text": "A state"
+    },
+    {
+        "id": "IDS_DLG_SRCH_BOUNDARY",
+        "text": "Boundary event:"
+    },
+    {
+        "id": "IDS_DLG_SRCH_BUSY",
+        "text": "Stop the capture to search."
+    },
+    {
+        "id": "IDS_DLG_SRCH_BUS_LABEL",
+        "text": "%1 (bus, %2 bits)"
+    },
+    {
+        "id": "IDS_DLG_SRCH_CANCELLED",
+        "text": "Search stopped."
+    },
+    {
+        "id": "IDS_DLG_SRCH_CHANGED",
+        "text": "The data changed during the search."
+    },
+    {
+        "id": "IDS_DLG_SRCH_COL_COUNT",
+        "text": "Count %1"
+    },
+    {
+        "id": "IDS_DLG_SRCH_COL_DELTA",
+        "text": "Δ %1"
+    },
+    {
+        "id": "IDS_DLG_SRCH_COL_DURATION",
+        "text": "Duration"
+    },
+    {
+        "id": "IDS_DLG_SRCH_COL_TIME",
+        "text": "Time"
+    },
+    {
+        "id": "IDS_DLG_SRCH_CONDITION",
+        "text": "Condition %1"
+    },
+    {
+        "id": "IDS_DLG_SRCH_CONDITIONS",
+        "text": "Conditions (all must hold)"
+    },
+    {
+        "id": "IDS_DLG_SRCH_COUNT",
+        "text": "%1 matches"
+    },
+    {
+        "id": "IDS_DLG_SRCH_DURATION_MAX",
+        "text": "and at most"
+    },
+    {
+        "id": "IDS_DLG_SRCH_DURATION_MIN",
+        "text": "Lasting at least"
+    },
+    {
+        "id": "IDS_DLG_SRCH_EDIT",
+        "text": "Edit the search"
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_BADVALUE",
+        "text": "\"%1\" is not a valid bus value."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_BUS",
+        "text": "There is no parallel decoder named \"%1\"."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_BUSWIDE",
+        "text": "Bus %1 has more than 64 bits."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_CHANNEL",
+        "text": "Channel %1 has no data."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_CHANNELVALUE",
+        "text": "\"%1\" is not a channel value. Use 0, 1, X, R, F or C."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_CONFLICT",
+        "text": "Channel %1 has conflicting values."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_COUNT",
+        "text": "\"%1\" is not a valid count."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_DURATION",
+        "text": "The minimum duration is longer than the maximum."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_DURING",
+        "text": "\"During the match\" needs a state to find."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_EDGECOMPARE",
+        "text": "\"%1\": edges can't be compared."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_EDGESTATE",
+        "text": "A state can't contain edges (R, F, C or changes)."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_EMPTYPATTERN",
+        "text": "A pattern has no signals."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_EMPTYVALUE",
+        "text": "The value of %1 is missing."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_IN_CONDITION",
+        "text": "Condition %1: %2"
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_MANY",
+        "text": "There are more than 8 conditions."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_NOBOUNDARY",
+        "text": "No boundary event is given."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_NOCONDITION",
+        "text": "A pattern has only don't-care values."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_NOPATTERN",
+        "text": "Nothing to look for is given."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_QUERY",
+        "text": "The search is malformed."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_RANGE",
+        "text": "\"%1\": the range is reversed."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_RATE",
+        "text": "Times need a sample rate."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_TIME",
+        "text": "\"%1\" is not a valid time."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_TOOWIDE",
+        "text": "\"%1\" does not fit the bus."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_UNIT",
+        "text": "\"%1\" needs a unit: s, ms, us, ns or sa (samples)."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_UNMAPPED",
+        "text": "\"%1\" needs a bus bit that has no channel."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_WINDOW",
+        "text": "The time window is empty."
+    },
+    {
+        "id": "IDS_DLG_SRCH_E_XCOMPARE",
+        "text": "\"%1\": X can't be used in a comparison."
+    },
+    {
+        "id": "IDS_DLG_SRCH_FIND",
+        "text": "Find"
+    },
+    {
+        "id": "IDS_DLG_SRCH_FROM",
+        "text": "from"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HINT_ANY",
+        "text": "any"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HINT_BUS",
+        "text": "0x21XX, 0b10XR, !=FF, 10..1F, changes"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HINT_CHANNEL",
+        "text": "0, 1, X, R, F or C"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HINT_TIME",
+        "text": "e.g. 100ns"
+    },
+    {
+        "id": "IDS_DLG_SRCH_LIMIT",
+        "text": "Stopped after %1 matches."
+    },
+    {
+        "id": "IDS_DLG_SRCH_LIST",
+        "text": "Results"
+    },
+    {
+        "id": "IDS_DLG_SRCH_MISSING",
+        "text": "%1 (missing)"
+    },
+    {
+        "id": "IDS_DLG_SRCH_NEXT",
+        "text": "Next match"
+    },
+    {
+        "id": "IDS_DLG_SRCH_NONE",
+        "text": "No matches"
+    },
+    {
+        "id": "IDS_DLG_SRCH_NONEXT",
+        "text": "No matches after the cursor."
+    },
+    {
+        "id": "IDS_DLG_SRCH_NOPREV",
+        "text": "No matches before the cursor."
+    },
+    {
+        "id": "IDS_DLG_SRCH_ONE",
+        "text": "1 match"
+    },
+    {
+        "id": "IDS_DLG_SRCH_OR",
+        "text": "or"
+    },
+    {
+        "id": "IDS_DLG_SRCH_POSITION",
+        "text": "%1 of %2"
+    },
+    {
+        "id": "IDS_DLG_SRCH_PREVIOUS",
+        "text": "Previous match"
+    },
+    {
+        "id": "IDS_DLG_SRCH_Q_ATLEAST",
+        "text": "occurs at least"
+    },
+    {
+        "id": "IDS_DLG_SRCH_Q_ATMOST",
+        "text": "occurs at most"
+    },
+    {
+        "id": "IDS_DLG_SRCH_Q_EXACTLY",
+        "text": "occurs exactly"
+    },
+    {
+        "id": "IDS_DLG_SRCH_Q_NEVER",
+        "text": "never holds"
+    },
+    {
+        "id": "IDS_DLG_SRCH_Q_NONE",
+        "text": "does not occur"
+    },
+    {
+        "id": "IDS_DLG_SRCH_Q_OCCURS",
+        "text": "occurs"
+    },
+    {
+        "id": "IDS_DLG_SRCH_Q_SOMETIME",
+        "text": "holds at some point"
+    },
+    {
+        "id": "IDS_DLG_SRCH_Q_THROUGHOUT",
+        "text": "holds throughout"
+    },
+    {
+        "id": "IDS_DLG_SRCH_REMOVE_CONDITION",
+        "text": "Remove condition"
+    },
+    {
+        "id": "IDS_DLG_SRCH_REMOVE_OR",
+        "text": "Remove alternative"
+    },
+    {
+        "id": "IDS_DLG_SRCH_REMOVE_SIGNAL",
+        "text": "Remove this signal"
+    },
+    {
+        "id": "IDS_DLG_SRCH_RUN",
+        "text": "Search"
+    },
+    {
+        "id": "IDS_DLG_SRCH_RUNNING",
+        "text": "Searching... %1"
+    },
+    {
+        "id": "IDS_DLG_SRCH_SETUP",
+        "text": "Set up a search..."
+    },
+    {
+        "id": "IDS_DLG_SRCH_STALE",
+        "text": "old data"
+    },
+    {
+        "id": "IDS_DLG_SRCH_STATS",
+        "text": "%1: min %2, mean %3, max %4"
+    },
+    {
+        "id": "IDS_DLG_SRCH_STOP",
+        "text": "Stop"
+    },
+    {
+        "id": "IDS_DLG_SRCH_SUMMARY_CONDITIONS",
+        "text": "%1 condition(s)"
+    },
+    {
+        "id": "IDS_DLG_SRCH_SUMMARY_STATE",
+        "text": "state %1"
+    },
+    {
+        "id": "IDS_DLG_SRCH_TIMES",
+        "text": "times"
+    },
+    {
+        "id": "IDS_DLG_SRCH_TITLE",
+        "text": "Search"
+    },
+    {
+        "id": "IDS_DLG_SRCH_TO",
+        "text": "to"
+    },
+    {
+        "id": "IDS_DLG_SRCH_TOOMUCH",
+        "text": "Stopped: a window holds too many events. Narrow the search."
+    },
+    {
+        "id": "IDS_DLG_SRCH_W_DURING",
+        "text": "during the match"
+    },
+    {
+        "id": "IDS_DLG_SRCH_W_END",
+        "text": "relative to the match end"
+    },
+    {
+        "id": "IDS_DLG_SRCH_W_SINCE",
+        "text": "since the previous boundary event"
+    },
+    {
+        "id": "IDS_DLG_SRCH_W_START",
+        "text": "relative to the match start"
+    },
+    {
+        "id": "IDS_DLG_SRCH_W_UNTIL",
+        "text": "until the next boundary event"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HELP_TITLE",
+        "text": "Syntax"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HELP_CHANNELS",
+        "text": "Channel values"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HELP_LEVELS",
+        "text": "low, high"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HELP_DONTCARE",
+        "text": "don't care"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HELP_EDGES",
+        "text": "rising, falling edge"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HELP_EITHER",
+        "text": "either edge"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HELP_TIMES",
+        "text": "Times"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HELP_UNITS",
+        "text": "s, ms, us, ns, ps"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HELP_NEGATIVE",
+        "text": "before the match"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HELP_SAMPLES",
+        "text": "samples"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HELP_BUSES",
+        "text": "Bus values (D0 is the LSB)"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HELP_HEX",
+        "text": "hexadecimal; an X digit is four don't-care bits"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HELP_BINARY",
+        "text": "binary: 0, 1, X, R, F or C per bit"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HELP_NOTEQUAL",
+        "text": "not this value"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HELP_COMPARE",
+        "text": "compares the value"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HELP_RANGE",
+        "text": "range, both ends included"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HELP_CHANGES",
+        "text": "any bit changes"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HELP_MATCHING",
+        "text": "How patterns match"
+    },
+    {
+        "id": "IDS_DLG_SRCH_HELP_MATCH_LEVELS",
+        "text": "Levels alone match where they become true."
+    },
+    {
+        "id": "IDS_DLG_SRCH_HELP_MATCH_EDGES",
+        "text": "With edges, a pattern matches where its edges happen while its levels hold."
+    },
+    {
+        "id": "IDS_DLG_SRCH_HELP_MATCH_WINDOWS",
+        "text": "Time windows include both ends. Start one at 1sa to leave out the match itself."
     }
 ]

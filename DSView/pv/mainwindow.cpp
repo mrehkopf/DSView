@@ -1031,6 +1031,7 @@ namespace pv
         if (_device_agent->get_work_mode() == LOGIC)
         {
             sessionVar["trigger"] = _trigger_widget->get_session();
+            sessionVar["search"] = _search_widget->get_session();
         }
 
         StoreSession ss(_session);
@@ -1427,6 +1428,11 @@ namespace pv
         if (sessionObj.contains("trigger"))
         {
             _trigger_widget->set_session(sessionObj["trigger"].toObject());
+        }
+
+        if (sessionObj.contains("search"))
+        {
+            _search_widget->set_session(sessionObj["search"].toObject());
         }
 
         // load decoders
