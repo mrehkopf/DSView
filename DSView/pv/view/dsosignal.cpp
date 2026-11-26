@@ -633,7 +633,7 @@ QString DsoSignal::get_measure(enum DSO_MEASURE_TYPE type)
         case DSO_MS_PCNT:
             if (_level_valid)
                 mString = (_pcount > 1000000 ? QString::number((double)_pcount/1000000.0, 'f', 6) + "M" :
-                           _pcount > 1000 ? QString::number((double)_pcount/1000.0, 'f', 3) + "K" : QString::number((double)_pcount, 'f', 0));
+                           _pcount > 1000 ? QString::number((double)_pcount/1000.0, 'f', 3) + "k" : QString::number((double)_pcount, 'f', 0));
             else
                 mString = mNone;
             break;
@@ -1881,9 +1881,9 @@ QString DsoSignal::get_voltage(double v, int p, bool scaled)
 
 QString DsoSignal::get_time(double t)
 {
-    QString str = (abs(t) > 1000000000 ? QString::number(t/1000000000, 'f', 2) + "S" :
-                   abs(t) > 1000000 ? QString::number(t/1000000, 'f', 2) + "mS" :
-                   abs(t) > 1000 ? QString::number(t/1000, 'f', 2) + "uS" : QString::number(t, 'f', 2) + "nS");
+    QString str = (abs(t) > 1000000000 ? QString::number(t/1000000000, 'f', 2) + "s" :
+                   abs(t) > 1000000 ? QString::number(t/1000000, 'f', 2) + "ms" :
+                   abs(t) > 1000 ? QString::number(t/1000, 'f', 2) + QString(QChar(0x03BC)) + "s" : QString::number(t, 'f', 2) + "ns");
     return str;
 }
 

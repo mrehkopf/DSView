@@ -569,11 +569,11 @@ namespace pv
             _session->stop_capture();
             title = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DATA_OVERFLOW), "Data Overflow");
             details = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DATA_OVERFLOW_DET), 
-                      "USB bandwidth can not support current sample rate! \nPlease reduce the sample rate!");
+                      "USB bandwidth cannot support the current sample rate!\nPlease reduce the sample rate!");
             break;
         default:
             title = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_UNDEFINED_ERROR), "Undefined Error");
-            details = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_UNDEFINED_ERROR_DET), "Not expected error!");
+            details = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_UNDEFINED_ERROR_DET), "Unexpected error!");
             break;
         }
 

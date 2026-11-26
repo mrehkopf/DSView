@@ -236,7 +236,7 @@ void DevMode::on_close()
         assert(false);
     }
 
-    if (_bFile && MsgBox::Confirm(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_CLOSE_DEVICE), "Are you sure to close the device?"))){
+    if (_bFile && MsgBox::Confirm(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_CLOSE_DEVICE), "Are you sure you want to remove this device?"))){
         _session->close_file(_device_agent->handle());
     }
 }

@@ -360,7 +360,7 @@ namespace pv
             }
             case SR_ERR_FIRMWARE_NOT_EXIST:{
                 QString strMsg = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_FIRMWARE_NOT_EXIST), 
-                    "Firmware not exist!");
+                    "Error: Firmware file does not exist!");
                 _callback->delay_prop_msg(strMsg);
                 ret = false;
                 break;

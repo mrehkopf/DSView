@@ -331,7 +331,7 @@ void StoreSession::save_logic(pv::data::LogicSnapshot *logic_snapshot)
                 if (!_has_error) {
                     _has_error = true;
                     _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_SAVEPROC_ERROR2), 
-                                "Failed to create zip file. Please check write permission of this path.");
+                                "Failed to create zip file. Please check the write permission of this path.");
                 }
                 progress_updated();
 
@@ -435,7 +435,7 @@ void StoreSession::save_analog(pv::data::AnalogSnapshot *analog_snapshot)
                 if (!_has_error) {
                     _has_error = true;
                     _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_SAVEPROC_ERROR2), 
-                            "Failed to create zip file. Please check write permission of this path.");
+                            "Failed to create zip file. Please check the write permission of this path.");
                 }
                 progress_updated();
                 if (_has_error)
@@ -492,7 +492,7 @@ void StoreSession::save_dso(pv::data::DsoSnapshot *dso_snapshot)
                 if (!_has_error) {
                     _has_error = true;
                     _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_SAVEPROC_ERROR2), 
-                            "Failed to create zip file. Please check write permission of this path.");
+                            "Failed to create zip file. Please check the write permission of this path.");
                 }
                 progress_updated();
                 if (_has_error)
@@ -827,7 +827,7 @@ bool StoreSession::export_start()
     }
 
     if (_file_name == ""){
-        _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_EXPORTSTART_ERROR3), "No set file name.");
+        _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_EXPORTSTART_ERROR3), "No file name set.");
         return false;
     }
 
@@ -897,7 +897,7 @@ void StoreSession::export_exec(data::Snapshot *snapshot)
         channel_type = SR_CHANNEL_ANALOG;
     } else {
         _has_error = true;
-        _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_EXPORTPROC_ERROR1), "data type don't support.");
+        _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_EXPORTPROC_ERROR1), "Data type not supported.");
         return;
     }
 
@@ -1115,7 +1115,7 @@ void StoreSession::export_exec(data::Snapshot *snapshot)
             uint8_t *xbuf = (uint8_t *)malloc(size * unitsize);
             if (xbuf == NULL) {
                 _has_error = true;
-                _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_EXPORTPROC_ERROR2), "xbuffer malloc failed.");
+                _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_EXPORTPROC_ERROR2), "Buffer malloc failed.");
                 file.close();
                 _outModule->cleanup(&output);
                 release_export_params();
@@ -1394,7 +1394,14 @@ bool StoreSession::gen_decoders_json(QJsonArray &array)
         dec_obj["label"] = QString(s->get_name().toUtf8().data());
         dec_obj["stacked decoders"] = stack_array;
         dec_obj["view_index"] = s->get_view_index();
-        dec_obj["colour"] = QJsonValue::fromVariant(s->get_colour());
+        // The default colour is an invalid QColor, whose name() is "#000000":
+        // older builds saved that, and it came back as black. Write "default"
+        // instead, and a picked colour with its alpha, so that a picked black
+        // ("#ff000000") can be told apart from those files.
+        if (s->get_colour().isValid())
+            dec_obj["colour"] = s->get_colour().name(QColor::HexArgb);
+        else
+            dec_obj["colour"] = QString("default");
 
         auto rows = stack->get_rows_gshow();
         for (auto i = rows.begin(); i != rows.end(); i++) {
@@ -1476,7 +1483,11 @@ bool StoreSession::load_decoders(dock::ProtocolDock *widget, QJsonArray &dec_arr
         }
 
         if (dec_obj.contains("colour")) {
-            QColor col = QColor(dec_obj["colour"].toString());
+            // "#000000" is the default colour as older builds saved it.
+            const QString col_str = dec_obj["colour"].toString();
+            QColor col(col_str);
+            if (col_str.compare("#000000", Qt::CaseInsensitive) == 0)
+                col = QColor();
             _session->set_decoder_base_colour(dec_index, col);
         }
         std::list<int> bind_indexs;

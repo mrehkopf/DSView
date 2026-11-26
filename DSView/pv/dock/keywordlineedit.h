@@ -117,9 +117,10 @@ public:
 
 signals:
     void sig_inputEnd(QString text);
+    void sig_returnPressed(); // after sig_inputEnd, when closed with Enter
 
 private slots:
-    void onCheckPositionTimeout(); 
+    void onCheckPositionTimeout();
 
 protected: 
     void changeEvent(QEvent *event) override;

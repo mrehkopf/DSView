@@ -33,7 +33,6 @@
 #include <QScrollArea>
 #include <QSplitter>
 #include <QTableView>
-#include <QSortFilterProxyModel>
 #include <vector>
 #include <mutex>
 #include <list>
@@ -55,6 +54,7 @@ class SigSession;
   
 namespace data {
     class DecoderModel;
+    class DecoderStack;
     namespace decode{
         class Decoder;
     }
@@ -124,6 +124,30 @@ private:
 
     void adjustPannelSize();
 
+    // An annotation in the list that matches the search text. Matches are
+    // kept in time order, over all columns of the list.
+    struct SearchMatch
+    {
+        uint64_t start; // first sample of the annotation
+        uint32_t row;   // row in the list
+        uint16_t col;   // column in the list (annotation row of the decoder)
+    };
+
+    static bool search_match_less(const SearchMatch &a, const SearchMatch &b);
+    static void find_matches(data::DecoderStack *stack, QString text,
+                             std::vector<SearchMatch> &matches);
+    static bool sequence_follows(data::DecoderStack *stack, int col,
+                                 uint64_t row, const QStringList &seq);
+    static uint64_t list_size_total(data::DecoderStack *stack);
+
+    bool list_decode_pending(data::DecoderStack *stack);
+    bool search_update();
+    void search_jump(bool forward);
+    int cursor_match_pos();
+    void search_invalidate();
+    void show_search_count();
+    void select_list_cell(const QModelIndex &index);
+
 signals:
     void protocol_updated();
 
@@ -141,17 +165,23 @@ private slots:
     void column_resize(int index, int old_size, int new_size);
     void search_pre();
     void search_nxt();
-    void search_done();
     void search_changed();
-    void search_update();
-    void show_protocol_select(); 
+    void show_protocol_select();
 
 private:
     SigSession *_session;
     view::View &_view;
-    QSortFilterProxyModel _model_proxy;
-    int _cur_search_index;
-    QStringList _str_list;
+
+    std::vector<SearchMatch> _search_matches;
+    QString     _search_text;       // text the matches were found for
+    void        *_search_stack;     // decoder stack they were found in
+    uint64_t    _search_list_size;  // annotations in the list at that time
+    bool        _search_dirty;      // decoded data changed since then
+    uint64_t    _search_generation; // counts search_invalidate() calls
+    int         _search_pos;        // index of the selected match, or -1
+    SearchMatch _list_cursor;       // annotation last selected in the list
+    bool        _list_cursor_valid;
+    int         _nav_column;        // list column of the navigate button
 
     QWidget     *_top_panel; 
     QTableView  *_table_view;
@@ -176,8 +206,6 @@ private:
     QString     _selected_protocol_id;
     XToolButton *_pro_search_button; 
 
-    mutable std::mutex _search_mutex;
-    bool _search_edited; 
 };
 
 } // namespace dock

@@ -90,7 +90,7 @@ public:
 	}
 
 private:
-	void compute_text_size(QPainter &p, unsigned int prefix, bool show_samples);
+	void compute_text_size(QPainter &p, const QString &text);
 
 private:
 	QSizeF 		_text_size;

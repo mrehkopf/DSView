@@ -335,7 +335,7 @@ void LogoBar::on_clear_log_file()
 {
     QFile qf(get_dsv_log_path());
     if (qf.exists()){
-        QString strMsg(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_TO_CLEAR_LOG), "Confirm!"));
+        QString strMsg(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_TO_CLEAR_LOG), "Are you sure you want to clear the log file?"));
         if (MsgBox::Confirm(strMsg)){
             dsv_clear_log_file();
 

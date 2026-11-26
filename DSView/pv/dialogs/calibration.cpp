@@ -374,7 +374,7 @@ void Calibration::reload_value()
 void Calibration::on_reset()
 {
     QString strMsg(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_SET_DEF_CAL_SETTING), 
-        "All calibration settings will become the defualt values!"));
+        "All calibration settings will be reset to their default values!"));
 
     if (MsgBox::Confirm(strMsg)) {
         _device_agent->set_config_bool(SR_CONF_ZERO_DEFAULT, true);

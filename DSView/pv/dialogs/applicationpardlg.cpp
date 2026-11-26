@@ -447,7 +447,7 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     logicLay->addWidget(ck_quickScroll, 0, 1, Qt::AlignRight);
     logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_USE_ABORT_DATA_REPEAT), "Used abort data")), 1, 0, Qt::AlignLeft); 
     logicLay->addWidget(ck_abortData, 1, 1, Qt::AlignRight);
-    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_AUTO_SCROLL_LATEAST_DATA), "Auto scoll latest")), 2, 0, Qt::AlignLeft); 
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_AUTO_SCROLL_LATEAST_DATA), "Auto scroll to latest data")), 2, 0, Qt::AlignLeft); 
     logicLay->addWidget(ck_autoScrollLatestData, 2, 1, Qt::AlignRight);
     logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_VERTICAL_SCROLL_ACTION), "Vertical Scroll Action")), 3, 0, Qt::AlignLeft);
     logicLay->addLayout(hl_verticalScrollAction, 3, 1, Qt::AlignRight);
@@ -488,7 +488,7 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     dsoLay->setAlignment(Qt::AlignTop);
     dsoLay->setColumnStretch(0, 1);
     dsoGroup->setLayout(dsoLay);
-    dsoLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_TRIG_DISPLAY_MIDDLE), "Tig pos in middle")), 0, 0, Qt::AlignLeft);
+    dsoLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_TRIG_DISPLAY_MIDDLE), "Show trigger position in the middle")), 0, 0, Qt::AlignLeft);
     dsoLay->addWidget(ck_trigInMid, 0, 1, Qt::AlignRight);
     dsoLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SIGNAL_LINE_WIDTH), "Signal line width")), 1, 0, Qt::AlignLeft);
     dsoLay->addWidget(spinBox_dsoLineWidth, 1, 1, Qt::AlignRight);

@@ -198,7 +198,7 @@ void StoreProgress::accept()
         if (dex1 > 0 && dex2 > 0)
         {
             if (dex1 == dex2){
-                QString mStr = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DATA_RANGE_ERROR), "Data range error");
+                QString mStr = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DATA_RANGE_ERROR), "Invalid data range!");
                 MsgBox::Show(mStr);
                 return;
             }

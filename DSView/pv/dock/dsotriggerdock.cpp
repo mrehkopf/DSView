@@ -65,9 +65,9 @@ DsoTriggerDock::DsoTriggerDock(QWidget *parent, SigSession *session) :
     _holdoff_label = new QLabel(_widget);
     _holdoff_comboBox = new DsComboBox(_widget);
     //tr
-    _holdoff_comboBox->addItem(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_S), "S"), QVariant::fromValue(1000000000));
-    _holdoff_comboBox->addItem(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_MS), "mS"), QVariant::fromValue(1000000));
-    _holdoff_comboBox->addItem(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_US), "uS"), QVariant::fromValue(1000));
+    _holdoff_comboBox->addItem(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_S), "s"), QVariant::fromValue(1000000000));
+    _holdoff_comboBox->addItem(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_MS), "ms"), QVariant::fromValue(1000000));
+    _holdoff_comboBox->addItem(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_US), "µs"), QVariant::fromValue(1000));
    
     _holdoff_comboBox->setCurrentIndex(0);
     _holdoff_spinBox = new PopupLineEdit(_widget);
@@ -222,7 +222,7 @@ void DsoTriggerDock::pos_changed(int pos)
     if (!ret) {        
         if (_session->get_device()->is_hardware() || true){
             QString strMsg(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_CHANGE_HOR_TRI_POS_FAIL), 
-                                       "Change horiz trigger position failed!"));
+                                       "Change horizontal trigger position failed!"));
                                 
             MsgBox::Show(strMsg);
         }

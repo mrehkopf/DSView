@@ -668,7 +668,7 @@ void Viewport::paintSignals(QPainter &p, QColor fore, QColor back)
             if (_view.session().get_device()->is_hardware())
             {
                 if (_view.session().dso_data_is_out_off_range()){
-                    QString data_status = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DATA_OUT_OFF_RANGE), "Out off range");
+                    QString data_status = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DATA_OUT_OFF_RANGE), "Data out of range");
                     data_status += "! ";
                     p.setPen(QColor(255,0,0,200));
                     p.drawText(_view.get_view_rect(), Qt::AlignRight | Qt::AlignTop, data_status);
@@ -1438,7 +1438,10 @@ void Viewport::onLogicMouseRelease(QMouseEvent *event)
         }
         case LOGIC_ZOOM:
         {
-            if (event->pos().x() != _mouse_down_point.x()) {
+            // A drag of a pixel or two is a shaky right click, not a zoom
+            // into a window that narrow.
+            const int ClickMaxDrag = 2;
+            if (abs(event->pos().x() - _mouse_down_point.x()) > ClickMaxDrag) {
                 int64_t newOffset = _view.x_offset() + (min(event->pos().x(), _mouse_down_point.x()));
                 const double newScale = max(min(_view.scale() * abs(event->pos().x() - _mouse_down_point.x()) / _view.get_view_width(),
                                                 _view.get_maxscale()), _view.get_minscale());

@@ -5,7 +5,7 @@
     },
     {
         "id": "IDS_MSG_OK",
-        "text": "Ok"
+        "text": "OK"
     },
     {
         "id": "IDS_MSG_SKIP",
@@ -85,19 +85,19 @@
     },
     {
         "id": "IDS_MSG_NO_DECODER_DEL",
-        "text": "Has no decoder to remove!"
+        "text": "There is no decoder to remove!"
     },
     {
         "id": "IDS_MSG_DECODER_CONFIRM_DEL_ALL",
-        "text": "Are you sure to remove all decoder?"
+        "text": "Are you sure you want to remove all decoders?"
     },
     {
         "id": "IDS_MSG_DECODER_CONFIRM_DEL",
-        "text": "Are you sure to remove this decoder?"
+        "text": "Are you sure you want to remove this decoder?"
     },
     {
         "id": "IDS_MSG_CLOSE_DEVICE",
-        "text": "Are you sure to remove this device?"
+        "text": "Are you sure you want to remove this device?"
     },
     {
         "id": "IDS_MSG_SET_DEF_CAL_SETTING",
@@ -105,11 +105,11 @@
     },
     {
         "id": "IDS_MSG_ALL_CHANNEL_DISABLE",
-        "text": "All channel disabled! Please enable at least one channel."
+        "text": "All channels are disabled! Please enable at least one channel."
     },
     {
         "id": "IDS_MSG_MAX_CHANNEL_COUNT_WARNING",
-        "text": "Current mode only suppport max {0} channels!"
+        "text": "The current mode supports at most {0} channels!"
     },
     {
         "id": "IDS_MSG_TRI_SET_ISSUE",
@@ -117,7 +117,7 @@
     },
     {
         "id": "IDS_MSG_CHANGE_HOR_TRI_POS_FAIL",
-        "text": "Change horiz trigger position failed!"
+        "text": "Change horizontal trigger position failed!"
     },
     {
         "id": "IDS_MSG_CHANGE_TRI_HOLDOFF_TIME_FAIL",
@@ -141,7 +141,7 @@
     },
     {
         "id": "IDS_MSG_PLEASE_INSERT_CURSOR",
-        "text": "Please insert cursor before using cursor measure."
+        "text": "Please insert a cursor before using cursor measurement."
     },
     {
         "id": "IDS_MSG_SEARCH",
@@ -149,7 +149,7 @@
     },
     {
         "id": "IDS_MSG_NO_SAMPLE_DATA",
-        "text": "No Sample data!"
+        "text": "No sample data!"
     },
     {
         "id": "IDS_MSG_SEARCH_AT_START",
@@ -165,15 +165,15 @@
     },
     {
         "id": "IDS_MSG_STREAM_NO_AD_TRIGGER",
-        "text": "Stream Mode Don't Support Advanced Trigger!"
+        "text": "Stream mode doesn't support the advanced trigger!"
     },
     {
         "id": "IDS_MSG_AD_TRIGGER_NEED_HARDWARE",
-        "text": "Advanced Trigger need DSLogic Hardware Support!"
+        "text": "The advanced trigger needs DSLogic hardware support!"
     },
     {
         "id": "IDS_MSG_NOT_SHOW_AGAIN",
-        "text": "Not Show Again"
+        "text": "Don't Show Again"
     },
     {
         "id": "IDS_MSG_IGNORE",
@@ -217,7 +217,7 @@
     },
     {
         "id": "IDS_MSG_DATA_OVERFLOW_DET",
-        "text": "USB bandwidth can not support current sample rate!\nPlease reduce the sample rate!"
+        "text": "USB bandwidth cannot support the current sample rate!\nPlease reduce the sample rate!"
     },
     {
         "id": "IDS_MSG_UNDEFINED_ERROR",
@@ -225,7 +225,7 @@
     },
     {
         "id": "IDS_MSG_UNDEFINED_ERROR_DET",
-        "text": "Not expected error!"
+        "text": "Unexpected error!"
     },
     {
         "id": "IDS_MSG_STORESESS_SAVESTART_ERROR1",
@@ -257,11 +257,11 @@
     },
     {
         "id": "IDS_MSG_STORESESS_SAVEPROC_ERROR1",
-        "text": "Failed to create zip file,malloc error."
+        "text": "Failed to create zip file. Malloc error."
     },
     {
         "id": "IDS_MSG_STORESESS_SAVEPROC_ERROR2",
-        "text": "Failed to create zip file,please check write permission of this path."
+        "text": "Failed to create zip file. Please check the write permission of this path."
     },
     {
         "id": "IDS_MSG_STORESESS_EXPORTSTART_ERROR1",
@@ -273,7 +273,7 @@
     },
     {
         "id": "IDS_MSG_STORESESS_EXPORTSTART_ERROR3",
-        "text": "No set file name."
+        "text": "No file name set."
     },
     {
         "id": "IDS_MSG_STORESESS_EXPORTSTART_ERROR4",
@@ -281,11 +281,11 @@
     },
     {
         "id": "IDS_MSG_STORESESS_EXPORTPROC_ERROR1",
-        "text": "data type don't support."
+        "text": "Data type not supported."
     },
     {
         "id": "IDS_MSG_STORESESS_EXPORTPROC_ERROR2",
-        "text": "buffer malloc failed."
+        "text": "Buffer malloc failed."
     },
     {
         "id": "IDS_MSG_SAVE_FILE",
@@ -301,7 +301,7 @@
     },
     {
         "id": "IDS_MSG_DECODERSTACK_DECODE_DATA_ERROR",
-        "text": "At least one of selected channels are not enabled."
+        "text": "At least one of the selected channels is not enabled."
     },
     {
         "id": "IDS_MSG_DECODERSTACK_DECODE_STACK_ERROR",
@@ -317,7 +317,7 @@
     },
     {
         "id": "IDS_MSG_NO_DATA",
-        "text": "Has no data!"
+        "text": "No data!"
     },
     {
         "id": "IDS_MSG_TO_SWITCH_DEVICE",
@@ -349,7 +349,7 @@
     },
     {
         "id": "IDS_MSG_TO_CLEAR_LOG",
-        "text": "Are you sure to clear log file?"
+        "text": "Are you sure you want to clear the log file?"
     },
     {
         "id": "IDS_MSG_DEVICE_SPEED_TOO_LOW",
@@ -357,7 +357,7 @@
     },
     {
         "id": "IDS_MSG_FIRMWARE_NOT_EXIST",
-        "text": "Error: Firmware file is not exist!"
+        "text": "Error: Firmware file does not exist!"
     },
     {
         "id": "IDS_MSG_DEVICE_USB_IO_ERROR",
@@ -365,7 +365,7 @@
     },
     {
         "id": "IDS_MSG_DATA_RANGE_ERROR",
-        "text": "Data range is error!"
+        "text": "Invalid data range!"
     },
     {
         "id": "IDS_MSG_DATA_RANGE_HAVE_NO_DATA",

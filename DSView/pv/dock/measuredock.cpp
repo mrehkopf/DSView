@@ -556,7 +556,7 @@ void MeasureDock::popup_all_coursors()
 
     if (cursor_list.empty()) {
         QString strMsg(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_PLEASE_INSERT_CURSOR), 
-                                       "Please insert cursor before using cursor measure."));
+                                       "Please insert a cursor before using cursor measurement."));
         MsgBox::Show(strMsg);
         return;
     }

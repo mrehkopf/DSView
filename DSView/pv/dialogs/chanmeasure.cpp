@@ -205,7 +205,7 @@ DsoChannelMeasure::DsoChannelMeasure(SigSession *session, QWidget *parent) :
     src_layout->addRow(
         L_S(STR_PAGE_DLG, S_ID(IDS_DLG_1ST_SOURCE), "1st Source"), _srcA_combobox);
     src_layout->addRow(
-        L_S(STR_PAGE_DLG, S_ID(IDS_DLG_2ST_SOURCE), "2st Source"), _srcB_combobox);
+        L_S(STR_PAGE_DLG, S_ID(IDS_DLG_2ST_SOURCE), "2nd Source"), _srcB_combobox);
 
     _layout = new QVBoxLayout();
     _layout->addLayout(src_layout);
