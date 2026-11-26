@@ -442,6 +442,7 @@ private:
     bool v_snap_enabled();
     void restore_v_scroll(int old_value, int old_content);
     void update_margins();
+    bool can_scroll_logic();
     void set_scale(double scale);
 
     void clear();
@@ -484,6 +485,15 @@ public slots:
 
     //
     void header_updated();
+
+    /**
+     * Logic mode: scroll the view, keeping the zoom, so that the first sample
+     * is at the left edge, the trigger position (the 0 of the time ruler) is
+     * in the middle, or the last sample received is at the right edge.
+     */
+    void scroll_to_begin();
+    void scroll_to_trigger();
+    void scroll_to_end();
 
     void receive_trigger(quint64 trig_pos1);
 

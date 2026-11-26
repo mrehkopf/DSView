@@ -218,5 +218,29 @@
     {
         "id": "IDS_TOOLBAR_FUNCTION_REFERENCE",
         "text": "&Referenzkurven"
+    },
+    {
+        "id": "IDS_TOOLBAR_GO_BEGIN",
+        "text": "Anfang"
+    },
+    {
+        "id": "IDS_TOOLBAR_GO_BEGIN_TIP",
+        "text": "Zeigt den Anfang der Erfassung, ohne den Zoom zu ändern."
+    },
+    {
+        "id": "IDS_TOOLBAR_GO_TRIG",
+        "text": "Trigger-Pos."
+    },
+    {
+        "id": "IDS_TOOLBAR_GO_TRIG_TIP",
+        "text": "Zentriert die Ansicht auf die Triggerposition, ohne den Zoom zu ändern."
+    },
+    {
+        "id": "IDS_TOOLBAR_GO_END",
+        "text": "Ende"
+    },
+    {
+        "id": "IDS_TOOLBAR_GO_END_TIP",
+        "text": "Zeigt das Ende der bisher erfassten Daten, ohne den Zoom zu ändern."
     }
 ]

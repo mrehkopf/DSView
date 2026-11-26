@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-15.71 -15.71 131.43 131.43" width="512px" height="512px">
+  <g fill="#D7D7D7">
+    <!-- trigger flag with a "T", as on the time ruler -->
+    <path fill-rule="evenodd" d="M 34,4 H 66 Q 70,4 70,8 V 30 Q 70,34 66,34 H 34 Q 30,34 30,30 V 8 Q 30,4 34,4 Z
+                                 M 38,10 H 62 V 16 H 53 V 29 H 47 V 16 H 38 Z"/>
+    <!-- trigger line -->
+    <rect x="47" y="34" width="6" height="62"/>
+    <!-- arrows from both sides towards the line -->
+    <path d="M 4,47 L 38,65 L 4,83 Z"/>
+    <path d="M 96,47 L 62,65 L 96,83 Z"/>
+  </g>
+</svg>

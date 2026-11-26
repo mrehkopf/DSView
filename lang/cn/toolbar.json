@@ -202,5 +202,29 @@
     {
         "id": "IDS_TOOLBAR_STACKING",
         "text": "堆叠"
+    },
+    {
+        "id": "IDS_TOOLBAR_GO_BEGIN",
+        "text": "开头"
+    },
+    {
+        "id": "IDS_TOOLBAR_GO_BEGIN_TIP",
+        "text": "跳到采集开头，保持缩放。"
+    },
+    {
+        "id": "IDS_TOOLBAR_GO_TRIG",
+        "text": "触发点"
+    },
+    {
+        "id": "IDS_TOOLBAR_GO_TRIG_TIP",
+        "text": "以触发位置为中心显示，保持缩放。"
+    },
+    {
+        "id": "IDS_TOOLBAR_GO_END",
+        "text": "结尾"
+    },
+    {
+        "id": "IDS_TOOLBAR_GO_END_TIP",
+        "text": "跳到已采集数据的结尾，保持缩放。"
     }
 ]

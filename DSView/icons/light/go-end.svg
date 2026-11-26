@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-5.14 -7.14 114.29 114.29" width="512px" height="512px">
+  <g fill="#2A2A2A">
+    <!-- last sample of the capture -->
+    <rect x="84" y="16" width="8" height="68" rx="3" ry="3"/>
+    <!-- double arrow towards it -->
+    <path d="M 80,50 L 46,22 L 46,78 Z"/>
+    <path d="M 46,50 L 12,22 L 12,78 Z"/>
+  </g>
+</svg>

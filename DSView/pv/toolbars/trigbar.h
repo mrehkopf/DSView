@@ -70,6 +70,9 @@ signals:
     void sig_search(bool visible);
     void sig_show_lissajous(bool visible);
     void sig_dso_split(bool split); //split each DSO channel into its own row
+    void sig_go_begin();     //logic: scroll to the first sample, keeping the zoom
+    void sig_go_trigger();   //logic: centre the trigger position, keeping the zoom
+    void sig_go_end();       //logic: scroll to the last sample, keeping the zoom
 
 private slots:
     void on_actionSystem_triggered();
@@ -102,6 +105,9 @@ private:
     XToolButton _function_button;
     XToolButton _setting_button;
     XToolButton _dso_split_button;
+    XToolButton _go_begin_button;
+    XToolButton _go_trig_button;
+    XToolButton _go_end_button;
     QAction     *_trig_action;
     QAction     *_protocol_action;
     QAction     *_measure_action;
@@ -109,6 +115,9 @@ private:
     QAction     *_function_action;
     QAction     *_display_action;
     QAction     *_dso_split_action;
+    QAction     *_go_begin_action;
+    QAction     *_go_trig_action;
+    QAction     *_go_end_action;
 
     QMenu       *_function_menu;
     QAction     *_action_fft;

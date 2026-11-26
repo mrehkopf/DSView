@@ -1406,6 +1406,41 @@ void View::header_updated()
     _header->update();
 }
 
+// Is there captured logic data to scroll through?
+bool View::can_scroll_logic()
+{
+    return _device_agent->have_instance()
+        && _device_agent->get_work_mode() == LOGIC
+        && _session->have_view_data()
+        && _session->cur_snap_samplerate() > 0
+        && get_view_width() > 0;
+}
+
+void View::scroll_to_begin()
+{
+    if (can_scroll_logic())
+        set_scale_offset(_scale, get_min_offset());
+}
+
+void View::scroll_to_trigger()
+{
+    if (!can_scroll_logic())
+        return;
+
+    // The time ruler counts from here, and the trigger flag is drawn here.
+    // Without a trigger it is the first sample.
+    const double time = _session->get_trigger_pos() * 1.0 / _session->cur_snap_samplerate();
+    set_scale_offset(_scale, (int64_t)floor(time / _scale) - get_view_width() / 2);
+}
+
+void View::scroll_to_end()
+{
+    // The data received so far: less than the whole capture if it was
+    // stopped early or is still running.
+    if (can_scroll_logic())
+        set_scale_offset(_scale, get_logic_lst_data_offset());
+}
+
 void View::marker_time_changed()
 {
 	_ruler->update();

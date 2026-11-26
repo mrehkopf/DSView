@@ -442,6 +442,9 @@ namespace pv
         connect(_trig_bar, SIGNAL(sig_setTheme(QString)), this, SLOT(switchTheme(QString)));
         connect(_trig_bar, SIGNAL(sig_show_lissajous(bool)), _view, SLOT(show_lissajous(bool)));
         connect(_trig_bar, &toolbars::TrigBar::sig_dso_split, _view, &view::View::set_dso_split_channels);
+        connect(_trig_bar, &toolbars::TrigBar::sig_go_begin, _view, &view::View::scroll_to_begin);
+        connect(_trig_bar, &toolbars::TrigBar::sig_go_trigger, _view, &view::View::scroll_to_trigger);
+        connect(_trig_bar, &toolbars::TrigBar::sig_go_end, _view, &view::View::scroll_to_end);
 
         // file toolbar
         connect(_file_bar, SIGNAL(sig_load_file(QString)), this, SLOT(on_load_file(QString)));
