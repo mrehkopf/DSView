@@ -40,6 +40,10 @@ namespace pv {
 
 class SigSession;
 
+namespace view {
+class View;
+}
+
 namespace data {
 namespace decode {
 class Row;
@@ -63,7 +67,8 @@ private:
     };
 
 public:
-    ProtocolExp(QWidget *parent, SigSession *session);
+    // view gives the cursors for "only between cursors"; it may be NULL.
+    ProtocolExp(QWidget *parent, SigSession *session, view::View *view = NULL);
 
 protected:   
     void save_proc();
@@ -87,6 +92,9 @@ private:
     toolbars::TitleBar *_titlebar;
     DsComboBox *_format_combobox;
     DsComboBox *_separator_combobox;
+    QCheckBox  *_range_checkbox;
+    DsComboBox *_range_from_combobox;
+    DsComboBox *_range_to_combobox;
     std::list<QCheckBox *> _row_sel_list;
     std::list<QLabel *> _row_label_list;
     QFormLayout *_flayout;
@@ -96,6 +104,9 @@ private:
     bool _export_cancel;
     QString     _fileName; 
     QString     _separator;
+    bool        _use_range;
+    uint64_t    _range_start;
+    uint64_t    _range_end;
     QTimer      m_timer; 
     bool        _bAbleClose;
 };

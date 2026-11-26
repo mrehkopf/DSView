@@ -603,7 +603,7 @@ void ProtocolDock::column_resize(int index, int old_size, int new_size)
 
 void ProtocolDock::export_table_view()
 {
-    pv::dialogs::ProtocolExp *protocolexp_dlg = new pv::dialogs::ProtocolExp(this, _session);
+    pv::dialogs::ProtocolExp *protocolexp_dlg = new pv::dialogs::ProtocolExp(this, _session, &_view);
     protocolexp_dlg->exec();
     delete protocolexp_dlg;
 }

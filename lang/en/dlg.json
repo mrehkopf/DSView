@@ -268,6 +268,14 @@
         "text": "Space"
     },
     {
+        "id": "IDS_DLG_EXPORT_BETWEEN_CURSORS",
+        "text": "Only between cursors: "
+    },
+    {
+        "id": "IDS_DLG_EXPORT_RANGE_NEED_CURSORS",
+        "text": "Place at least two cursors to use this."
+    },
+    {
         "id": "IDS_DLG_PROTOCOL_EXPORT",
         "text": "Protocol Export"
     },
