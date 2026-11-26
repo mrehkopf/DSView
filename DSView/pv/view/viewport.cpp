@@ -41,6 +41,9 @@
 #include <math.h>
 #include <QWheelEvent>
 #include <QScrollBar>
+#include <QMenu>
+#include <QClipboard>
+#include <QGuiApplication>
 
 #include "../config/appconfig.h"
 #include "../dsvdef.h"
@@ -1504,9 +1507,11 @@ void Viewport::onLogicMouseRelease(QMouseEvent *event)
         case LOGIC_ZOOM:
         {
             // A drag of a pixel or two is a shaky right click, not a zoom
-            // into a window that narrow.
+            // into a window that narrow. A right click on an annotation
+            // offers to copy its text.
             const int ClickMaxDrag = 2;
-            if (abs(event->pos().x() - _mouse_down_point.x()) > ClickMaxDrag) {
+            const bool click = abs(event->pos().x() - _mouse_down_point.x()) <= ClickMaxDrag;
+            if (!click) {
                 int64_t newOffset = _view.x_offset() + (min(event->pos().x(), _mouse_down_point.x()));
                 const double newScale = max(min(_view.scale() * abs(event->pos().x() - _mouse_down_point.x()) / _view.get_view_width(),
                                                 _view.get_maxscale()), _view.get_minscale());
@@ -1515,6 +1520,8 @@ void Viewport::onLogicMouseRelease(QMouseEvent *event)
                     _view.set_scale_offset(newScale, newOffset);
             }
             set_action(NO_ACTION);
+            if (click && event->button() == Qt::RightButton)
+                show_annotation_menu(event->pos());
             break;
         }
         case LOGIC_MOVE:
@@ -2979,6 +2986,31 @@ void Viewport::show_contextmenu(const QPoint& pos)
         _cur_preY = pos.y();
         _cmenu->exec(QCursor::pos());
     }
+}
+
+bool Viewport::show_annotation_menu(const QPoint &pos)
+{
+    AnnotationHover ann;
+
+    for (auto t : _view.session().get_decode_signals()) {
+        if (!t->annotation_at(pos, ann))
+            continue;
+
+        QMenu menu(this);
+        QAction *copy = menu.addAction(
+            L_S(STR_PAGE_DLG, S_ID(IDS_DLG_COPY_ANNOTATION), "Copy annotation text"));
+        QAction *copy_row = menu.addAction(
+            L_S(STR_PAGE_DLG, S_ID(IDS_DLG_COPY_ANNOTATION_WITH_ROW), "Copy with row name"));
+
+        // The longest of the annotation's texts, as in the hover popup.
+        QAction *chosen = menu.exec(QCursor::pos());
+        if (chosen == copy)
+            QGuiApplication::clipboard()->setText(ann.text);
+        else if (chosen == copy_row)
+            QGuiApplication::clipboard()->setText(ann.row_title + ": " + ann.text);
+        return true;
+    }
+    return false;
 }
 
 void Viewport::reset_yscale()

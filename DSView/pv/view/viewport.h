@@ -181,6 +181,9 @@ private:
     void onDsoMouseRelease(QMouseEvent *event);
     void onAnalogMouseRelease(QMouseEvent *event);
 
+    // A menu to copy the text of the annotation at pos, if there is one.
+    bool show_annotation_menu(const QPoint &pos);
+
     void updateDragVelocity(QMouseEvent *event);
 
 private slots:
