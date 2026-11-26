@@ -26,6 +26,14 @@ includes the Qt 6 port and the UI and driver improvements from
   matches. See [doc/search.md](doc/search.md).
 - **System theme:** use the Qt style configured by your desktop, including
   Kvantum (see [Appearance](#appearance)).
+- **Time bar and navigation:** a thin bar above the time ruler stands for the
+  whole capture and marks the part in view, the trigger and the cursors. Click
+  or drag on it to move through the capture, right-drag to zoom to a span, and
+  double-click for the whole capture and back. **Begin**, **Trig Pos** and
+  **End** on the toolbar jump there without changing the zoom. `[` and `]`
+  zoom, and `F` shows the whole capture. From
+  [lucapandolfini/DSView](https://github.com/lucapandolfini/DSView) and
+  [DreamSourceLab/DSView#908](https://github.com/DreamSourceLab/DSView/pull/908).
 - **Identify:** blink a DSLogic's or DSCope's LED red and green for two
   seconds, to see which device is which. The button is in the **Options**
   dialog and, for each stacked analyzer, in the Stacking dialog.
