@@ -536,6 +536,10 @@
         "text": "Unshown"
     },
     {
+        "id": "IDS_DLG_DECODER_CHANNEL_COUNT",
+        "text": "%1 ch"
+    },
+    {
         "id": "ZOOM_IN_FOR_DETAILS",
         "text": "Zoom in for details"
     },

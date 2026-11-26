@@ -536,6 +536,10 @@
         "text": "Ausgeblendet"
     },
     {
+        "id": "IDS_DLG_DECODER_CHANNEL_COUNT",
+        "text": "%1 Kan."
+    },
+    {
         "id": "ZOOM_IN_FOR_DETAILS",
         "text": "Für Details hineinzoomen"
     },

@@ -23,7 +23,10 @@
 #include <libsigrokdecode.h>
 #include "../dsvdef.h" 
 #include <boost/functional/hash.hpp>
-#include <QAction> 
+#include <algorithm>
+#include <vector>
+#include <QAction>
+#include <QStringList>
 #include <QFormLayout>
 #include <QLabel>
 #include <QMenu>
@@ -909,24 +912,40 @@ void DecodeTrace::paint_type_options(QPainter &p, int right, const QPoint pt, QC
 
     int y = get_y();
     const QRectF group_index_rect = get_rect(CHNLREG, y, right);
-    QString index_string;
-    int last_index;
     p.setPen(QPen(fore, 1, Qt::DashLine));
     p.drawLine(group_index_rect.bottomLeft(), group_index_rect.bottomRight());
-    std::list<int>::iterator i = _index_list.begin();
-    last_index = (*i);
-    index_string = QString::number(last_index);
 
-    while (++i != _index_list.end()) {
-        if ((*i) == last_index + 1 && index_string.indexOf("-") < 3 && index_string.indexOf("-") > 0)
-            index_string.replace(QString::number(last_index), QString::number((*i)));
-        else if ((*i) == last_index + 1)
-            index_string = QString::number((*i)) + "-" + index_string;
-        else
-            index_string = QString::number((*i)) + "," + index_string;
-        last_index = (*i);
+    if (_index_list.empty())
+        return;
+
+    // The channels the decoder reads, as runs of consecutive indexes,
+    // highest first ("31,28-0"). The bindings come in any order, e.g. from
+    // a session file. When the runs don't fit, the channel count takes
+    // their place rather than running into the decoder name.
+    std::vector<int> indexes(_index_list.begin(), _index_list.end());
+    std::sort(indexes.begin(), indexes.end());
+    indexes.erase(std::unique(indexes.begin(), indexes.end()), indexes.end());
+
+    QStringList runs;
+    size_t i = indexes.size();
+    while (i > 0) {
+        const int high = indexes[--i];
+        int low = high;
+        while (i > 0 && indexes[i - 1] == low - 1)
+            low = indexes[--i];
+        runs.append(low == high ? QString::number(high)
+                                : QString::number(high) + "-" + QString::number(low));
     }
-    
+
+    QString index_string = runs.join(",");
+    const int avail = (int)group_index_rect.width();
+    if (p.fontMetrics().horizontalAdvance(index_string) > avail) {
+        index_string = QString(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DECODER_CHANNEL_COUNT), "%1 ch"))
+                           .arg(indexes.size());
+        if (p.fontMetrics().horizontalAdvance(index_string) > avail)
+            return;
+    }
+
     p.setPen(fore);
     p.drawText(group_index_rect, Qt::AlignRight | Qt::AlignVCenter, index_string);
 }

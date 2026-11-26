@@ -540,6 +540,10 @@
         "text": "未显示"
     },
     {
+        "id": "IDS_DLG_DECODER_CHANNEL_COUNT",
+        "text": "%1 通道"
+    },
+    {
         "id": "ZOOM_IN_FOR_DETAILS",
         "text": "放大查看详细信息"
     },
