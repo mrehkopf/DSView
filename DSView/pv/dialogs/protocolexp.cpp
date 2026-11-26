@@ -53,6 +53,20 @@ using namespace pv::data::decode;
 namespace pv {
 namespace dialogs {
 
+// Quotes a CSV field (RFC 4180) when it holds a comma, a quote or a line
+// break, so that annotation texts like "a, b" stay in one column.
+static QString csv_field(const QString &field)
+{
+    if (field.contains(',') || field.contains('"')
+        || field.contains('\n') || field.contains('\r'))
+    {
+        QString quoted = field;
+        quoted.replace("\"", "\"\"");
+        return "\"" + quoted + "\"";
+    }
+    return field;
+}
+
 ProtocolExp::ProtocolExp(QWidget *parent, SigSession *session) :
     DSDialog(parent),
     _session(session),
@@ -294,13 +308,10 @@ void ProtocolExp::save_proc()
         if (i > 0 && i < row_num){
             title_str.append(",");
         }
-        title_str.append(row_inf_arr[i].title);
+        title_str.append(csv_field(row_inf_arr[i].title));
     }
 
-    out << QString("%1,%2,%3\n")
-            .arg("Id")
-            .arg("Time[ns]")
-            .arg(title_str);
+    out << "Id," << "Time[ns]," << title_str << "\n";
 
     uint64_t write_row_dex = 0;
     uint64_t write_ann_num = 0;
@@ -340,7 +351,7 @@ void ProtocolExp::save_proc()
             Annotation *ann = annotations_arr[i].at(row_inf_arr[i].read_index);           
 
             if (ann->start_sample() == sample_index){
-                ann_row_str.append(ann->annotations().at(0));
+                ann_row_str.append(csv_field(ann->annotations().at(0)));
                 row_inf_arr[i].read_index++;
                 write_ann_num++;
             }
@@ -348,10 +359,9 @@ void ProtocolExp::save_proc()
 
         write_row_dex++;
 
-        out << QString("%1,%2,%3\n")
-                       .arg(QString::number(write_row_dex))
-                       .arg(QString::number(sample_index * ns_per_sample, 'f', 2))
-                       .arg(ann_row_str);
+        out << QString::number(write_row_dex) << ","
+            << QString::number(sample_index * ns_per_sample, 'f', 2) << ","
+            << ann_row_str << "\n";
 
         emit export_progress(write_ann_num * 100 / total_ann_count);
     }
