@@ -164,6 +164,9 @@ private:
     // under the traces. The ruler shows the time between them.
     bool cursor_bands_shown();
     void paintCursorBands(QPainter &p);
+
+    // Logic mode: the trigger position as a solid line with a flag.
+    void paintTriggerLine(QPainter &p, const QRect &rect);
     void paint_ref_waves(QPainter &p);
     void paintYScaleBadge(QPainter &p, QColor fore, QColor back);
 

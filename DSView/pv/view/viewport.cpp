@@ -328,6 +328,29 @@ void Viewport::paintCursorBands(QPainter &p)
     }
 }
 
+void Viewport::paintTriggerLine(QPainter &p, const QRect &rect)
+{
+    const double x = _view.index2pixel(_view.get_trig_cursor()->index(), false);
+    if (x < 0 || x > rect.right())
+        return;
+
+    p.save();
+    // A solid line, with a small flag at the top, stands out from the
+    // dashed cursor and guide lines.
+    QPen pen(View::Red, 1.5);
+    pen.setCosmetic(true);
+    p.setPen(pen);
+    p.drawLine(QPointF(x, 0), QPointF(x, rect.bottom()));
+
+    const QPointF flag[] = {
+        QPointF(x - 5, 0), QPointF(x + 5, 0), QPointF(x, 6)
+    };
+    p.setPen(Qt::NoPen);
+    p.setBrush(View::Red);
+    p.drawPolygon(flag, 3);
+    p.restore();
+}
+
 void Viewport::paintYScaleBadge(QPainter &p, QColor fore, QColor back)
 {
     // Only meaningful for the logic trace window, where vzoom() applies.
@@ -619,7 +642,11 @@ void Viewport::paintSignals(QPainter &p, QColor fore, QColor back)
 
     if (_type == TIME_VIEW) {
         if (_view.trig_cursor_shown()) {
-            _view.get_trig_cursor()->paint(p, xrect, 0, false);
+            if (AppConfig::Instance().appOptions.triggerLine
+                && _view.session().get_device()->get_work_mode() == LOGIC)
+                paintTriggerLine(p, xrect);
+            else
+                _view.get_trig_cursor()->paint(p, xrect, 0, false);
         }
         if (_view.search_cursor_shown()) {
             const int64_t searchX = _view.index2pixel(_view.get_search_cursor()->index());

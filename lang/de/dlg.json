@@ -1638,5 +1638,9 @@
     {
         "id": "IDS_DLG_CURSOR_DELTA_BAND",
         "text": "Cursorpaare hinterlegen (1-2, 3-4, ...)"
+    },
+    {
+        "id": "IDS_DLG_TRIGGER_LINE",
+        "text": "Triggerposition hervorheben"
     }
 ]

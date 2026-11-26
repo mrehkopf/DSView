@@ -142,6 +142,7 @@ static void _loadApp(AppOptions &o, QSettings &st)
     getFiled("logicSampleDots", st, o.logicSampleDots, true);
     getFiled("showTimeBar", st, o.showTimeBar, true);
     getFiled("cursorDeltaBand", st, o.cursorDeltaBand, true);
+    getFiled("triggerLine", st, o.triggerLine, true);
     getFiled("logicSnapVScroll", st, o.logicSnapVScroll, true);
     getFiled("dsoSplitChannels", st, o.dsoSplitChannels, false);
     getFiled("dsoSignalLineWidth", st, o.dsoSignalLineWidth, 1.0f);
@@ -222,6 +223,7 @@ static void _saveApp(AppOptions &o, QSettings &st)
     setFiled("logicSampleDots", st, o.logicSampleDots);
     setFiled("showTimeBar", st, o.showTimeBar);
     setFiled("cursorDeltaBand", st, o.cursorDeltaBand);
+    setFiled("triggerLine", st, o.triggerLine);
     setFiled("logicSnapVScroll", st, o.logicSnapVScroll);
     setFiled("dsoSplitChannels", st, o.dsoSplitChannels);
     setFiled("dsoSignalLineWidth", st, o.dsoSignalLineWidth);

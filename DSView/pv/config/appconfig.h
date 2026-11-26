@@ -98,6 +98,7 @@ struct AppOptions
     bool logicSnapVScroll;  // snap to trace tops when the scroll bar is released
     bool showTimeBar;       // the whole capture in a bar above the ruler
     bool cursorDeltaBand;   // logic: shade cursor pairs, with the time between them on hover
+    bool triggerLine;       // logic: the trigger as a solid line
     bool dsoSplitChannels;
     float dsoSignalLineWidth;
     bool dsoSampleDots;

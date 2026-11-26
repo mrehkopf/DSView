@@ -257,6 +257,9 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     QCheckBox *ck_cursorDeltaBand = new QCheckBox();
     ck_cursorDeltaBand->setChecked(app.appOptions.cursorDeltaBand);
 
+    QCheckBox *ck_triggerLine = new QCheckBox();
+    ck_triggerLine->setChecked(app.appOptions.triggerLine);
+
     QCheckBox *ck_thickHighLevel = new QCheckBox();
     ck_thickHighLevel->setChecked(app.appOptions.logicThickHighLevel);
 
@@ -473,18 +476,20 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     logicLay->addWidget(ck_timeBar, 10, 1, Qt::AlignRight);
     logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_CURSOR_DELTA_BAND), "Shade cursor pairs (1-2, 3-4, ...)")), 11, 0, Qt::AlignLeft);
     logicLay->addWidget(ck_cursorDeltaBand, 11, 1, Qt::AlignRight);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_TRIGGER_LINE), "Highlight trigger position")), 12, 0, Qt::AlignLeft);
+    logicLay->addWidget(ck_triggerLine, 12, 1, Qt::AlignRight);
 
     // Add sliders to logic layout
-    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DECODER_DYNAMIC_FONT_WIDTH), "Decoder adaptive font width")), 12, 0, Qt::AlignLeft);
-    logicLay->addWidget(ck_decoderDynamicFontWidth, 12, 1, Qt::AlignRight);
-    logicLay->addWidget(label_minFontWidth, 13, 0, Qt::AlignLeft);
-    logicLay->addWidget(spinBox_minFontWidth, 13, 1, Qt::AlignRight);
-    logicLay->addWidget(slider_minFontWidth, 14, 0, Qt::AlignJustify);
-    logicLay->addWidget(label_minSample, 14, 1, Qt::AlignCenter);
-    logicLay->addWidget(label_maxFontWidth, 15, 0, Qt::AlignLeft);
-    logicLay->addWidget(spinBox_maxFontWidth, 15, 1, Qt::AlignRight);
-    logicLay->addWidget(slider_maxFontWidth, 16, 0, Qt::AlignJustify);
-    logicLay->addWidget(label_maxSample, 16, 1, Qt::AlignCenter);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DECODER_DYNAMIC_FONT_WIDTH), "Decoder adaptive font width")), 13, 0, Qt::AlignLeft);
+    logicLay->addWidget(ck_decoderDynamicFontWidth, 13, 1, Qt::AlignRight);
+    logicLay->addWidget(label_minFontWidth, 14, 0, Qt::AlignLeft);
+    logicLay->addWidget(spinBox_minFontWidth, 14, 1, Qt::AlignRight);
+    logicLay->addWidget(slider_minFontWidth, 15, 0, Qt::AlignJustify);
+    logicLay->addWidget(label_minSample, 15, 1, Qt::AlignCenter);
+    logicLay->addWidget(label_maxFontWidth, 16, 0, Qt::AlignLeft);
+    logicLay->addWidget(spinBox_maxFontWidth, 16, 1, Qt::AlignRight);
+    logicLay->addWidget(slider_maxFontWidth, 17, 0, Qt::AlignJustify);
+    logicLay->addWidget(label_maxSample, 17, 1, Qt::AlignCenter);
     logicLay->setColumnMinimumWidth(1, wfm.horizontalAdvance("Example")
         + logicLay->contentsMargins().left()
         + logicLay->contentsMargins().right()
@@ -631,6 +636,10 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
         }
         if (app.appOptions.cursorDeltaBand != ck_cursorDeltaBand->isChecked()) {
             app.appOptions.cursorDeltaBand = ck_cursorDeltaBand->isChecked();
+            bAppChanged = true;
+        }
+        if (app.appOptions.triggerLine != ck_triggerLine->isChecked()) {
+            app.appOptions.triggerLine = ck_triggerLine->isChecked();
             bAppChanged = true;
         }
         if (app.appOptions.logicThickHighLevel != ck_thickHighLevel->isChecked()) {

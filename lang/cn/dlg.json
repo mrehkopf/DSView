@@ -1078,5 +1078,9 @@
     {
         "id": "IDS_DLG_CURSOR_DELTA_BAND",
         "text": "突出显示光标对 (1-2, 3-4, ...)"
+    },
+    {
+        "id": "IDS_DLG_TRIGGER_LINE",
+        "text": "突出显示触发位置"
     }
 ]
