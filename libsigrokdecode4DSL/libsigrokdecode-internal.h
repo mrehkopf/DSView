@@ -69,14 +69,19 @@ SRD_PRIV struct srd_pd_callback *srd_pd_output_callback_find(struct srd_session 
 
 /* instance.c */
 SRD_PRIV int srd_inst_start(struct srd_decoder_inst *di, char **error);
-SRD_PRIV void condition_list_free(struct srd_decoder_inst *di);
 SRD_PRIV int srd_inst_decode(struct srd_decoder_inst *di,
         uint64_t abs_start_samplenum, uint64_t abs_end_samplenum,
         const uint8_t **inbuf, const uint8_t *inbuf_const, uint64_t inbuflen, char **error);
-SRD_PRIV int process_samples_until_condition_match(struct srd_decoder_inst *di, gboolean *found_match);
 SRD_PRIV int srd_inst_terminate_reset(struct srd_decoder_inst *di);
 SRD_PRIV void srd_inst_free(struct srd_decoder_inst *di);
 SRD_PRIV void srd_inst_free_all(struct srd_session *sess);
+
+/* match.c */
+SRD_PRIV void oldpins_array_seed(struct srd_decoder_inst *di);
+SRD_PRIV void condition_list_free(struct srd_decoder_inst *di);
+SRD_PRIV void condition_list_reset_skips(struct srd_decoder_inst *di);
+SRD_PRIV void match_prog_destroy(struct srd_decoder_inst *di);
+SRD_PRIV int process_samples_until_condition_match(struct srd_decoder_inst *di, gboolean *found_match);
 
 /* log.c */
 #if defined(G_OS_WIN32) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 4))

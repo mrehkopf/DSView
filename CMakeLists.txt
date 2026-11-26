@@ -563,6 +563,7 @@ set(libsigrokdecode4DSL_SOURCES
     libsigrokdecode4DSL/exception.c
     libsigrokdecode4DSL/instance.c
     libsigrokdecode4DSL/log.c
+    libsigrokdecode4DSL/match.c
     libsigrokdecode4DSL/session.c
     libsigrokdecode4DSL/util.c
     libsigrokdecode4DSL/version.c
