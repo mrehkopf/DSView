@@ -244,6 +244,30 @@
         "text": "导出格式: "
     },
     {
+        "id": "IDS_DLG_EXPORT_SEPARATOR",
+        "text": "分隔符: "
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_COMMA",
+        "text": "逗号 ( , )"
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_SEMICOLON",
+        "text": "分号 ( ; )"
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_TAB",
+        "text": "制表符"
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_PIPE",
+        "text": "竖线 ( | )"
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_SPACE",
+        "text": "空格"
+    },
+    {
         "id": "IDS_DLG_PROTOCOL_EXPORT",
         "text": "协议导出"
     },

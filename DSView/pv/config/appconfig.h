@@ -145,6 +145,7 @@ struct UserHistory
   QString   sessionDir;
   QString   openDir;
   QString   protocolExportPath;
+  QString   protocolExportSeparator;
   QString   exportFormat;
   bool      showDriverHint;
 };

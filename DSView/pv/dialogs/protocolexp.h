@@ -86,6 +86,7 @@ private:
 
     toolbars::TitleBar *_titlebar;
     DsComboBox *_format_combobox;
+    DsComboBox *_separator_combobox;
     std::list<QCheckBox *> _row_sel_list;
     std::list<QLabel *> _row_label_list;
     QFormLayout *_flayout;
@@ -94,6 +95,7 @@ private:
 
     bool _export_cancel;
     QString     _fileName; 
+    QString     _separator;
     QTimer      m_timer; 
     bool        _bAbleClose;
 };

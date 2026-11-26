@@ -329,6 +329,7 @@ static void _loadHistory(UserHistory &o, QSettings &st)
     getFiled("sessionDir", st, o.sessionDir, "");
     getFiled("openDir", st, o.openDir, "");
     getFiled("protocolExportPath", st, o.protocolExportPath, "");
+    getFiled("protocolExportSeparator", st, o.protocolExportSeparator, ",");
     getFiled("exportFormat", st, o.exportFormat, "");
     getFiled("showDriverHint", st, o.showDriverHint, true);
     st.endGroup();
@@ -344,6 +345,7 @@ static void _saveHistory(UserHistory &o, QSettings &st)
     setFiled("sessionDir", st, o.sessionDir);
     setFiled("openDir", st, o.openDir);
     setFiled("protocolExportPath", st, o.protocolExportPath);
+    setFiled("protocolExportSeparator", st, o.protocolExportSeparator);
     setFiled("exportFormat", st, o.exportFormat);
     setFiled("showDriverHint", st, o.showDriverHint);
     st.endGroup();

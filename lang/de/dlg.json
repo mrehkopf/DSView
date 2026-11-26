@@ -244,6 +244,30 @@
         "text": "Exportformat: "
     },
     {
+        "id": "IDS_DLG_EXPORT_SEPARATOR",
+        "text": "Trennzeichen: "
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_COMMA",
+        "text": "Komma ( , )"
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_SEMICOLON",
+        "text": "Semikolon ( ; )"
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_TAB",
+        "text": "Tabulator"
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_PIPE",
+        "text": "Senkrechter Strich ( | )"
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_SPACE",
+        "text": "Leerzeichen"
+    },
+    {
         "id": "IDS_DLG_PROTOCOL_EXPORT",
         "text": "Decodierergebnisse exportieren"
     },

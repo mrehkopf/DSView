@@ -244,6 +244,30 @@
         "text": "Export Format: "
     },
     {
+        "id": "IDS_DLG_EXPORT_SEPARATOR",
+        "text": "Separator: "
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_COMMA",
+        "text": "Comma ( , )"
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_SEMICOLON",
+        "text": "Semicolon ( ; )"
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_TAB",
+        "text": "Tab"
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_PIPE",
+        "text": "Pipe ( | )"
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_SPACE",
+        "text": "Space"
+    },
+    {
         "id": "IDS_DLG_PROTOCOL_EXPORT",
         "text": "Protocol Export"
     },
