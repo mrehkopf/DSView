@@ -1394,7 +1394,14 @@ bool StoreSession::gen_decoders_json(QJsonArray &array)
         dec_obj["label"] = QString(s->get_name().toUtf8().data());
         dec_obj["stacked decoders"] = stack_array;
         dec_obj["view_index"] = s->get_view_index();
-        dec_obj["colour"] = QJsonValue::fromVariant(s->get_colour());
+        // The default colour is an invalid QColor, whose name() is "#000000":
+        // older builds saved that, and it came back as black. Write "default"
+        // instead, and a picked colour with its alpha, so that a picked black
+        // ("#ff000000") can be told apart from those files.
+        if (s->get_colour().isValid())
+            dec_obj["colour"] = s->get_colour().name(QColor::HexArgb);
+        else
+            dec_obj["colour"] = QString("default");
 
         auto rows = stack->get_rows_gshow();
         for (auto i = rows.begin(); i != rows.end(); i++) {
@@ -1476,7 +1483,11 @@ bool StoreSession::load_decoders(dock::ProtocolDock *widget, QJsonArray &dec_arr
         }
 
         if (dec_obj.contains("colour")) {
-            QColor col = QColor(dec_obj["colour"].toString());
+            // "#000000" is the default colour as older builds saved it.
+            const QString col_str = dec_obj["colour"].toString();
+            QColor col(col_str);
+            if (col_str.compare("#000000", Qt::CaseInsensitive) == 0)
+                col = QColor();
             _session->set_decoder_base_colour(dec_index, col);
         }
         std::list<int> bind_indexs;
