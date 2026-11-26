@@ -179,6 +179,8 @@ DecodeTrace::DecodeTrace(pv::SigSession *session,
     _delete_flag = false;
     _decode_cursor1 = 0;
     _decode_cursor2 = 0;
+    _channels_left = 0;
+    _header_rows = 0;
 
     connect(_decoder_stack, SIGNAL(new_decode_data()), this, SLOT(on_new_decode_data()));
 
@@ -187,8 +189,6 @@ DecodeTrace::DecodeTrace(pv::SigSession *session,
 
 DecodeTrace::~DecodeTrace()
 {   
-    _cur_row_headings.clear(); 
-  
     DESTROY_OBJECT(_decoder_stack);
 }
 
@@ -267,32 +267,6 @@ void DecodeTrace::paint_back(QPainter &p, int left, int right, QColor fore, QCol
     };
     p.drawPolygon(start_points, countof(start_points));
     p.drawPolygon(end_points, countof(end_points));
-
-    // --draw headings
-    const int row_height = _view->get_signalHeight();
-    for (size_t i = 0; i < _cur_row_headings.size(); i++)
-    {
-        const int y = i * row_height + get_y() - _totalHeight * 0.5;
-
-        p.setPen(QPen(Qt::NoPen));
-        p.setBrush(QApplication::palette().brush(QPalette::WindowText));
-
-        const QRect r(left + ArrowSize * 2, y,
-            right - left, row_height / 2);
-        const QString h(_cur_row_headings[i]);
-        const int f = Qt::AlignLeft | Qt::AlignVCenter |
-            Qt::TextDontClip;
-        const QPointF points[] = {
-            QPointF(left, r.center().y() - ArrowSize),
-            QPointF(left + ArrowSize, r.center().y()),
-            QPointF(left, r.center().y() + ArrowSize)
-        };
-        p.drawPolygon(points, countof(points));
-
-        // Draw the text
-        p.setPen(fore);
-        p.drawText(r, f, h);
-    }
 }
 
 void DecodeTrace::paint_mid(QPainter &p, int left, int right, QColor fore, QColor back)
@@ -310,8 +284,6 @@ void DecodeTrace::paint_mid(QPainter &p, int left, int right, QColor fore, QColo
     assert(scale > 0);
 
     double samplerate = _decoder_stack->samplerate();
-
-    _cur_row_headings.clear();
 
     // Show sample rate as 1Hz when it is unknown
     if (samplerate == 0.0)
@@ -336,9 +308,7 @@ void DecodeTrace::paint_mid(QPainter &p, int left, int right, QColor fore, QColo
 
     const int annotation_height = _view->get_signalHeight();
 
-    for_each_row([&](const Row *row, const QString &heading, int y, int local_row) {
-        _cur_row_headings.push_back(heading);
-
+    for_each_row([&](const Row *row, const QString &, int y, int local_row) {
         if (row == NULL) {
             draw_unshown_row(p, y, annotation_height, left, right, L_S(STR_PAGE_DLG, S_ID(IDS_DLG_UNSHOWN), "Unshown"), fore, back);
             return;
@@ -869,6 +839,8 @@ void DecodeTrace::on_new_decode_data()
         _view->data_updated();
     if (_totalHeight/_view->get_signalHeight() != rows_size())
         _view->signals_changed(NULL);
+    else if (shown_rows() != _header_rows)
+        _view->header_updated(); // the header's arrows: a row came or went
 }
 
 int DecodeTrace::get_progress()
@@ -883,6 +855,12 @@ void DecodeTrace::on_decode_done()
 }
   
 int DecodeTrace::rows_size()
+{
+    const int size = shown_rows();
+    return size == 0 ? 1 : size;
+}
+
+int DecodeTrace::shown_rows()
 {
     using pv::data::decode::Decoder;
     int size = 0;
@@ -903,20 +881,13 @@ int DecodeTrace::rows_size()
             size++;
         }
     }
-    return size == 0 ? 1 : size;
+    return size;
 }
 
-void DecodeTrace::paint_type_options(QPainter &p, int right, const QPoint pt, QColor fore)
+QString DecodeTrace::channel_list_text(const QFontMetrics &fm, int avail)
 {
-    (void)pt;
-
-    int y = get_y();
-    const QRectF group_index_rect = get_rect(CHNLREG, y, right);
-    p.setPen(QPen(fore, 1, Qt::DashLine));
-    p.drawLine(group_index_rect.bottomLeft(), group_index_rect.bottomRight());
-
     if (_index_list.empty())
-        return;
+        return QString();
 
     // The channels the decoder reads, as runs of consecutive indexes,
     // highest first ("31,28-0"). The bindings come in any order, e.g. from
@@ -937,17 +908,196 @@ void DecodeTrace::paint_type_options(QPainter &p, int right, const QPoint pt, QC
                                 : QString::number(high) + "-" + QString::number(low));
     }
 
-    QString index_string = runs.join(",");
-    const int avail = (int)group_index_rect.width();
-    if (p.fontMetrics().horizontalAdvance(index_string) > avail) {
-        index_string = QString(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DECODER_CHANNEL_COUNT), "%1 ch"))
-                           .arg(indexes.size());
-        if (p.fontMetrics().horizontalAdvance(index_string) > avail)
-            return;
+    QString text = runs.join(",");
+    if (fm.horizontalAdvance(text) > avail) {
+        text = QString(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DECODER_CHANNEL_COUNT), "%1 ch"))
+                   .arg(indexes.size());
+        if (fm.horizontalAdvance(text) > avail)
+            return QString();
+    }
+    return text;
+}
+
+// Text that doesn't fit fades out at the right, as annotations do.
+static void draw_label_text(QPainter &p, const QRectF &rect,
+    const QString &text, QColor colour)
+{
+    if (p.fontMetrics().horizontalAdvance(text) <= rect.width()) {
+        p.setPen(colour);
+        p.drawText(rect, Qt::AlignCenter | Qt::AlignVCenter, text);
+        return;
     }
 
-    p.setPen(fore);
-    p.drawText(group_index_rect, Qt::AlignRight | Qt::AlignVCenter, index_string);
+    QColor clear = colour;
+    clear.setAlpha(0);
+    QLinearGradient gradient(rect.right() - rect.width() / 5, rect.top(),
+        rect.right(), rect.top());
+    gradient.setColorAt(0.0, colour);
+    gradient.setColorAt(1.0, clear);
+    p.setPen(QPen(QBrush(gradient), 1));
+    p.drawText(rect, Qt::AlignLeft | Qt::AlignVCenter, text);
+}
+
+// The colour button and the name sit on the trace's centre line, as for
+// other traces. Each row paint_mid() draws gets an outlined arrow pointing
+// at it, with the row's name in it. On the centre line, the channel list
+// goes between the name and that row's arrow, which takes the room left.
+void DecodeTrace::paint_label(QPainter &p, int right, const QPoint pt, QColor fore)
+{
+    using pv::data::decode::Row;
+
+    paint_colour_and_name(p, right, fore);
+    _label_boxes.clear();
+
+    if (_view == NULL)
+        return;
+
+    const QFontMetrics fm = p.fontMetrics();
+    const int y = get_y();
+    const int sq = get_squareWidth();
+    const int margin = get_squareMargin();
+    const int pad = margin + 2;
+    const int box_right = right - sq / 2;
+    const int min_box = sq;
+    const int box_height = max(4, min(sq, _view->get_signalHeight() - 2));
+
+    struct RowLabel {
+        int y;
+        QString text;
+        QString short_text;     // in place of text if that doesn't fit
+        QColor colour;
+    };
+    std::vector<RowLabel> labels;
+
+    // A trace is named after the last decoder of its stack.
+    const srd_decoder *named_decoder = _decoder_stack->stack().empty() ? NULL :
+        _decoder_stack->stack().back()->decoder();
+
+    for_each_row([&](const Row *row, const QString &heading, int row_y, int local_row) {
+        RowLabel l;
+        l.y = row_y;
+        if (row == NULL) {
+            // A decoder that isn't shown: its name, greyed out.
+            l.text = heading;
+            l.colour = fore;
+            l.colour.setAlpha(View::BackAlpha);
+        }
+        else {
+            // The rows of the decoder the trace is named after go without
+            // the decoder's name; the other decoders' rows keep it if
+            // there is room.
+            l.short_text = row->desc();
+            l.text = (row->decoder() == named_decoder) ? l.short_text : heading;
+            l.colour = _colour.isValid() ? _colour : get_row_base_colour(local_row);
+        }
+        labels.push_back(l);
+    });
+
+    _header_rows = labels.size();
+
+    // Nothing decoded yet: one arrow, as other traces have.
+    if (labels.empty()) {
+        RowLabel l;
+        l.y = get_zero_vpos();
+        l.text = "D";
+        l.colour = _colour.isValid() ? _colour : get_row_base_colour(0);
+        labels.push_back(l);
+    }
+
+    const QRectF name_rect = Trace::get_rect("name", y, right);
+    const int line_left = name_rect.left() + 2 * margin +
+        min((double)fm.horizontalAdvance(_name), name_rect.width());
+
+    const QString channels = channel_list_text(fm,
+        box_right - min_box - 2 * margin - line_left);
+    const int centre_left = channels.isEmpty() ? line_left :
+        line_left + fm.horizontalAdvance(channels) + 2 * margin;
+    int channels_right = box_right - min_box - 2 * margin;
+
+    for (const RowLabel &l : labels) {
+        // Beside the name and channel list, or on a line of its own
+        const bool centre = abs(l.y - y) < (sq + box_height) / 2;
+        const int left_limit = centre ? centre_left : get_leftWidth();
+        const int room = box_right - left_limit;
+        QString text = l.text;
+        if (fm.horizontalAdvance(text) + 2 * pad + 1 > room && !l.short_text.isEmpty())
+            text = l.short_text;
+        const int wanted = fm.horizontalAdvance(text) + 2 * pad + 1;
+        const int box_width = max(min_box, min(wanted, room));
+
+        const QRectF box(box_right - box_width + 0.5, l.y - box_height / 2 + 0.5,
+            box_width - 1, box_height - 1);
+        const QPointF points[] = {
+            box.topLeft(),
+            box.topRight(),
+            QPointF(right - 0.5, box.center().y()),
+            box.bottomRight(),
+            box.bottomLeft()
+        };
+        const QRectF hit(box.left(), box.top(), right - box.left(), box.height());
+
+        // A colour close to the header's background would hardly show as a
+        // thin outline (yellow on the light theme, dark green on the dark
+        // one): darken or lighten it.
+        QColor outline = l.colour;
+        const bool dark_back = compute_colour_luminance(fore) > 128;
+        for (int i = 0; i < 4; i++) {
+            const int luma = compute_colour_luminance(outline);
+            if (dark_back && luma < 80)
+                outline = outline.lighter(150);
+            else if (!dark_back && luma > 160)
+                outline = outline.darker(130);
+            else
+                break;
+        }
+
+        p.setPen(QPen(outline, 1));
+        p.setBrush(Qt::NoBrush);
+        p.drawPolygon(points, countof(points));
+
+        if (hit.contains(pt) || selected()) {
+            p.setPen(fore);
+            paint_label_marker(p, box);
+        }
+
+        draw_label_text(p, box.adjusted(pad, 0, -pad, 0), text, fore);
+
+        _label_boxes.push_back(hit);
+        if (centre)
+            channels_right = min(channels_right, (int)box.left() - 2 * margin);
+    }
+
+    // The channel list, right-aligned against the arrow beside it
+    const QRectF chan_rect = get_rect(CHNLREG, y, right);
+    _channels_left = max((double)line_left, channels_right - chan_rect.width());
+
+    if (channels_right > _channels_left) {
+        p.setPen(QPen(fore, 1, Qt::DashLine));
+        p.drawLine(QPointF(_channels_left, chan_rect.bottom()),
+            QPointF(channels_right, chan_rect.bottom()));
+    }
+
+    if (!channels.isEmpty()) {
+        p.setPen(fore);
+        p.drawText(QRectF(line_left, chan_rect.top(), channels_right - line_left,
+            chan_rect.height()), Qt::AlignRight | Qt::AlignVCenter, channels);
+    }
+}
+
+int DecodeTrace::pt_in_rect(int y, int right, const QPoint &point)
+{
+    // The row arrows are the trace's label: they select and drag it.
+    for (const QRectF &r : _label_boxes) {
+        if (r.contains(point))
+            return LABEL;
+    }
+
+    // The colour button and the name, but not the single label other
+    // traces have, nor the channel list.
+    const int action = Trace::pt_in_rect(y, right, point);
+    if (action == LABEL || (action == NAME && point.x() >= _channels_left))
+        return 0;
+    return action;
 }
 
 QRectF DecodeTrace::get_rect(DecodeSetRegions type, int y, int right)

@@ -294,7 +294,7 @@ public:
      * 	area.
      * @param point the point to test.
      */
-    int pt_in_rect(int y, int right,
+    virtual int pt_in_rect(int y, int right,
         const QPoint &point);
 
     /**
@@ -350,6 +350,13 @@ protected:
      * @param point the mouse point.
      */
     virtual void paint_type_options(QPainter &p, int right, const QPoint pt, QColor fore);
+
+    // The colour button and the name, the left part of paint_label().
+    void paint_colour_and_name(QPainter &p, int right, QColor fore);
+
+    // The marker drawn on a label's box while the trace is selected or the
+    // mouse is over it, in the painter's pen colour.
+    static void paint_label_marker(QPainter &p, const QRectF &label_rect);
 
 private:
 

@@ -26,10 +26,13 @@
 
 #include <list>
 #include <map>
+#include <vector>
 #include <QSignalMapper>
 #include <QFormLayout>
 #include <QWidget>
 #include <QString>
+#include <QFontMetrics>
+#include <QRectF>
 #include <functional>
 
 #include "trace.h"
@@ -145,6 +148,9 @@ public:
  
     int rows_size();
 
+    // The rows paint_mid() draws, 0 if none (rows_size() is 1 then).
+    int shown_rows();
+
     QRectF get_rect(DecodeSetRegions type, int y, int right);
 
     /**
@@ -164,10 +170,20 @@ public:
      */
     bool annotation_at(const QPoint &pt, AnnotationHover &hover);
 
-protected:
-    void paint_type_options(QPainter &p, int right, const QPoint pt, QColor fore);
+    /**
+     * Paints the header: the name, the channel list and one arrow for
+     * each row, with the row's name in it.
+     **/
+    void paint_label(QPainter &p, int right, const QPoint pt, QColor fore);
+
+    // The arrows act as the label; the channel list is no part of the name.
+    int pt_in_rect(int y, int right, const QPoint &point);
 
 private: 
+    // The channel list for the header, or the channel count if the list is
+    // wider than avail, or nothing if that doesn't fit either.
+    QString channel_list_text(const QFontMetrics &fm, int avail);
+
     // Calls visit for each row paint_mid() draws, top to bottom, with the
     // row's centre y. row is NULL for a decoder that isn't shown.
     void for_each_row(const std::function<void(const pv::data::decode::Row *row,
@@ -238,7 +254,9 @@ private:
 	uint64_t		_decode_cursor1; // the cursor key, sample start index 
 	uint64_t		_decode_cursor2;	 
 
-	std::vector<QString> 	_cur_row_headings; 
+	std::vector<QRectF> 	_label_boxes;   // the header arrows, as last painted
+	double 			_channels_left; // where the channel list starts in the header
+	int 			_header_rows;   // the rows the header had arrows for
  
 };
 
