@@ -69,8 +69,14 @@ ProtocolDock::ProtocolDock(QWidget *parent, view::View &view, SigSession *sessio
     _view(view)
 {
     _session = session;
-    _cur_search_index = -1;
-    _search_edited = false; 
+    _search_stack = NULL;
+    _search_list_size = 0;
+    _search_dirty = true;
+    _search_generation = 0;
+    _search_pos = -1;
+    _list_cursor = {0, 0, 0};
+    _list_cursor_valid = false;
+    _nav_column = 0;
     _pro_add_button = NULL;
 
     //-----------------------------get protocol list
@@ -219,6 +225,12 @@ ProtocolDock::ProtocolDock(QWidget *parent, view::View &view, SigSession *sessio
     connect(_pro_search_button, SIGNAL(clicked()), this, SLOT(show_protocol_select()));
 
     connect(_ann_search_edit, SIGNAL(editingFinished()), this, SLOT(search_changed()));
+    // Enter in the search box finds the next match, as the next button does.
+    // Queued: a long search shows a modal progress dialog, which must not run
+    // inside the key handler of the line edit (on Windows a popup that is
+    // closing at that moment).
+    connect(_ann_search_edit, SIGNAL(returnPressed()), this, SLOT(search_nxt()),
+            Qt::QueuedConnection);
 
 
     ADD_UI(this);
@@ -471,8 +483,11 @@ void ProtocolDock::set_model()
     protocollist_dlg->exec();
     delete protocollist_dlg;
     resize_table_view(_session->get_decoder_model());
-    _model_proxy.setSourceModel(_session->get_decoder_model());
-    search_done();
+
+    // The list may show another decoder or other columns now.
+    _list_cursor_valid = false;
+    _nav_column = 0;
+    search_invalidate();
 
     // clear mark_index of all DecoderStacks
     const auto &decode_sigs = _session->get_decode_signals();
@@ -486,6 +501,7 @@ void ProtocolDock::update_model()
 {
     pv::data::DecoderModel *decoder_model = _session->get_decoder_model();
     const auto &decode_sigs = _session->get_decode_signals();
+    void *old_stack = decoder_model->getDecoderStack();
 
     if (decode_sigs.size() == 0)
         decoder_model->setDecoderStack(NULL);
@@ -503,8 +519,12 @@ void ProtocolDock::update_model()
         if (index >= decode_sigs.size())
             decoder_model->setDecoderStack(decode_sigs.at(0)->decoder());
     }
-    _model_proxy.setSourceModel(decoder_model);
-    search_done();
+
+    if (decoder_model->getDecoderStack() != old_stack) {
+        _list_cursor_valid = false;
+        _nav_column = 0;
+    }
+    search_invalidate();
     resize_table_view(decoder_model);
 }
 
@@ -527,9 +547,23 @@ void ProtocolDock::resize_table_view(data::DecoderModel* decoder_model)
 
 void ProtocolDock::item_clicked(const QModelIndex &index)
 {
-    pv::data::DecoderModel *decoder_model = _session->get_decoder_model();
+    // The next search starts from the clicked cell.
+    select_list_cell(index);
+    _search_pos = cursor_match_pos();
+    show_search_count();
+}
 
+// Marks the annotation of a list cell on the waveform and moves the view to
+// it. The cell becomes the starting point of the next search.
+void ProtocolDock::select_list_cell(const QModelIndex &index)
+{
+    if (!index.isValid())
+        return;
+
+    pv::data::DecoderModel *decoder_model = _session->get_decoder_model();
     auto decoder_stack = decoder_model->getDecoderStack();
+
+    _nav_column = index.column();
 
     if (decoder_stack) {
         pv::data::decode::Annotation ann;
@@ -542,46 +576,13 @@ void ProtocolDock::item_clicked(const QModelIndex &index)
 
             decoder_stack->set_mark_index((ann.start_sample()+ann.end_sample())/2);
             _session->show_region(ann.start_sample(), ann.end_sample(), false);
+
+            _list_cursor = {ann.start_sample(), (uint32_t)index.row(), (uint16_t)index.column()};
+            _list_cursor_valid = true;
         }
     }
 
     _table_view->resizeRowToContents(index.row());
-    if (index.column() != _model_proxy.filterKeyColumn()) {
-        _model_proxy.setFilterKeyColumn(index.column());
-        _model_proxy.setSourceModel(decoder_model);
-        search_done();
-    }
-    QModelIndex filterIndex = _model_proxy.mapFromSource(index);
-    if (filterIndex.isValid()) {
-        _cur_search_index = filterIndex.row();
-    } else {
-        if (_model_proxy.rowCount() == 0) {
-            _cur_search_index = -1;
-        } else {
-            uint64_t up = 0;
-            uint64_t dn = _model_proxy.rowCount() - 1;
-            do {
-                uint64_t md = (up + dn)/2;
-                QModelIndex curIndex = _model_proxy.mapToSource(_model_proxy.index(md,_model_proxy.filterKeyColumn()));
-                if (index.row() == curIndex.row()) {
-                    _cur_search_index = md;
-                    break;
-                } else if (md == up) {
-                    if (curIndex.row() < index.row() && up < dn) {
-                        QModelIndex nxtIndex = _model_proxy.mapToSource(_model_proxy.index(md+1,_model_proxy.filterKeyColumn()));
-                        if (nxtIndex.row() < index.row())
-                            md++;
-                    }
-                    _cur_search_index = md + ((curIndex.row() < index.row()) ? 0.5 : -0.5);
-                    break;
-                } else if (curIndex.row() < index.row()) {
-                    up = md;
-                } else if (curIndex.row() > index.row()) {
-                    dn = md;
-                }
-            }while(1);
-        }
-    }
 }
 
 void ProtocolDock::column_resize(int index, int old_size, int new_size)
@@ -616,7 +617,9 @@ void ProtocolDock::nav_table_view()
     if (decoder_stack) {
         uint64_t offset = _view.x_offset() * (decoder_stack->samplerate() * _view.scale());
         std::map<const pv::data::decode::Row, bool> rows = decoder_stack->get_rows_lshow();
-        int column = _model_proxy.filterKeyColumn();
+        if (_nav_column < 0 || _nav_column >= decoder_model->columnCount(QModelIndex()))
+            _nav_column = 0;
+        int column = _nav_column;
         for (std::map<const pv::data::decode::Row, bool>::const_iterator i = rows.begin();
             i != rows.end(); i++) {
             if ((*i).second && column-- == 0) {
@@ -624,7 +627,7 @@ void ProtocolDock::nav_table_view()
                 break;
             }
         }
-        QModelIndex index = _model_proxy.mapToSource(_model_proxy.index(row_index, _model_proxy.filterKeyColumn()));
+        QModelIndex index = decoder_model->index(row_index, _nav_column);
 
         if(index.isValid()){         
 
@@ -644,186 +647,178 @@ void ProtocolDock::nav_table_view()
                 decoder_stack->set_mark_index((ann.start_sample()+ann.end_sample())/2);
                 _view.set_all_update(true);
                 _view.update();
+
+                // The next search starts from here.
+                _list_cursor = {ann.start_sample(), (uint32_t)index.row(), (uint16_t)index.column()};
+                _list_cursor_valid = true;
+                _search_pos = cursor_match_pos();
+                show_search_count();
             }           
         }
     }
 }
 
-void ProtocolDock::search_pre()
+//-------------------search in the list of decoded data
+//
+// The search goes through every column of the list (Address bus, Data bus,
+// Instructions...), not only the one that was clicked last, and visits the
+// matches in time order. It starts from the cell that was selected last,
+// by a click, the navigate button or the search itself.
+
+bool ProtocolDock::search_match_less(const SearchMatch &a, const SearchMatch &b)
 {
-    search_update();
-    // now the proxy only contains rows that match the name
-    // let's take the pre one and map it to the original model
-    if (_model_proxy.rowCount() == 0) {
-        _table_view->scrollToTop();
-        _table_view->clearSelection();
-        _matchs_label->setText(QString::number(0));
-        _cur_search_index = -1;
-        return;
-    }
-    int i = 0;
-    uint64_t rowCount = _model_proxy.rowCount();
-    QModelIndex matchingIndex;
-    pv::data::DecoderModel *decoder_model = _session->get_decoder_model();
+    if (a.start != b.start)
+        return a.start < b.start;
+    if (a.col != b.col)
+        return a.col < b.col;
+    return a.row < b.row;
+}
 
-    auto decoder_stack = decoder_model->getDecoderStack();
-    do {
-        _cur_search_index--;
-        if (_cur_search_index <= -1 || _cur_search_index >= _model_proxy.rowCount())
-            _cur_search_index = _model_proxy.rowCount() - 1;
+uint64_t ProtocolDock::list_size_total(data::DecoderStack *stack)
+{
+    uint64_t total = 0;
+    const int cols = stack->list_rows_size();
 
-        matchingIndex = _model_proxy.mapToSource(_model_proxy.index(ceil(_cur_search_index),_model_proxy.filterKeyColumn()));
-        if (!decoder_stack || !matchingIndex.isValid())
-            break;
-        i = 1;
-        uint64_t row = matchingIndex.row() + 1;
-        uint64_t col = matchingIndex.column();
+    for (int col = 0; col < cols; col++)
+        total += stack->list_annotation_size(col);
+
+    return total;
+}
+
+// Do the numeric annotations that follow 'row' in list column 'col' contain
+// seq[1], seq[2]... in this order? Text annotations in between (ACK, Start
+// and the like) are skipped, but only a few: in a column without any numbers
+// the search must not walk to the end of the column for every candidate.
+bool ProtocolDock::sequence_follows(data::DecoderStack *stack, int col,
+                                    uint64_t row, const QStringList &seq)
+{
+    const int max_skipped = 16;
+
+    for (int i = 1; i < seq.size(); i++) {
         pv::data::decode::Annotation ann;
-        bool ann_valid = false;
+        int skipped = 0;
 
-        while(i < _str_list.size()) {
-            QString nxt = _str_list.at(i);
-
-            do {
-                ann_valid = decoder_stack->list_annotation(&ann, col, row);
-                row++;
-            }
-            while(ann_valid && !ann.is_numberic());
-
-            if (ann_valid){
-                QString source = ann.annotations().at(0);
-                if (source.contains(nxt))
-                    i++;
-                else
-                    break;
-            }
-            else{
+        for (;;) {
+            if (!stack->list_annotation(&ann, col, row++))
+                return false;
+            if (ann.is_numberic())
                 break;
-            }
+            if (++skipped > max_skipped)
+                return false;
+        }
+
+        const auto &lines = ann.annotations();
+        if (lines.empty() || !lines.at(0).contains(seq.at(i), Qt::CaseInsensitive))
+            return false;
+    }
+
+    return true;
+}
+
+// Finds the annotations whose text, as shown in the list, contains 'text'
+// (case is ignored). "70-70-70" also finds three numeric values 70, 70, 70
+// in a row of one column, the multi-byte search of the user guide.
+// Runs in a worker thread for long lists: it must not touch any widget.
+void ProtocolDock::find_matches(data::DecoderStack *stack, QString text,
+                                std::vector<SearchMatch> &matches)
+{
+    matches.clear();
+    text = text.trimmed();
+
+    if (stack == NULL || text.isEmpty())
+        return;
+
+    // A multi-value search needs something on both sides of every '-', so
+    // that text like "->" or "-12" is simply searched as it is.
+    QStringList seq = text.split('-');
+    bool is_seq = seq.size() > 1;
+
+    for (QString &part : seq) {
+        part = part.trimmed();
+        if (part.isEmpty())
+            is_seq = false;
+    }
+
+    const int cols = stack->list_rows_size();
+
+    for (int col = 0; col < cols; col++) {
+        const uint64_t count = stack->list_annotation_size(col);
+
+        for (uint64_t row = 0; row < count; row++) {
+            pv::data::decode::Annotation ann;
+            if (!stack->list_annotation(&ann, col, row))
+                break;
+
+            const auto &lines = ann.annotations();
+            if (lines.empty())
+                continue;
+
+            const QString &str = lines.at(0);
+            bool found = str.contains(text, Qt::CaseInsensitive);
+
+            if (!found && is_seq && str.contains(seq.at(0), Qt::CaseInsensitive))
+                found = sequence_follows(stack, col, row + 1, seq);
+
+            if (found)
+                matches.push_back({ann.start_sample(), (uint32_t)row, (uint16_t)col});
         }
     }
-    while(i < _str_list.size() && --rowCount);
 
-    if(i >= _str_list.size() && matchingIndex.isValid()){
-        _table_view->scrollTo(matchingIndex);
-        _table_view->setCurrentIndex(matchingIndex);
-        _table_view->clicked(matchingIndex);
-    } else {
-        _table_view->scrollToTop();
-        _table_view->clearSelection();
-        _matchs_label->setText(QString::number(0));
-        _cur_search_index = -1;
-    }
+    std::sort(matches.begin(), matches.end(), search_match_less);
 }
 
-void ProtocolDock::search_nxt()
+bool ProtocolDock::list_decode_pending(data::DecoderStack *stack)
 {
-    search_update();
-    // now the proxy only contains rows that match the name
-    // let's take the pre one and map it to the original model
-    if (_model_proxy.rowCount() == 0) {
-        _table_view->scrollToTop();
-        _table_view->clearSelection();
-        _matchs_label->setText(QString::number(0));
-        _cur_search_index = -1;
-        return;
+    for (auto trace : _session->get_decode_signals()) {
+        if (trace->decoder() == stack)
+            return _session->is_decode_pending(trace);
     }
+    return false;
+}
 
-    int i = 0;
-    uint64_t rowCount = _model_proxy.rowCount();
-    QModelIndex matchingIndex;
+// Finds the matches again if the search text or the decoded data changed
+// since the last search. Returns false if there is nothing to search.
+bool ProtocolDock::search_update()
+{
     pv::data::DecoderModel *decoder_model = _session->get_decoder_model();
-    auto decoder_stack = decoder_model->getDecoderStack();
+    pv::data::DecoderStack *stack = decoder_model->getDecoderStack();
+    const QString text = _ann_search_edit->text().trimmed();
 
-    if (decoder_stack == NULL){ 
-        dsv_err("decoder_stack is null");
-        return;
-    }  
-
-    do {
-        _cur_search_index++;
-        if (_cur_search_index < 0 || _cur_search_index >= _model_proxy.rowCount())
-            _cur_search_index = 0;
-
-        matchingIndex = _model_proxy.mapToSource(_model_proxy.index(floor(_cur_search_index),_model_proxy.filterKeyColumn()));
-        
-        if (!matchingIndex.isValid())
-            break;
-
-        i = 1;
-        uint64_t row = matchingIndex.row() + 1;
-        uint64_t col = matchingIndex.column();
-        pv::data::decode::Annotation ann;
-        bool ann_valid = false;
-
-        while(i < _str_list.size()) {
-            QString nxt = _str_list.at(i);
-
-            do {
-                ann_valid = decoder_stack->list_annotation(&ann, col, row);
-                row++;
-            }
-            while(ann_valid && !ann.is_numberic());
-
-            if (ann_valid){
-                QString source = ann.annotations().at(0);
-                if (source.contains(nxt))
-                    i++;
-                else
-                    break;
-                }
-            else{
-                break;
-            }            
-        }
-    }while(i < _str_list.size() && --rowCount);
-
-    if(i >= _str_list.size() && matchingIndex.isValid()){
-        _table_view->scrollTo(matchingIndex);
-        _table_view->setCurrentIndex(matchingIndex);
-        _table_view->clicked(matchingIndex);
-    } else {
-        _table_view->scrollToTop();
-        _table_view->clearSelection();
-        _matchs_label->setText(QString::number(0));
-        _cur_search_index = -1;
+    if (stack == NULL || text.isEmpty()) {
+        _search_matches.clear();
+        _search_text = text;
+        _search_stack = stack;
+        _search_list_size = 0;
+        _search_dirty = false;
+        _search_pos = -1;
+        show_search_count();
+        return false;
     }
-}
 
-void ProtocolDock::search_done()
-{
-    QString str = _ann_search_edit->text().trimmed();
-    QRegularExpression rx("(-)");
-    _str_list = str.split(rx);
-    _model_proxy.setFilterFixedString(_str_list.first());
-    if (_str_list.size() > 1)
-        _matchs_label->setText("...");
-    else
-        _matchs_label->setText(QString::number(_model_proxy.rowCount()));
-}
+    // A new decode clears the annotation texts on the decode thread, so
+    // search only once the list's decoder is done ("..." until then).
+    if (list_decode_pending(stack)) {
+        _search_dirty = true;
+        _search_pos = -1;
+        show_search_count();
+        return false;
+    }
 
-void ProtocolDock::search_changed()
-{
-    _search_edited = true;
-    _matchs_label->setText("...");
-}
+    const uint64_t list_size = list_size_total(stack);
 
-void ProtocolDock::search_update()
-{
-    if (!_search_edited)
-        return;
+    if (!_search_dirty && text == _search_text && (void*)stack == _search_stack
+        && list_size == _search_list_size) {
+        return true;
+    }
 
-    pv::data::DecoderModel *decoder_model = _session->get_decoder_model();
+    const uint64_t generation = _search_generation;
+    std::vector<SearchMatch> matches;
 
-    auto decoder_stack = decoder_model->getDecoderStack();
-    if (!decoder_stack)
-        return;
-
-    if (decoder_stack->list_annotation_size(_model_proxy.filterKeyColumn()) > ProgressRows) {
-        QFuture<void> future;
-        future = QtConcurrent::run([&]{
-            search_done();
+    if (list_size > ProgressRows) {
+        QFuture<void> future = QtConcurrent::run([stack, text, &matches]{
+            find_matches(stack, text, matches);
         });
+
         Qt::WindowFlags flags = Qt::CustomizeWindowHint;
         QProgressDialog dlg(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SEARCHING), "Searching..."),
                             L_S(STR_PAGE_DLG, S_ID(IDS_DLG_CANCEL), "Cancel"),0,0,this,flags);
@@ -836,11 +831,120 @@ void ProtocolDock::search_update()
         connect(&watcher,SIGNAL(finished()),&dlg,SLOT(cancel()));
         watcher.setFuture(future);
 
-        dlg.exec();
-    } else {
-        search_done();
+        if (!future.isFinished())
+            dlg.exec();
+        future.waitForFinished();
     }
-    _search_edited = false;
+    else {
+        find_matches(stack, text, matches);
+    }
+
+    _search_matches.swap(matches);
+    _search_text = text;
+    _search_stack = stack;
+    _search_list_size = list_size;
+    // New data may have come in while the worker was searching.
+    _search_dirty = (generation != _search_generation);
+    _search_pos = -1;
+    show_search_count();
+
+    return true;
+}
+
+// Index of the match that is the last selected cell, or -1.
+int ProtocolDock::cursor_match_pos()
+{
+    if (!_list_cursor_valid || _search_matches.empty())
+        return -1;
+
+    auto it = std::lower_bound(_search_matches.begin(), _search_matches.end(),
+                               _list_cursor, search_match_less);
+
+    if (it == _search_matches.end() || search_match_less(_list_cursor, *it))
+        return -1;
+
+    return (int)(it - _search_matches.begin());
+}
+
+// Selects the next (or previous) match after the last selected cell,
+// starting over at the other end of the list.
+void ProtocolDock::search_jump(bool forward)
+{
+    if (!search_update() || _search_matches.empty()) {
+        _table_view->clearSelection();
+        return;
+    }
+
+    const auto first = _search_matches.begin();
+    const auto last = _search_matches.end();
+    const int count = (int)_search_matches.size();
+    int pos;
+
+    if (!_list_cursor_valid) {
+        pos = forward ? 0 : count - 1;
+    }
+    else if (forward) {
+        auto it = std::upper_bound(first, last, _list_cursor, search_match_less);
+        pos = (it == last) ? 0 : (int)(it - first);
+    }
+    else {
+        auto it = std::lower_bound(first, last, _list_cursor, search_match_less);
+        pos = (it == first) ? count - 1 : (int)(it - first) - 1;
+    }
+
+    const SearchMatch match = _search_matches[pos];
+    QModelIndex index = _session->get_decoder_model()->index(match.row, match.col);
+
+    if (!index.isValid())
+        return;
+
+    _table_view->scrollTo(index);
+    _table_view->setCurrentIndex(index);
+    select_list_cell(index);
+
+    _search_pos = pos;
+    show_search_count();
+}
+
+void ProtocolDock::search_pre()
+{
+    search_jump(false);
+}
+
+void ProtocolDock::search_nxt()
+{
+    search_jump(true);
+}
+
+// The search text was edited.
+void ProtocolDock::search_changed()
+{
+    show_search_count();
+}
+
+// The decoded data, the decoder of the list or its columns changed: search
+// again before the next jump.
+void ProtocolDock::search_invalidate()
+{
+    _search_dirty = true;
+    _search_generation++;
+    show_search_count();
+}
+
+// "Matching Items": the number of matches, with the position of the selected
+// one, or "..." until the search has run for the current text and data.
+void ProtocolDock::show_search_count()
+{
+    const QString text = _ann_search_edit->text().trimmed();
+
+    if (text.isEmpty())
+        _matchs_label->setText("");
+    else if (_search_dirty || text != _search_text)
+        _matchs_label->setText("...");
+    else if (_search_pos >= 0)
+        _matchs_label->setText(QString("%1/%2").arg(_search_pos + 1).arg(_search_matches.size()));
+    else
+        _matchs_label->setText(QString::number(_search_matches.size()));
 }
 
  //-------------------IProtocolItemLayerCallback

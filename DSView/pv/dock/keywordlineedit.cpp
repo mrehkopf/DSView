@@ -218,7 +218,9 @@ PopupLineEditInput::PopupLineEditInput(QWidget *parent)
     _textInput->setFont(font);
 
     connect(_textInput, &QLineEdit::returnPressed, [=]() {
-        InputRelease();        
+        InputRelease();
+        // The line edit has its text back now, so it can act on Enter.
+        sig_returnPressed();
     });
 }
 
@@ -348,6 +350,8 @@ void PopupLineEdit::showPupopInput()
     _popup_input = input;
 
     connect(input, SIGNAL(sig_inputEnd(QString)), this, SLOT(onPopupInputEditEnd(QString)));
+    // Enter in the popup is Enter in this line edit.
+    connect(input, SIGNAL(sig_returnPressed()), this, SIGNAL(returnPressed()));
 
     if (_is_number_mode){
         connect(line, SIGNAL(valueChanged(int)), this, SLOT(onPopupInputValueChanged(int)));
