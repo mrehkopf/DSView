@@ -1630,5 +1630,9 @@
     {
         "id": "IDS_DLG_SRCH_HELP_MATCH_WINDOWS",
         "text": "Time windows include both ends. Start one at 1sa to leave out the match itself."
+    },
+    {
+        "id": "IDS_DLG_TIME_BAR",
+        "text": "Show time bar"
     }
 ]

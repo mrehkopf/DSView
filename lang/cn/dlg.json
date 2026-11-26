@@ -1070,5 +1070,9 @@
     {
         "id": "IDS_DLG_IDENTIFY_TIP",
         "text": "使设备的指示灯红绿交替闪烁两秒。"
+    },
+    {
+        "id": "IDS_DLG_TIME_BAR",
+        "text": "显示时间条"
     }
 ]

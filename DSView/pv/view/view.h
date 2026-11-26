@@ -69,6 +69,7 @@ namespace view {
 class Header;
 class DevMode;
 class Ruler;
+class TimeBar;
 class Trace;
 class Viewport;
 class LissajousFigure;
@@ -215,6 +216,14 @@ public:
     void set_scale_offset(double scale, int64_t offset);
     void set_preScale_preOffset();
 
+    /**
+     * The scale before the last set_scale_offset() or zoom(), the one
+     * set_preScale_preOffset() returns to.
+     */
+    inline double get_prescale(){
+        return _preScale;
+    }
+
     void get_traces(int type, std::vector<Trace*> &traces);
 
 	/**
@@ -258,6 +267,12 @@ public:
     double get_trace_font_scale();
 
     int headerWidth();
+
+    // The height above the traces: the ruler, and the time bar when shown.
+    int get_top_margin();
+
+    // Logic mode with the time bar option on.
+    bool timebar_shown();
 
     inline Ruler* get_ruler(){
         return _ruler;
@@ -523,6 +538,7 @@ private:
     std::list<QWidget *>    _viewport_list;
     std::map<int, int>      _trace_view_map;
 	Ruler                   *_ruler;
+    TimeBar                 *_timebar;
 	Header                  *_header;
     DevMode                 *_devmode;
     

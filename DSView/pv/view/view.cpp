@@ -36,6 +36,7 @@
 #include "header.h"
 #include "devmode.h"
 #include "ruler.h"
+#include "timebar.h"
 #include "signal.h"
 #include "dsosignal.h"
 #include "view.h"
@@ -111,6 +112,7 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
 {
    _trig_cursor = NULL;
    _search_cursor = NULL;
+   _timebar = NULL;
    _cali = NULL;
 
    _session = session;
@@ -139,6 +141,7 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
 
     _active_viewport = NULL;
     _ruler = new Ruler(*this);
+    _timebar = new TimeBar(*this);
     _header = new Header(*this);
     _devmode = new DevMode(this, session);
 
@@ -196,6 +199,7 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
     //tr
     _viewcenter->setObjectName("ViewArea_center");
     _ruler->setObjectName("ViewArea_ruler");
+    _timebar->setObjectName("ViewArea_timebar");
     _header->setObjectName("ViewArea_header");
 
     QColor fore(QWidget::palette().color(QWidget::foregroundRole()));
@@ -227,6 +231,11 @@ View::View(SigSession *session, pv::toolbars::SamplingBar *sampling_bar, QWidget
 
     connect(_header, SIGNAL(traces_moved()),this, SLOT(on_traces_moved()));
     connect(_header, SIGNAL(header_updated()),this, SLOT(header_updated()));
+
+    // The time bar marks the cursors.
+    connect(this, SIGNAL(cursor_update()), _timebar, SLOT(update()));
+    connect(this, SIGNAL(cursor_moving()), _timebar, SLOT(update()));
+    connect(this, SIGNAL(cursor_moved()), _timebar, SLOT(update()));
 
     ADD_UI(this);
 }
@@ -1137,7 +1146,7 @@ int View::headerWidth()
     }
 
     const QMargins margins = viewportMargins();
-    setViewportMargins(headerWidth, RulerHeight, margins.right(), margins.bottom());
+    setViewportMargins(headerWidth, get_top_margin(), margins.right(), margins.bottom());
 
     return headerWidth;
 }
@@ -1340,7 +1349,7 @@ void View::update_margins()
         const QWidget *bar = horizontalScrollBar()->parentWidget();
         bottom = max(0, available.bottom() - bar->geometry().top() + 1);
     }
-    const QMargins reserved(margins.left(), RulerHeight, right,
+    const QMargins reserved(margins.left(), get_top_margin(), right,
                             bottom + _viewbottom->height());
     if (reserved != margins)
         setViewportMargins(reserved);
@@ -1349,7 +1358,13 @@ void View::update_margins()
 
     if (width > 0)
     {
-        _ruler->setGeometry(_viewcenter->x(), 0,  width, _viewcenter->y());
+        // The time bar, when shown, sits above the ruler. The corner on the
+        // left (DevMode) spans both.
+        const int bar = timebar_shown() ? TimeBar::BarHeight : 0;
+        _timebar->setVisible(bar > 0);
+        if (bar > 0)
+            _timebar->setGeometry(_viewcenter->x(), 0, width, bar);
+        _ruler->setGeometry(_viewcenter->x(), bar,  width, _viewcenter->y() - bar);
         _header->setGeometry(0, _viewcenter->y(), _viewcenter->x(), _viewcenter->height());
         _devmode->setGeometry(0, 0, _viewcenter->x(), _viewcenter->y());
     }
@@ -1360,6 +1375,23 @@ void View::update_margins()
     const int left = area.left() - viewportMargins().left();
     _viewbottom->setGeometry(left, area.bottom() + 1,
                             area.right() - left + 1, _viewbottom->height());
+}
+
+// Showing or hiding the time bar (a mode switch, the display options)
+// changes the top margin the next time headerWidth() or update_margins()
+// sets the margins, which signals_changed() does after laying out the
+// traces for the new mode.
+int View::get_top_margin()
+{
+    return RulerHeight + (timebar_shown() ? TimeBar::BarHeight : 0);
+}
+
+bool View::timebar_shown()
+{
+    return _timebar != NULL
+        && AppConfig::Instance().appOptions.showTimeBar
+        && _device_agent->have_instance()
+        && _device_agent->get_work_mode() == LOGIC;
 }
 
 void View::header_updated()
@@ -1743,6 +1775,8 @@ void View::show_region(uint64_t start, uint64_t end, bool keep)
 void View::viewport_update()
 {
     _viewcenter->update();
+    if (_timebar)
+        _timebar->update();
     for(QWidget *viewport : _viewport_list)
         viewport->update();
 }
@@ -1859,6 +1893,10 @@ void View::set_receive_len(uint64_t len)
 {
     if (_time_viewport)
         _time_viewport->set_receive_len(len);
+
+    // The received part of the capture grows on the time bar.
+    if (_timebar)
+        _timebar->update();
 
     if (_fft_viewport && _session->get_device()->get_work_mode() == DSO)
         _fft_viewport->set_receive_len(len);

@@ -1630,5 +1630,9 @@
     {
         "id": "IDS_DLG_SRCH_HELP_MATCH_WINDOWS",
         "text": "Zeitfenster schließen beide Enden ein. Beginnen Sie eines bei 1sa, um den Treffer selbst auszunehmen."
+    },
+    {
+        "id": "IDS_DLG_TIME_BAR",
+        "text": "Zeitleiste anzeigen"
     }
 ]
