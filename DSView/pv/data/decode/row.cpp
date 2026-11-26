@@ -73,6 +73,14 @@ QString Row::title() const
 	return QString();
 }
 
+QString Row::desc() const
+{
+	if (_row && _row->desc)
+		return QString::fromUtf8(_row->desc);
+
+	return title();
+}
+
 QString Row::title_id() const
 {
 	if (_decoder && _decoder->id && _row && _row->desc)

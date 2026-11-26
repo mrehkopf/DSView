@@ -59,6 +59,9 @@ public:
 
     QString title() const;
 
+	// The row's own name, without the decoder's ("Bits" for "I2C: Bits").
+	QString desc() const;
+
 	QString title_id() const;
 
     bool operator<(const Row &other)const;

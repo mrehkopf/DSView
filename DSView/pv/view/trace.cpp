@@ -245,38 +245,14 @@ void Trace::paint_label(QPainter &p, int right, const QPoint pt, QColor fore)
     if (_type == SR_CHANNEL_FFT && !enabled())
         return;
 
-    compute_text_size(p);
-    const int y = get_y();
-
-    const QRectF color_rect = get_rect("color", y, right);
-    const QRectF name_rect  = get_rect("name",  y, right);
-    const QRectF label_rect = get_rect("label", get_zero_vpos(), right);
-
-    // Paint the ColorButton
-    QColor foreBack = fore;
-    foreBack.setAlpha(View::BackAlpha);
-    QColor defaultColour = get_default_colour();
-    p.setPen(Qt::transparent);
-    p.setBrush(enabled() ? (_colour.isValid() ? _colour : (defaultColour.isValid() ? defaultColour : fore)) : foreBack);
-    p.drawRect(color_rect);
-    
-    if (_type == SR_CHANNEL_DSO ||
-        _type == SR_CHANNEL_MATH) {
-        p.setPen(enabled() ?  Qt::white: foreBack);
-        p.drawText(color_rect, Qt::AlignCenter | Qt::AlignVCenter, _name);
-    }
-
-    if (_type != SR_CHANNEL_DSO) {
-        // Paint the signal name
-        p.setPen(enabled() ?  fore: foreBack);
-        p.drawText(name_rect, Qt::AlignLeft | Qt::AlignVCenter, _name);
-    }
+    paint_colour_and_name(p, right, fore);
 
     // Paint the trigButton
     paint_type_options(p, right, pt, fore);
 
     // Paint the label
     if (enabled()) {
+        const QRectF label_rect = get_rect("label", get_zero_vpos(), right);
         const QPointF points[] = {
             label_rect.topLeft(),
             label_rect.topRight(),
@@ -298,32 +274,10 @@ void Trace::paint_label(QPainter &p, int right, const QPoint pt, QColor fore)
             p.drawPolygon(points, countof(points));
         }
 
-        p.setPen(Qt::white);
-        const QPointF arrow_points[] = {
-            QPoint(label_rect.right(), label_rect.center().y()),
-            QPoint(label_rect.right(), label_rect.center().y()-1),
-            QPoint(label_rect.right(), label_rect.center().y()+1),
-            QPoint(label_rect.right(), label_rect.center().y()-2),
-            QPoint(label_rect.right(), label_rect.center().y()+2),
-            QPoint(label_rect.right(), label_rect.center().y()-3),
-            QPoint(label_rect.right(), label_rect.center().y()+3),
-            QPoint(label_rect.right(), label_rect.center().y()-4),
-            QPoint(label_rect.right(), label_rect.center().y()+4),
-            QPoint(label_rect.right()-1, label_rect.center().y()-3),
-            QPoint(label_rect.right()-1, label_rect.center().y()+3),
-            QPoint(label_rect.right()+1, label_rect.center().y()-3),
-            QPoint(label_rect.right()+1, label_rect.center().y()+3),
-            QPoint(label_rect.right()-1, label_rect.center().y()-2),
-            QPoint(label_rect.right()-1, label_rect.center().y()+2),
-            QPoint(label_rect.right()+1, label_rect.center().y()-2),
-            QPoint(label_rect.right()+1, label_rect.center().y()+2),
-            QPoint(label_rect.right()-2, label_rect.center().y()-2),
-            QPoint(label_rect.right()-2, label_rect.center().y()+2),
-            QPoint(label_rect.right()+2, label_rect.center().y()-2),
-            QPoint(label_rect.right()+2, label_rect.center().y()+2),
-        };
-        if (label_rect.contains(pt) || selected())
-            p.drawPoints(arrow_points, countof(arrow_points));
+        if (label_rect.contains(pt) || selected()) {
+            p.setPen(Qt::white);
+            paint_label_marker(p, label_rect);
+        }
 
         // Paint the text
         p.setPen(Qt::white);
@@ -338,6 +292,50 @@ void Trace::paint_label(QPainter &p, int right, const QPoint pt, QColor fore)
         else
             p.drawText(label_rect, Qt::AlignCenter | Qt::AlignVCenter, QString::number(_index_list.front()));
     }
+}
+
+void Trace::paint_colour_and_name(QPainter &p, int right, QColor fore)
+{
+    compute_text_size(p);
+    const int y = get_y();
+
+    const QRectF color_rect = get_rect("color", y, right);
+    const QRectF name_rect  = get_rect("name",  y, right);
+
+    // Paint the ColorButton
+    QColor foreBack = fore;
+    foreBack.setAlpha(View::BackAlpha);
+    QColor defaultColour = get_default_colour();
+    p.setPen(Qt::transparent);
+    p.setBrush(enabled() ? (_colour.isValid() ? _colour : (defaultColour.isValid() ? defaultColour : fore)) : foreBack);
+    p.drawRect(color_rect);
+    
+    if (_type == SR_CHANNEL_DSO ||
+        _type == SR_CHANNEL_MATH) {
+        p.setPen(enabled() ?  Qt::white: foreBack);
+        p.drawText(color_rect, Qt::AlignCenter | Qt::AlignVCenter, _name);
+    }
+
+    if (_type != SR_CHANNEL_DSO) {
+        // Paint the signal name
+        p.setPen(enabled() ?  fore: foreBack);
+        p.drawText(name_rect, Qt::AlignLeft | Qt::AlignVCenter, _name);
+    }
+}
+
+// The marker on a selected or hovered label: a short vertical bar at the
+// right edge of its box.
+void Trace::paint_label_marker(QPainter &p, const QRectF &label_rect)
+{
+    const QPointF c((int)label_rect.right(), (int)label_rect.center().y());
+    const QPointF arrow_points[] = {
+        c, c + QPointF(0, -1), c + QPointF(0, 1), c + QPointF(0, -2), c + QPointF(0, 2),
+        c + QPointF(0, -3), c + QPointF(0, 3), c + QPointF(0, -4), c + QPointF(0, 4),
+        c + QPointF(-1, -3), c + QPointF(-1, 3), c + QPointF(1, -3), c + QPointF(1, 3),
+        c + QPointF(-1, -2), c + QPointF(-1, 2), c + QPointF(1, -2), c + QPointF(1, 2),
+        c + QPointF(-2, -2), c + QPointF(-2, 2), c + QPointF(2, -2), c + QPointF(2, 2),
+    };
+    p.drawPoints(arrow_points, countof(arrow_points));
 }
 
 void Trace::paint_type_options(QPainter &p, int right, const QPoint pt, QColor fore)
