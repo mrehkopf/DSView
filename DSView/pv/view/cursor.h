@@ -77,8 +77,15 @@ public:
     void paint_label(QPainter &p, const QRect &rect,
         unsigned int prefix, bool has_hoff, bool show_samples);
 
+    /**
+     * Paints a marker such as the trigger 'T' on the ruler. A marker without
+     * a time in its box (has_hoff false) keeps its box below labels_bottom,
+     * the lowest pixel row of the ruler's time labels, so that it does not
+     * cover them. -1: no limit.
+     */
     void paint_fix_label(QPainter &p, const QRect &rect,
-        unsigned int prefix, QChar label, QColor color, bool has_hoff, bool show_samples);
+        unsigned int prefix, QChar label, QColor color, bool has_hoff, bool show_samples,
+        int labels_bottom = -1);
 
     /**
      * Measures the label for get_label_rect(). Call before laying out labels.

@@ -168,7 +168,8 @@ void Cursor::paint_label(QPainter &p, const QRect &rect,
 }
 
 void Cursor::paint_fix_label(QPainter &p, const QRect &rect,
-    unsigned int prefix, QChar label, QColor color, bool has_hoff, bool show_samples)
+    unsigned int prefix, QChar label, QColor color, bool has_hoff, bool show_samples,
+    int labels_bottom)
 {
     using pv::view::Ruler;
     bool visible;
@@ -179,9 +180,14 @@ void Cursor::paint_fix_label(QPainter &p, const QRect &rect,
         : Ruler::format_real_time(_index, _view.session().cur_snap_samplerate());
 
     compute_text_size(p, text);
-    const QRect r(get_label_rect(rect, visible, has_hoff));
+    QRect r(get_label_rect(rect, visible, has_hoff));
     if (!visible)
         return;
+
+    // Without a time in the box, only a thin band of it is needed above the
+    // arrow. Start it below the time labels, keeping at least 3 pixel rows.
+    if (!has_hoff && labels_bottom >= 0)
+        r.setTop(qMin(qMax(r.top(), labels_bottom + 2), r.bottom() - 2));
 
     p.setPen(Qt::transparent);
     p.setBrush(color);

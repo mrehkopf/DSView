@@ -164,6 +164,10 @@ QString Ruler::format_time(double t, int prefix,
     char format[15];
     QString units = SIPrefixes[prefix] + "s";
     double v = (t * multiplier) / 1000000.0;
+    // A value that rounds to zero is "+0.00", not "-0.00": the tick at the
+    // trigger is often a hair below zero after the floating point steps.
+    if (fabs(v) < 0.5 * pow(10.0, -(int)precision))
+        v = 0.0;
     if(v >= 0) {
         *(b++) = '+';
     }
@@ -592,7 +596,8 @@ void Ruler::draw_logic_tick_mark(QPainter &p)
     paint_cursor_labels(p, prefix, bWorkStoped, isShowSamples);
 
     if (_view.trig_cursor_shown()) {
-        _view.get_trig_cursor()->paint_fix_label(p, rect(), prefix, 'T', _view.get_trig_cursor()->get_color(), false, isShowSamples);
+        _view.get_trig_cursor()->paint_fix_label(p, rect(), prefix, 'T', _view.get_trig_cursor()->get_color(), false, isShowSamples,
+                                                 2 * ValueMargin + text_height - 1);
     }
     if (_view.search_cursor_shown()) {
         _view.get_search_cursor()->paint_fix_label(p, rect(), prefix, 'S', _view.get_search_cursor()->get_color(), true, isShowSamples);
@@ -701,7 +706,8 @@ void Ruler::draw_osc_tick_mark(QPainter &p)
     paint_cursor_labels(p, prefix, bWorkStoped, false);
     
     if (_view.trig_cursor_shown()) {
-        _view.get_trig_cursor()->paint_fix_label(p, rect(), prefix, 'T', _view.get_trig_cursor()->get_color(), false, false);
+        _view.get_trig_cursor()->paint_fix_label(p, rect(), prefix, 'T', _view.get_trig_cursor()->get_color(), false, false,
+                                                 2 * ValueMargin + text_height - 1);
     }
     if (_view.search_cursor_shown()) {
         _view.get_search_cursor()->paint_fix_label(p, rect(), prefix, 'S', _view.get_search_cursor()->get_color(), true, false);
