@@ -662,7 +662,7 @@ void DecoderStack::decode_data(const uint64_t decode_start, const uint64_t decod
                 }
                 else {
                     _error_message = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DECODERSTACK_DECODE_DATA_ERROR),
-                                     "At least one of selected channels are not enabled.");
+                                     "At least one of the selected channels is not enabled.");
                     return;
                 }
             }

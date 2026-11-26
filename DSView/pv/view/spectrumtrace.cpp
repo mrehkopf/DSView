@@ -60,7 +60,7 @@ const int SpectrumTrace::DownMargin = 0;
 const int SpectrumTrace::RightMargin = 30;
 
 const QString SpectrumTrace::FreqPrefixes[9] =
-    {"", "", "", "", "K", "M", "G", "T", "P"};
+    {"", "", "", "", "k", "M", "G", "T", "P"};
 
 const int SpectrumTrace::FirstSIPrefixPower = -9;
 const int SpectrumTrace::LastSIPrefixPower = 15;
@@ -536,10 +536,10 @@ void SpectrumTrace::update_lang_text()
     windows_support[1] = L_S(STR_PAGE_DLG, S_ID(IDS_FFT_WINDOW_HANN), "Hann");
     windows_support[2] = L_S(STR_PAGE_DLG, S_ID(IDS_FFT_WINDOW_HAMMING), "Hamming");
     windows_support[3] = L_S(STR_PAGE_DLG, S_ID(IDS_FFT_WINDOW_BLACKMAN), "Blackman");
-    windows_support[4] = L_S(STR_PAGE_DLG, S_ID(IDS_FFT_WINDOW_FLATTOP), "Flat_top");
+    windows_support[4] = L_S(STR_PAGE_DLG, S_ID(IDS_FFT_WINDOW_FLATTOP), "Flat top");
 
     FFT_ViewMode[0] = L_S(STR_PAGE_DLG, S_ID(IDS_FFT_MODE_LINEARRSM), "Linear RMS");
-    FFT_ViewMode[1] = "DBV RMS";
+    FFT_ViewMode[1] = "dBV RMS";
 }
 
 } // namespace view

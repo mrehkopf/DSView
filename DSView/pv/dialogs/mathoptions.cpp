@@ -70,7 +70,7 @@ MathOptions::MathOptions(SigSession *session, QWidget *parent) :
     };
 
     place(new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_ADD), "Add"), _math_group), data::MathStack::MATH_ADD);
-    place(new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SUBSTRACT), "Substract"), _math_group), data::MathStack::MATH_SUB);
+    place(new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SUBSTRACT), "Subtract"), _math_group), data::MathStack::MATH_SUB);
     place(new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_MULTIPLY), "Multiply"), _math_group), data::MathStack::MATH_MUL);
     place(new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DIVIDE), "Divide"), _math_group), data::MathStack::MATH_DIV);
     place(new QRadioButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_INTEGRATE), "Integrate"), _math_group), data::MathStack::MATH_INTEG);
@@ -191,7 +191,7 @@ void MathOptions::retranslateUi()
     _math_group->setTitle(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_MATH_TYPE), "Math Type"));
     _filter_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_FILTER_WIDTH), "Filter window (samples)"));
     _src1_group->setTitle(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_1ST_SOURCE), "1st Source"));
-    _src2_group->setTitle(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_2ST_SOURCE), "2st Source"));
+    _src2_group->setTitle(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_2ST_SOURCE), "2nd Source"));
     setTitle(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_MATH_OPTIONS), "Math Options"));
 }
 

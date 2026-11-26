@@ -222,7 +222,7 @@ FftOptions::FftOptions(QWidget *parent, SigSession *session) :
     _glayout->addWidget(_dc_checkbox, 5, 1);
     _glayout->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_Y-AXIS_MODE), "Y-axis Mode: "), this), 6, 0);
     _glayout->addWidget(_view_combobox, 6, 1);
-    _glayout->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DBV_RANGE), "DBV Range: "), this), 7, 0);
+    _glayout->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DBV_RANGE), "dBV Range: "), this), 7, 0);
     _glayout->addWidget(_dbv_combobox, 7, 1);
     _glayout->addWidget(_hint_label, 0, 2, 8, 1);
 

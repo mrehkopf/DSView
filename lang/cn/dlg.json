@@ -181,7 +181,7 @@
     },
     {
         "id": "IDS_DLG_DBV_RANGE",
-        "text": "DBV范围: "
+        "text": "dBV范围: "
     },
     {
         "id": "IDS_DLG_FFT_OPTIONS",
@@ -325,15 +325,15 @@
     },
     {
         "id": "IDS_DLG_US",
-        "text": "uS"
+        "text": "µs"
     },
     {
         "id": "IDS_DLG_MS",
-        "text": "mS"
+        "text": "ms"
     },
     {
         "id": "IDS_DLG_S",
-        "text": "S"
+        "text": "s"
     },
     {
         "id": "IDS_DLG_TRIGGER_POSITION",

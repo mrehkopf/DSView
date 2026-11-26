@@ -585,7 +585,7 @@ bool SearchDock::start_search()
     }
     data::LogicSnapshot *snapshot = logic_snapshot();
     if (snapshot == nullptr || snapshot->get_ring_sample_count() == 0){
-        MsgBox::Show(QString(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_NO_SAMPLE_DATA), "No Sample data!")));
+        MsgBox::Show(QString(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_NO_SAMPLE_DATA), "No sample data!")));
         return false;
     }
     if (_query.find.empty()){

@@ -331,7 +331,7 @@ void StoreSession::save_logic(pv::data::LogicSnapshot *logic_snapshot)
                 if (!_has_error) {
                     _has_error = true;
                     _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_SAVEPROC_ERROR2), 
-                                "Failed to create zip file. Please check write permission of this path.");
+                                "Failed to create zip file. Please check the write permission of this path.");
                 }
                 progress_updated();
 
@@ -435,7 +435,7 @@ void StoreSession::save_analog(pv::data::AnalogSnapshot *analog_snapshot)
                 if (!_has_error) {
                     _has_error = true;
                     _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_SAVEPROC_ERROR2), 
-                            "Failed to create zip file. Please check write permission of this path.");
+                            "Failed to create zip file. Please check the write permission of this path.");
                 }
                 progress_updated();
                 if (_has_error)
@@ -492,7 +492,7 @@ void StoreSession::save_dso(pv::data::DsoSnapshot *dso_snapshot)
                 if (!_has_error) {
                     _has_error = true;
                     _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_SAVEPROC_ERROR2), 
-                            "Failed to create zip file. Please check write permission of this path.");
+                            "Failed to create zip file. Please check the write permission of this path.");
                 }
                 progress_updated();
                 if (_has_error)
@@ -827,7 +827,7 @@ bool StoreSession::export_start()
     }
 
     if (_file_name == ""){
-        _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_EXPORTSTART_ERROR3), "No set file name.");
+        _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_EXPORTSTART_ERROR3), "No file name set.");
         return false;
     }
 
@@ -897,7 +897,7 @@ void StoreSession::export_exec(data::Snapshot *snapshot)
         channel_type = SR_CHANNEL_ANALOG;
     } else {
         _has_error = true;
-        _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_EXPORTPROC_ERROR1), "data type don't support.");
+        _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_EXPORTPROC_ERROR1), "Data type not supported.");
         return;
     }
 
@@ -1115,7 +1115,7 @@ void StoreSession::export_exec(data::Snapshot *snapshot)
             uint8_t *xbuf = (uint8_t *)malloc(size * unitsize);
             if (xbuf == NULL) {
                 _has_error = true;
-                _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_EXPORTPROC_ERROR2), "xbuffer malloc failed.");
+                _error = L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STORESESS_EXPORTPROC_ERROR2), "Buffer malloc failed.");
                 file.close();
                 _outModule->cleanup(&output);
                 release_export_params();

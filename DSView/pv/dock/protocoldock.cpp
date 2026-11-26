@@ -428,11 +428,11 @@ bool ProtocolDock::add_protocol_by_id(QString id, bool silent, std::list<pv::dat
  
  void ProtocolDock::on_del_all_protocol(){
      if (_protocol_lay_items.size() == 0){
-        MsgBox::Show(NULL, L_S(STR_PAGE_MSG, S_ID(IDS_MSG_NO_DECODER_DEL), "Have no decoder to remove!"), this);
+        MsgBox::Show(NULL, L_S(STR_PAGE_MSG, S_ID(IDS_MSG_NO_DECODER_DEL), "There is no decoder to remove!"), this);
         return;
      }
 
-    QString strMsg(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DECODER_CONFIRM_DEL_ALL), "Are you sure to remove all decoder?"));
+    QString strMsg(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DECODER_CONFIRM_DEL_ALL), "Are you sure you want to remove all decoders?"));
     if (MsgBox::Confirm(strMsg,  this)){
         del_all_protocol();
     }
@@ -961,7 +961,7 @@ void ProtocolDock::OnProtocolSetting(void *handle){
 }
 
 void ProtocolDock::OnProtocolDelete(void *handle){
-    QString strMsg(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DECODER_CONFIRM_DEL), "Are you sure to remove this decoder?"));
+    QString strMsg(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_DECODER_CONFIRM_DEL), "Are you sure you want to remove this decoder?"));
 
     if (!MsgBox::Confirm(strMsg, this)){
         return;

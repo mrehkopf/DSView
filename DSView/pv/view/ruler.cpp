@@ -52,7 +52,7 @@ const int Ruler::MinPeriodScale = 10;
 const QString Ruler::SIPrefixes[9] =
 	{"f", "p", "n", QChar(0x03BC), "m", "", "k", "M", "G"};
 const QString Ruler::FreqPrefixes[9] =
-    {"P", "T", "G", "M", "K", "", "", "", ""};
+    {"P", "T", "G", "M", "k", "", "", "", ""};
 const int Ruler::FirstSIPrefixPower = -15;
 const int Ruler::pricision = 2;
 

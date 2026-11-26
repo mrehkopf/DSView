@@ -194,8 +194,8 @@ void TriggerDock::retranslateUi()
     _serial_edge_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_CLOCK_FLAG), "Clock Flag: "));
     _serial_data_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DATA_CHANNEL), "Data Channel: "));
     _serial_value_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DATA_VALUE), "Data Value: "));
-    _serial_hex_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SERIAL_HEX), "Hex: "));
-    _serial_hex_ck_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SERIAL_INPUT_AS_HEX), "Input hex"));
+    _serial_hex_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SERIAL_HEX), "Hex:"));
+    _serial_hex_ck_label->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SERIAL_INPUT_AS_HEX), "Input in hex format"));
 
     _adv_tabWidget->setTabText(0, L_S(STR_PAGE_DLG, S_ID(IDS_DLG_STAGE_TRIGGER), "Stage Trigger"));
     _adv_tabWidget->setTabText(1, L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SERIAL_TRIGGER), "Serial Trigger"));
@@ -246,7 +246,7 @@ void TriggerDock::adv_trigger()
         
         if (stream) {
             QString strMsg(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_STREAM_NO_AD_TRIGGER),
-                                          "Stream Mode Don't Support Advanced Trigger!"));
+                                          "Stream mode doesn't support the advanced trigger!"));
             MsgBox::Show(strMsg);
             _simple_radioButton->setChecked(true);
         }
@@ -259,7 +259,7 @@ void TriggerDock::adv_trigger()
     }
     else {
         QString strMsg(L_S(STR_PAGE_MSG, S_ID(IDS_MSG_AD_TRIGGER_NEED_HARDWARE),
-                                      "Advanced Trigger need DSLogic Hardware Support!"));
+                                      "The advanced trigger needs DSLogic hardware support!"));
         MsgBox::Show(strMsg);
         _simple_radioButton->setChecked(true);
     }

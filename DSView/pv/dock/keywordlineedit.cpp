@@ -54,7 +54,7 @@ void KeywordLineEdit::ResetText()
         return;         
     }
 
-    this->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_KEY_DECODER_SEARCH), "Decoder s_ann_search_editearch..."));
+    this->setText(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_KEY_DECODER_SEARCH), "Decoder search..."));
 }
 
 void KeywordLineEdit::SetInputText(QString text)

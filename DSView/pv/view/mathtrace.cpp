@@ -576,9 +576,9 @@ QString MathTrace::get_voltage(double v, int p)
 
 QString MathTrace::get_time(double t)
 {
-    QString str = (abs(t) > 1000000000 ? QString::number(t/1000000000, 'f', 2) + "S" :
-                   abs(t) > 1000000 ? QString::number(t/1000000, 'f', 2) + "mS" :
-                   abs(t) > 1000 ? QString::number(t/1000, 'f', 2) + "uS" : QString::number(t, 'f', 2) + "nS");
+    QString str = (abs(t) > 1000000000 ? QString::number(t/1000000000, 'f', 2) + "s" :
+                   abs(t) > 1000000 ? QString::number(t/1000000, 'f', 2) + "ms" :
+                   abs(t) > 1000 ? QString::number(t/1000, 'f', 2) + QString(QChar(0x03BC)) + "s" : QString::number(t, 'f', 2) + "ns");
     return str;
 }
 
