@@ -1670,10 +1670,15 @@ namespace pv
             QKeyEvent *ke = (QKeyEvent *)event;
             
             int modifier = ke->modifiers(); 
+            // [ and ] need AltGr on many keyboards, which can come with
+            // Ctrl and Alt (Windows), so they don't count as shortcuts.
+            const bool bracket = ke->key() == Qt::Key_BracketLeft
+                              || ke->key() == Qt::Key_BracketRight;
  
-            if(modifier & Qt::ControlModifier || 
+            if(!bracket &&
+               (modifier & Qt::ControlModifier || 
                modifier & Qt::ShiftModifier || 
-               modifier & Qt::AltModifier)
+               modifier & Qt::AltModifier))
             {
                 return true;
             }
@@ -1744,6 +1749,21 @@ namespace pv
             case 39:
 #endif
                 _view->zoom(-1);
+                break;
+
+            // Zoom in and out, as in GTKWave and image editors.
+            case Qt::Key_BracketRight:
+                _view->zoom(1);
+                break;
+
+            case Qt::Key_BracketLeft:
+                _view->zoom(-1);
+                break;
+
+            // The whole capture, as a right double-click in the view does.
+            case Qt::Key_F:
+                if (_device_agent->get_work_mode() == LOGIC && _view->get_view_width() > 0)
+                    _view->set_scale_offset(_view->get_maxscale(), _view->get_min_offset());
                 break;
 
             case Qt::Key_0:
