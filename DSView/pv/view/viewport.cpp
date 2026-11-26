@@ -216,6 +216,10 @@ void Viewport::doPaint()
 
     int mode = _view.session().get_device()->get_work_mode();
 
+    // Under the traces.
+    if (cursor_bands_shown())
+        paintCursorBands(p);
+
     if (mode == LOGIC || _view.session().is_instant())
     {
         if (_view.session().is_init_status())
@@ -287,6 +291,40 @@ void Viewport::paintCursors(QPainter &p)
             else
                 cursor->paint(p, xrect, 0, _view.session().is_stopped_status());
         }
+    }
+}
+
+bool Viewport::cursor_bands_shown()
+{
+    return _type == TIME_VIEW
+        && AppConfig::Instance().appOptions.cursorDeltaBand
+        && _view.cursors_shown()
+        && _view.session().get_device()->get_work_mode() == LOGIC
+        && _view.session().cur_snap_samplerate() > 0;
+}
+
+void Viewport::paintCursorBands(QPainter &p)
+{
+    const bool has_hoff = _view.session().is_stopped_status();
+    auto &cursor_list = _view.get_cursorList();
+    auto i = cursor_list.begin();
+
+    while (i != cursor_list.end()) {
+        Cursor *c1 = *i++;
+        if (i == cursor_list.end())
+            break;
+        Cursor *c2 = *i++;
+
+        double x1 = _view.index2pixel(c1->index(), has_hoff);
+        double x2 = _view.index2pixel(c2->index(), has_hoff);
+        if (x1 > x2)
+            std::swap(x1, x2);
+        if (x2 < 0 || x1 > width())
+            continue;
+
+        QColor colour = Ruler::GetColorByCursorOrder(c1->order());
+        colour.setAlpha(36);
+        p.fillRect(QRectF(x1, 0, x2 - x1, height()), colour);
     }
 }
 

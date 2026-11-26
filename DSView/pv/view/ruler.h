@@ -91,6 +91,13 @@ private:
 	 */
 	void draw_hover_mark(QPainter &p);
 
+    /**
+     * Logic mode, cursor pair bands on: while the mouse is over the waveform
+     * between a pair of cursors (1-2, 3-4, ...), the time between them in a
+     * box between their labels, or beside them where it doesn't fit.
+     */
+    void draw_cursor_delta(QPainter &p);
+
     void draw_cursor_sel(QPainter &p);
 
     /**

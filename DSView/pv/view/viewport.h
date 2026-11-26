@@ -159,6 +159,11 @@ private:
     void paintMeasure(QPainter &p, QColor fore, QColor back);
     void paintAnnotationHover(QPainter &p, QColor fore, QColor back);
     void paintCursors(QPainter &p);
+
+    // Logic mode: shade the span between each cursor pair (1-2, 3-4, ...),
+    // under the traces. The ruler shows the time between them.
+    bool cursor_bands_shown();
+    void paintCursorBands(QPainter &p);
     void paint_ref_waves(QPainter &p);
     void paintYScaleBadge(QPainter &p, QColor fore, QColor back);
 

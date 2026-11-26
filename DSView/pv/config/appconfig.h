@@ -97,6 +97,7 @@ struct AppOptions
     bool logicSampleDots;   // dot at each sample when zoomed in far enough
     bool logicSnapVScroll;  // snap to trace tops when the scroll bar is released
     bool showTimeBar;       // the whole capture in a bar above the ruler
+    bool cursorDeltaBand;   // logic: shade cursor pairs, with the time between them on hover
     bool dsoSplitChannels;
     float dsoSignalLineWidth;
     bool dsoSampleDots;
