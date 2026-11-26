@@ -85,7 +85,15 @@ void Cursor::paint_label(QPainter &p, const QRect &rect,
     using pv::view::Ruler;
     bool visible;
 
-    compute_text_size(p, prefix, show_samples);
+    (void)prefix;
+    // The label shows the time from the trigger: size it for that text, not
+    // for the time from the start, which can be shorter and clip it.
+    const int64_t rel_index = (int64_t)_index - (int64_t)_view.session().get_trigger_pos();
+    const QString text = show_samples
+        ? Ruler::format_samples(rel_index)
+        : Ruler::format_real_time(rel_index, _view.session().cur_snap_samplerate());
+
+    compute_text_size(p, text);
     const QRect r(get_label_rect(rect, visible, has_hoff));
     if (!visible)
         return;
@@ -118,9 +126,7 @@ void Cursor::paint_label(QPainter &p, const QRect &rect,
     p.drawLine(close.left() + 2, close.top() + 2, close.right() - 2, close.bottom() - 2);
     p.drawLine(close.left() + 2, close.bottom() - 2, close.right() - 2, close.top() + 2);
 
-	p.drawText(r, Qt::AlignCenter | Qt::AlignVCenter,
-        show_samples ? Ruler::format_samples(_index - _view.session().get_trigger_pos())
-                     : Ruler::format_real_time(_index - _view.session().get_trigger_pos(), _view.session().cur_snap_samplerate()));
+	p.drawText(r, Qt::AlignCenter | Qt::AlignVCenter, text);
 
     const QRect arrowRect = QRect(r.bottomLeft().x(), r.bottomLeft().y(), r.width(), ArrowSize);
     p.drawText(arrowRect, Qt::AlignCenter | Qt::AlignVCenter, QString::number(_order));
@@ -132,7 +138,12 @@ void Cursor::paint_fix_label(QPainter &p, const QRect &rect,
     using pv::view::Ruler;
     bool visible;
 
-    compute_text_size(p, prefix, show_samples);
+    (void)prefix;
+    const QString text = show_samples
+        ? Ruler::format_samples(_index)
+        : Ruler::format_real_time(_index, _view.session().cur_snap_samplerate());
+
+    compute_text_size(p, text);
     const QRect r(get_label_rect(rect, visible, has_hoff));
     if (!visible)
         return;
@@ -150,20 +161,15 @@ void Cursor::paint_fix_label(QPainter &p, const QRect &rect,
 
     p.setPen(Qt::white);
     if (has_hoff)
-        p.drawText(r, Qt::AlignCenter | Qt::AlignVCenter,
-            show_samples ? Ruler::format_samples(_index)
-                         : Ruler::format_real_time(_index, _view.session().cur_snap_samplerate()));
+        p.drawText(r, Qt::AlignCenter | Qt::AlignVCenter, text);
 
     const QRect arrowRect = QRect(r.bottomLeft().x(), r.bottomLeft().y(), r.width(), ArrowSize);
     p.drawText(arrowRect, Qt::AlignCenter | Qt::AlignVCenter, label);
 }
 
-void Cursor::compute_text_size(QPainter &p, unsigned int prefix, bool show_samples)
+void Cursor::compute_text_size(QPainter &p, const QString &text)
 {
-    (void)prefix;
-    _text_size = p.boundingRect(QRect(), 0,
-        show_samples ? Ruler::format_samples(_index)
-                     : Ruler::format_real_time(_index, _view.session().cur_snap_samplerate())).size();
+    _text_size = p.boundingRect(QRect(), 0, text).size();
 }
  
 } // namespace view
