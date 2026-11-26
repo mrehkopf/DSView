@@ -50,6 +50,24 @@ Cursor::Cursor(View &view, int order, uint64_t sampleIndex) :
     TimeMarker(view, sampleIndex)
 {
    _order = order;
+   _number_width = 0;
+   _compact = false;
+}
+
+// The time from the trigger, as on the ruler.
+QString Cursor::label_text(bool show_samples)
+{
+    using pv::view::Ruler;
+
+    const int64_t rel_index = (int64_t)_index - (int64_t)_view.session().get_trigger_pos();
+    return show_samples
+        ? Ruler::format_samples(rel_index)
+        : Ruler::format_real_time(rel_index, _view.session().cur_snap_samplerate());
+}
+
+void Cursor::prepare_label(QPainter &p, bool show_samples)
+{
+    compute_text_size(p, label_text(show_samples));
 }
 
 QRect Cursor::get_label_rect(const QRect &rect, bool &visible, bool has_hoff)
@@ -63,8 +81,9 @@ QRect Cursor::get_label_rect(const QRect &rect, bool &visible, bool has_hoff)
     }
     const int64_t x = _view.index2pixel(_index, has_hoff);
 
+    const int text_width = _compact ? _number_width : _text_size.width();
     const QSize label_size(
-		_text_size.width() + View::LabelPadding.width() * 2,
+		text_width + View::LabelPadding.width() * 2,
 		_text_size.height() + View::LabelPadding.height() * 2);
     const int top = rect.height() - label_size.height() -
 		Cursor::Offset - Cursor::ArrowSize - 0.5f;
@@ -76,6 +95,9 @@ QRect Cursor::get_label_rect(const QRect &rect, bool &visible, bool has_hoff)
 
 QRect Cursor::get_close_rect(const QRect &rect)
 {
+    // A compact label has no room for the close box.
+    if (_compact)
+        return QRect();
     return QRect(rect.right() - CloseSize, rect.top(), CloseSize, CloseSize);
 }
 
@@ -86,17 +108,30 @@ void Cursor::paint_label(QPainter &p, const QRect &rect,
     bool visible;
 
     (void)prefix;
-    // The label shows the time from the trigger: size it for that text, not
-    // for the time from the start, which can be shorter and clip it.
-    const int64_t rel_index = (int64_t)_index - (int64_t)_view.session().get_trigger_pos();
-    const QString text = show_samples
-        ? Ruler::format_samples(rel_index)
-        : Ruler::format_real_time(rel_index, _view.session().cur_snap_samplerate());
+    // Sized for the text drawn, the time from the trigger.
+    const QString text = label_text(show_samples);
 
     compute_text_size(p, text);
     const QRect r(get_label_rect(rect, visible, has_hoff));
     if (!visible)
         return;
+
+    if (_compact) {
+        // Only the number, in the cursor's colour.
+        p.setPen(Qt::transparent);
+        p.setBrush(Ruler::GetColorByCursorOrder(_order));
+        p.drawRect(r);
+        const QPoint points[] = {
+            QPoint(r.left() + r.width() / 2 - ArrowSize / 2, r.bottom()),
+            QPoint(r.left() + r.width() / 2 + ArrowSize / 2, r.bottom()),
+            QPoint(r.left() + r.width() / 2, rect.bottom()),
+        };
+        p.drawPolygon(points, countof(points));
+        p.setPen(Qt::black);
+        p.drawText(r, Qt::AlignCenter | Qt::AlignVCenter, QString::number(_order));
+        return;
+    }
+
     const QRect close(get_close_rect(r));
 
     p.setPen(Qt::transparent);
@@ -170,6 +205,7 @@ void Cursor::paint_fix_label(QPainter &p, const QRect &rect,
 void Cursor::compute_text_size(QPainter &p, const QString &text)
 {
     _text_size = p.boundingRect(QRect(), 0, text).size();
+    _number_width = p.boundingRect(QRect(), 0, QString::number(_order)).width();
 }
  
 } // namespace view
