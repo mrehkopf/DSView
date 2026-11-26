@@ -43,6 +43,11 @@
 #include <QWindow>
 #include <QStyle>
 #include <QEvent>
+#include <QPushButton>
+#include <QColorDialog>
+#include <QPainter>
+#include <QPixmap>
+#include <QIcon>
 
 #include "../config/appconfig.h"
 #include "../ui/langresource.h"
@@ -150,6 +155,34 @@ private:
     QScrollArea *_scroll;
     QWidget     *_screenRef;
 };
+
+// Shows a colour swatch on a button. An icon is used rather than a style
+// sheet so the theme can't override it. A checkerboard behind the swatch
+// makes transparency visible.
+void set_color_button(QPushButton *btn, const QColor &color)
+{
+    QPixmap pix(32, 16);
+    pix.fill(Qt::white);
+    {
+        QPainter p(&pix);
+        for (int y = 0; y < pix.height(); y += 4)
+            for (int x = 0; x < pix.width(); x += 4)
+                if (((x + y) / 4) % 2)
+                    p.fillRect(x, y, 4, 4, QColor(0xC0, 0xC0, 0xC0));
+        p.fillRect(pix.rect(), color);
+        p.setPen(QColor(0x80, 0x80, 0x80));
+        p.drawRect(pix.rect().adjusted(0, 0, -1, -1));
+    }
+    btn->setIcon(QIcon(pix));
+    btn->setIconSize(pix.size());
+    btn->setToolTip(color.alpha() < 255 ? color.name(QColor::HexArgb) : color.name());
+    btn->setProperty("color", color);
+}
+
+QColor color_of_button(QPushButton *btn)
+{
+    return btn->property("color").value<QColor>();
+}
 
 } // namespace
 
@@ -496,6 +529,78 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
         + 1 );
     lay->addWidget(logicGroup);
 
+    // Logic trace colours: each level can keep the channel colour or take
+    // its own, and the area under high levels can be shaded.
+    QCheckBox *ck_colorLogicHigh = new QCheckBox();
+    ck_colorLogicHigh->setChecked(app.appOptions.colorLogicHigh);
+    QCheckBox *ck_colorLogicLow = new QCheckBox();
+    ck_colorLogicLow->setChecked(app.appOptions.colorLogicLow);
+    QCheckBox *ck_fillLogicHigh = new QCheckBox();
+    ck_fillLogicHigh->setChecked(app.appOptions.fillLogicHigh);
+
+    QPushButton *bt_highColor = new QPushButton();
+    QPushButton *bt_lowColor = new QPushButton();
+    QPushButton *bt_fillColor = new QPushButton();
+    QPushButton *bt_resetColors = new QPushButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_RESET_COLORS), "Reset colors"));
+    set_color_button(bt_highColor, app.appOptions.logicHighColor);
+    set_color_button(bt_lowColor, app.appOptions.logicLowColor);
+    set_color_button(bt_fillColor, app.appOptions.logicFillColor);
+
+    QGroupBox *colorGroup = new QGroupBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_GROUP_LOGIC_COLORS), "Logic trace colors"));
+    QGridLayout *colorLay = new QGridLayout();
+    colorLay->setContentsMargins(10,15,15,10);
+    colorLay->setAlignment(Qt::AlignTop);
+    colorLay->setColumnStretch(0, 1);
+    colorGroup->setLayout(colorLay);
+
+    const QString highTitle = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_HIGH_LEVEL_COLOR), "High level color");
+    const QString lowTitle = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_LOW_LEVEL_COLOR), "Low level color");
+    const QString fillTitle = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_FILL_COLOR), "Fill color");
+
+    // One row per colour: the swatch, then the switch that turns it on.
+    auto add_color_row = [colorLay](int row, const QString &title, QPushButton *btn, QCheckBox *ck) {
+        QHBoxLayout *hl = new QHBoxLayout();
+        hl->setContentsMargins(0,0,0,0);
+        hl->addWidget(btn);
+        hl->addWidget(ck);
+        colorLay->addWidget(new QLabel(title), row, 0, Qt::AlignLeft);
+        colorLay->addLayout(hl, row, 1, Qt::AlignRight);
+    };
+    add_color_row(0, highTitle, bt_highColor, ck_colorLogicHigh);
+    add_color_row(1, lowTitle, bt_lowColor, ck_colorLogicLow);
+    add_color_row(2, L_S(STR_PAGE_DLG, S_ID(IDS_DLG_FILL_LOGIC_HIGH), "Shade high levels"), bt_fillColor, ck_fillLogicHigh);
+    colorLay->addWidget(bt_resetColors, 3, 0, 1, 2, Qt::AlignRight);
+    lay->addWidget(colorGroup);
+
+    // Picking a colour turns it on. Reset only restores the colours.
+    auto pick_color = [&dlg](QPushButton *btn, const QString &title, bool alpha) {
+        QColorDialog::ColorDialogOptions options;
+        if (alpha)
+            options |= QColorDialog::ShowAlphaChannel;
+        const QColor c = QColorDialog::getColor(color_of_button(btn), &dlg, title, options);
+        if (!c.isValid())
+            return false;
+        set_color_button(btn, c);
+        return true;
+    };
+    QObject::connect(bt_highColor, &QPushButton::clicked, [=]() {
+        if (pick_color(bt_highColor, highTitle, false))
+            ck_colorLogicHigh->setChecked(true);
+    });
+    QObject::connect(bt_lowColor, &QPushButton::clicked, [=]() {
+        if (pick_color(bt_lowColor, lowTitle, false))
+            ck_colorLogicLow->setChecked(true);
+    });
+    QObject::connect(bt_fillColor, &QPushButton::clicked, [=]() {
+        if (pick_color(bt_fillColor, fillTitle, true))
+            ck_fillLogicHigh->setChecked(true);
+    });
+    QObject::connect(bt_resetColors, &QPushButton::clicked, [=]() {
+        set_color_button(bt_highColor, DEFAULT_LOGIC_HIGH_COLOR);
+        set_color_button(bt_lowColor, DEFAULT_LOGIC_LOW_COLOR);
+        set_color_button(bt_fillColor, DEFAULT_LOGIC_FILL_COLOR);
+    });
+
     //Scope group
     QGroupBox *dsoGroup = new QGroupBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_GROUP_DSO), "Scope"));
     QGridLayout *dsoLay = new QGridLayout();
@@ -656,6 +761,30 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
         }
         if (app.appOptions.dsoSampleDots != ck_dsoSampleDots->isChecked()) {
             app.appOptions.dsoSampleDots = ck_dsoSampleDots->isChecked();
+            bAppChanged = true;
+        }
+        if (app.appOptions.colorLogicHigh != ck_colorLogicHigh->isChecked()) {
+            app.appOptions.colorLogicHigh = ck_colorLogicHigh->isChecked();
+            bAppChanged = true;
+        }
+        if (app.appOptions.colorLogicLow != ck_colorLogicLow->isChecked()) {
+            app.appOptions.colorLogicLow = ck_colorLogicLow->isChecked();
+            bAppChanged = true;
+        }
+        if (app.appOptions.fillLogicHigh != ck_fillLogicHigh->isChecked()) {
+            app.appOptions.fillLogicHigh = ck_fillLogicHigh->isChecked();
+            bAppChanged = true;
+        }
+        if (app.appOptions.logicHighColor != color_of_button(bt_highColor)) {
+            app.appOptions.logicHighColor = color_of_button(bt_highColor);
+            bAppChanged = true;
+        }
+        if (app.appOptions.logicLowColor != color_of_button(bt_lowColor)) {
+            app.appOptions.logicLowColor = color_of_button(bt_lowColor);
+            bAppChanged = true;
+        }
+        if (app.appOptions.logicFillColor != color_of_button(bt_fillColor)) {
+            app.appOptions.logicFillColor = color_of_button(bt_fillColor);
             bAppChanged = true;
         }
         if (bAppChanged){

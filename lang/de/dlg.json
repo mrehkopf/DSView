@@ -784,6 +784,30 @@
         "text": "Logikanalysator"
     },
     {
+        "id": "IDS_DLG_GROUP_LOGIC_COLORS",
+        "text": "Farben der Logikkanäle"
+    },
+    {
+        "id": "IDS_DLG_HIGH_LEVEL_COLOR",
+        "text": "Farbe für High-Pegel"
+    },
+    {
+        "id": "IDS_DLG_LOW_LEVEL_COLOR",
+        "text": "Farbe für Low-Pegel"
+    },
+    {
+        "id": "IDS_DLG_FILL_LOGIC_HIGH",
+        "text": "High-Pegel hinterlegen"
+    },
+    {
+        "id": "IDS_DLG_FILL_COLOR",
+        "text": "Füllfarbe"
+    },
+    {
+        "id": "IDS_DLG_RESET_COLORS",
+        "text": "Farben zurücksetzen"
+    },
+    {
         "id": "IDS_DLG_GROUP_DSO",
         "text": "Oszilloskop"
     },

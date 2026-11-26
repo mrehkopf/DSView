@@ -111,6 +111,18 @@ static void setFiled(const char *key, QSettings &st, float f)
     st.setValue(key, f);
 }
 
+static void getFiled(const char *key, QSettings &st, QColor &f, const QColor &dv)
+{
+    f = QColor(st.value(key, "").toString());
+    if (!f.isValid())
+        f = dv;
+}
+
+static void setFiled(const char *key, QSettings &st, const QColor &f)
+{
+    st.setValue(key, f.name(QColor::HexArgb));
+}
+
 ///------ app
 static void _loadApp(AppOptions &o, QSettings &st)
 {
@@ -139,6 +151,12 @@ static void _loadApp(AppOptions &o, QSettings &st)
     getFiled("logicSignalLineWidth", st, o.logicSignalLineWidth, 1.0f);
     getFiled("logicChannelDivider", st, o.logicChannelDivider, true);
     getFiled("logicThickHighLevel", st, o.logicThickHighLevel, false);
+    getFiled("colorLogicHigh", st, o.colorLogicHigh, false);
+    getFiled("colorLogicLow", st, o.colorLogicLow, false);
+    getFiled("logicHighColor", st, o.logicHighColor, DEFAULT_LOGIC_HIGH_COLOR);
+    getFiled("logicLowColor", st, o.logicLowColor, DEFAULT_LOGIC_LOW_COLOR);
+    getFiled("fillLogicHigh", st, o.fillLogicHigh, false);
+    getFiled("logicFillColor", st, o.logicFillColor, DEFAULT_LOGIC_FILL_COLOR);
     getFiled("logicSampleDots", st, o.logicSampleDots, true);
     getFiled("showTimeBar", st, o.showTimeBar, true);
     getFiled("cursorDeltaBand", st, o.cursorDeltaBand, true);
@@ -220,6 +238,12 @@ static void _saveApp(AppOptions &o, QSettings &st)
     setFiled("logicSignalLineWidth", st, o.logicSignalLineWidth);
     setFiled("logicChannelDivider", st, o.logicChannelDivider);
     setFiled("logicThickHighLevel", st, o.logicThickHighLevel);
+    setFiled("colorLogicHigh", st, o.colorLogicHigh);
+    setFiled("colorLogicLow", st, o.colorLogicLow);
+    setFiled("logicHighColor", st, o.logicHighColor);
+    setFiled("logicLowColor", st, o.logicLowColor);
+    setFiled("fillLogicHigh", st, o.fillLogicHigh);
+    setFiled("logicFillColor", st, o.logicFillColor);
     setFiled("logicSampleDots", st, o.logicSampleDots);
     setFiled("showTimeBar", st, o.showTimeBar);
     setFiled("cursorDeltaBand", st, o.cursorDeltaBand);

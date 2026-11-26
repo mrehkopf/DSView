@@ -784,6 +784,30 @@
         "text": "逻辑分析仪"
     },
     {
+        "id": "IDS_DLG_GROUP_LOGIC_COLORS",
+        "text": "逻辑通道颜色"
+    },
+    {
+        "id": "IDS_DLG_HIGH_LEVEL_COLOR",
+        "text": "高电平颜色"
+    },
+    {
+        "id": "IDS_DLG_LOW_LEVEL_COLOR",
+        "text": "低电平颜色"
+    },
+    {
+        "id": "IDS_DLG_FILL_LOGIC_HIGH",
+        "text": "填充高电平区域"
+    },
+    {
+        "id": "IDS_DLG_FILL_COLOR",
+        "text": "填充颜色"
+    },
+    {
+        "id": "IDS_DLG_RESET_COLORS",
+        "text": "重置颜色"
+    },
+    {
         "id": "IDS_DLG_GROUP_DSO",
         "text": "示波器"
     },

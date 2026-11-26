@@ -784,6 +784,30 @@
         "text": "Logic Analyzer"
     },
     {
+        "id": "IDS_DLG_GROUP_LOGIC_COLORS",
+        "text": "Logic trace colors"
+    },
+    {
+        "id": "IDS_DLG_HIGH_LEVEL_COLOR",
+        "text": "High level color"
+    },
+    {
+        "id": "IDS_DLG_LOW_LEVEL_COLOR",
+        "text": "Low level color"
+    },
+    {
+        "id": "IDS_DLG_FILL_LOGIC_HIGH",
+        "text": "Shade high levels"
+    },
+    {
+        "id": "IDS_DLG_FILL_COLOR",
+        "text": "Fill color"
+    },
+    {
+        "id": "IDS_DLG_RESET_COLORS",
+        "text": "Reset colors"
+    },
+    {
         "id": "IDS_DLG_GROUP_DSO",
         "text": "Oscilloscope"
     },
