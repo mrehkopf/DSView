@@ -162,6 +162,12 @@ void LogicSnapshot::first_payload(const sr_datafeed_logic &logic, uint64_t total
         if (_is_loop){
             rootnode_size += 2;
         }
+        else{
+            // As soon as the last leaf block of a node fills,
+            // append_cross_payload() moves on to the first block of the next
+            // node, so a capture that fills its last node needs one more
+            rootnode_size += 1;
+        }
 
         for (const GSList *l = channels; l; l = l->next) {
             sr_channel *const probe = (sr_channel*)l->data;
