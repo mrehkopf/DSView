@@ -304,6 +304,7 @@ void LogicSnapshot::append_cross_payload(const sr_datafeed_logic &logic)
                 lbp = malloc(LeafBlockSpace);
                 if (lbp == NULL){
                     dsv_err("LogicSnapshot::append_cross_payload, Malloc memory failed!");
+                    _memory_failed = true;
                     return;
                 }
                 _ch_data[_ch_fraction][index0].lbp[index1] = lbp;
@@ -357,6 +358,7 @@ void LogicSnapshot::append_cross_payload(const sr_datafeed_logic &logic)
         lbp = malloc(LeafBlockSpace);
         if (lbp == NULL){
             dsv_err("LogicSnapshot::append_cross_payload, Malloc memory failed!");
+            _memory_failed = true;
             return;
         }
         _ch_data[fill_chan_index][index0].lbp[index1] = lbp;
@@ -400,6 +402,7 @@ void LogicSnapshot::append_cross_payload(const sr_datafeed_logic &logic)
                 lbp = malloc(LeafBlockSpace);
                 if (lbp == NULL){
                     dsv_err("LogicSnapshot::append_cross_payload, Malloc memory failed!");
+                    _memory_failed = true;
                     return;
                 }
                 _ch_data[fill_chan_index][index0].lbp[index1] = lbp;
@@ -430,6 +433,7 @@ void LogicSnapshot::append_cross_payload(const sr_datafeed_logic &logic)
                 lbp = malloc(LeafBlockSpace);
                 if (lbp == NULL){
                     dsv_err("LogicSnapshot::append_cross_payload, Malloc memory failed!");
+                    _memory_failed = true;
                     return;
                 }
                 _ch_data[fill_chan_index][index0].lbp[index1] = lbp;
@@ -456,6 +460,7 @@ void LogicSnapshot::append_cross_payload(const sr_datafeed_logic &logic)
         lbp = malloc(LeafBlockSpace);
         if (lbp == NULL){
             dsv_err("LogicSnapshot::append_cross_payload, Malloc memory failed!");
+            _memory_failed = true;
             return;
         }
         _ch_data[_ch_fraction][index0].lbp[index1] = lbp;
