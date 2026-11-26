@@ -1438,7 +1438,10 @@ void Viewport::onLogicMouseRelease(QMouseEvent *event)
         }
         case LOGIC_ZOOM:
         {
-            if (event->pos().x() != _mouse_down_point.x()) {
+            // A drag of a pixel or two is a shaky right click, not a zoom
+            // into a window that narrow.
+            const int ClickMaxDrag = 2;
+            if (abs(event->pos().x() - _mouse_down_point.x()) > ClickMaxDrag) {
                 int64_t newOffset = _view.x_offset() + (min(event->pos().x(), _mouse_down_point.x()));
                 const double newScale = max(min(_view.scale() * abs(event->pos().x() - _mouse_down_point.x()) / _view.get_view_width(),
                                                 _view.get_maxscale()), _view.get_minscale());
