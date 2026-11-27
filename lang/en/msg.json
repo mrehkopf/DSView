@@ -204,6 +204,22 @@
         "text": "Memory is not enough for this sample!\nPlease reduce the sample depth!"
     },
     {
+        "id": "IDS_MSG_DELETE_DATA_BEFORE_CURSOR",
+        "text": "Delete the captured data before cursor %1?"
+    },
+    {
+        "id": "IDS_MSG_DELETE_DATA_AFTER_CURSOR",
+        "text": "Delete the captured data after cursor %1?"
+    },
+    {
+        "id": "IDS_MSG_DELETE_DATA_INFO",
+        "text": "This cannot be undone. Cursors in the deleted part are removed. The trigger, the other cursors and the decoders move with the data that stays."
+    },
+    {
+        "id": "IDS_MSG_DELETE_DATA_NO_MEMORY",
+        "text": "Not enough memory to delete the data. Nothing was changed."
+    },
+    {
         "id": "IDS_MSG_PACKET_ERROR",
         "text": "Packet Error"
     },

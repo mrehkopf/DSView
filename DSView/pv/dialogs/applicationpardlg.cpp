@@ -43,6 +43,11 @@
 #include <QWindow>
 #include <QStyle>
 #include <QEvent>
+#include <QPushButton>
+#include <QColorDialog>
+#include <QPainter>
+#include <QPixmap>
+#include <QIcon>
 
 #include "../config/appconfig.h"
 #include "../ui/langresource.h"
@@ -72,15 +77,17 @@ public:
     }
 };
 
-// Makes the scroll area shorter when the dialog would be taller than the
-// free area of its screen, so that OK and Cancel stay reachable on small or
-// highly scaled screens. This runs on the dialog's show event: the layouts
-// are set up by then, and the dialog is centred on screen afterwards.
+// Fits the dialog to the free area of its screen, so that OK and Cancel
+// stay reachable on small or highly scaled screens: the two columns go one
+// under the other when they are wider than the screen, and the scroll area
+// gets shorter when the dialog is taller. This runs on the dialog's show
+// event: the layouts are set up by then, and the dialog is centred on screen
+// afterwards.
 class FitToScreenFilter : public QObject
 {
 public:
-    FitToScreenFilter(QScrollArea *scroll, QWidget *screenRef)
-        : _scroll(scroll), _screenRef(screenRef)
+    FitToScreenFilter(QScrollArea *scroll, QBoxLayout *columns, QWidget *screenRef)
+        : _scroll(scroll), _columns(columns), _screenRef(screenRef)
     {
     }
 
@@ -115,6 +122,13 @@ private:
             avail -= dlg->style()->pixelMetric(QStyle::PM_TitleBarHeight, NULL, dlg);
         }
         relayout(dlg);
+
+        if (dlg->width() > screen->availableGeometry().width()
+            && _columns->direction() != QBoxLayout::TopToBottom){
+            _columns->setDirection(QBoxLayout::TopToBottom);
+            relayout(dlg);
+        }
+
         if (dlg->height() <= avail){
             return;
         }
@@ -148,8 +162,37 @@ private:
     }
 
     QScrollArea *_scroll;
+    QBoxLayout  *_columns;
     QWidget     *_screenRef;
 };
+
+// Shows a colour swatch on a button. An icon is used rather than a style
+// sheet so the theme can't override it. A checkerboard behind the swatch
+// makes transparency visible.
+void set_color_button(QPushButton *btn, const QColor &color)
+{
+    QPixmap pix(32, 16);
+    pix.fill(Qt::white);
+    {
+        QPainter p(&pix);
+        for (int y = 0; y < pix.height(); y += 4)
+            for (int x = 0; x < pix.width(); x += 4)
+                if (((x + y) / 4) % 2)
+                    p.fillRect(x, y, 4, 4, QColor(0xC0, 0xC0, 0xC0));
+        p.fillRect(pix.rect(), color);
+        p.setPen(QColor(0x80, 0x80, 0x80));
+        p.drawRect(pix.rect().adjusted(0, 0, -1, -1));
+    }
+    btn->setIcon(QIcon(pix));
+    btn->setIconSize(pix.size());
+    btn->setToolTip(color.alpha() < 255 ? color.name(QColor::HexArgb) : color.name());
+    btn->setProperty("color", color);
+}
+
+QColor color_of_button(QPushButton *btn)
+{
+    return btn->property("color").value<QColor>();
+}
 
 } // namespace
 
@@ -226,9 +269,20 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     DSDialog dlg(parent, true, true);
     dlg.setTitle(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DISPLAY_OPTIONS), "Display options"));
 
-    QVBoxLayout *lay = new QVBoxLayout();
+    // Two columns: the logic analyzer on the left, the other groups on the
+    // right. FitToScreenFilter puts them one under the other on a narrow
+    // screen.
+    QVBoxLayout *leftCol = new QVBoxLayout();
+    QVBoxLayout *rightCol = new QVBoxLayout();
+    for (QVBoxLayout *col : {leftCol, rightCol}){
+        col->setContentsMargins(0,0,0,0);
+        col->setSpacing(8);
+    }
+    QBoxLayout *lay = new QBoxLayout(QBoxLayout::LeftToRight);
     lay->setContentsMargins(0,10,0,20);
     lay->setSpacing(8);
+    lay->addLayout(leftCol);
+    lay->addLayout(rightCol);
 
     //show config
     AppConfig &app = AppConfig::Instance(); 
@@ -250,6 +304,15 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
 
     QCheckBox *ck_channelDivider = new QCheckBox();
     ck_channelDivider->setChecked(app.appOptions.logicChannelDivider);
+
+    QCheckBox *ck_timeBar = new QCheckBox();
+    ck_timeBar->setChecked(app.appOptions.showTimeBar);
+
+    QCheckBox *ck_cursorDeltaBand = new QCheckBox();
+    ck_cursorDeltaBand->setChecked(app.appOptions.cursorDeltaBand);
+
+    QCheckBox *ck_triggerLine = new QCheckBox();
+    ck_triggerLine->setChecked(app.appOptions.triggerLine);
 
     QCheckBox *ck_thickHighLevel = new QCheckBox();
     ck_thickHighLevel->setChecked(app.appOptions.logicThickHighLevel);
@@ -463,23 +526,101 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     logicLay->addWidget(ck_logicSampleDots, 8, 1, Qt::AlignRight);
     logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_CHANNEL_DIVIDER), "Channel divider line")), 9, 0, Qt::AlignLeft);
     logicLay->addWidget(ck_channelDivider, 9, 1, Qt::AlignRight);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_TIME_BAR), "Show time bar")), 10, 0, Qt::AlignLeft);
+    logicLay->addWidget(ck_timeBar, 10, 1, Qt::AlignRight);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_CURSOR_DELTA_BAND), "Shade cursor pairs (1-2, 3-4, ...)")), 11, 0, Qt::AlignLeft);
+    logicLay->addWidget(ck_cursorDeltaBand, 11, 1, Qt::AlignRight);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_TRIGGER_LINE), "Highlight trigger position")), 12, 0, Qt::AlignLeft);
+    logicLay->addWidget(ck_triggerLine, 12, 1, Qt::AlignRight);
 
     // Add sliders to logic layout
-    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DECODER_DYNAMIC_FONT_WIDTH), "Decoder adaptive font width")), 10, 0, Qt::AlignLeft);
-    logicLay->addWidget(ck_decoderDynamicFontWidth, 10, 1, Qt::AlignRight);
-    logicLay->addWidget(label_minFontWidth, 11, 0, Qt::AlignLeft);
-    logicLay->addWidget(spinBox_minFontWidth, 11, 1, Qt::AlignRight);
-    logicLay->addWidget(slider_minFontWidth, 12, 0, Qt::AlignJustify);
-    logicLay->addWidget(label_minSample, 12, 1, Qt::AlignCenter);
-    logicLay->addWidget(label_maxFontWidth, 13, 0, Qt::AlignLeft);
-    logicLay->addWidget(spinBox_maxFontWidth, 13, 1, Qt::AlignRight);
-    logicLay->addWidget(slider_maxFontWidth, 14, 0, Qt::AlignJustify);
-    logicLay->addWidget(label_maxSample, 14, 1, Qt::AlignCenter);
+    logicLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DECODER_DYNAMIC_FONT_WIDTH), "Decoder adaptive font width")), 13, 0, Qt::AlignLeft);
+    logicLay->addWidget(ck_decoderDynamicFontWidth, 13, 1, Qt::AlignRight);
+    logicLay->addWidget(label_minFontWidth, 14, 0, Qt::AlignLeft);
+    logicLay->addWidget(spinBox_minFontWidth, 14, 1, Qt::AlignRight);
+    logicLay->addWidget(slider_minFontWidth, 15, 0, Qt::AlignJustify);
+    logicLay->addWidget(label_minSample, 15, 1, Qt::AlignCenter);
+    logicLay->addWidget(label_maxFontWidth, 16, 0, Qt::AlignLeft);
+    logicLay->addWidget(spinBox_maxFontWidth, 16, 1, Qt::AlignRight);
+    logicLay->addWidget(slider_maxFontWidth, 17, 0, Qt::AlignJustify);
+    logicLay->addWidget(label_maxSample, 17, 1, Qt::AlignCenter);
     logicLay->setColumnMinimumWidth(1, wfm.horizontalAdvance("Example")
         + logicLay->contentsMargins().left()
         + logicLay->contentsMargins().right()
         + 1 );
-    lay->addWidget(logicGroup);
+    leftCol->addWidget(logicGroup);
+
+    // Logic trace colours: each level can keep the channel colour or take
+    // its own, and the area under high levels can be shaded.
+    QCheckBox *ck_colorLogicHigh = new QCheckBox();
+    ck_colorLogicHigh->setChecked(app.appOptions.colorLogicHigh);
+    QCheckBox *ck_colorLogicLow = new QCheckBox();
+    ck_colorLogicLow->setChecked(app.appOptions.colorLogicLow);
+    QCheckBox *ck_fillLogicHigh = new QCheckBox();
+    ck_fillLogicHigh->setChecked(app.appOptions.fillLogicHigh);
+
+    QPushButton *bt_highColor = new QPushButton();
+    QPushButton *bt_lowColor = new QPushButton();
+    QPushButton *bt_fillColor = new QPushButton();
+    QPushButton *bt_resetColors = new QPushButton(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_RESET_COLORS), "Reset colors"));
+    set_color_button(bt_highColor, app.appOptions.logicHighColor);
+    set_color_button(bt_lowColor, app.appOptions.logicLowColor);
+    set_color_button(bt_fillColor, app.appOptions.logicFillColor);
+
+    QGroupBox *colorGroup = new QGroupBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_GROUP_LOGIC_COLORS), "Logic trace colors"));
+    QGridLayout *colorLay = new QGridLayout();
+    colorLay->setContentsMargins(10,15,15,10);
+    colorLay->setAlignment(Qt::AlignTop);
+    colorLay->setColumnStretch(0, 1);
+    colorGroup->setLayout(colorLay);
+
+    const QString highTitle = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_HIGH_LEVEL_COLOR), "High level color");
+    const QString lowTitle = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_LOW_LEVEL_COLOR), "Low level color");
+    const QString fillTitle = L_S(STR_PAGE_DLG, S_ID(IDS_DLG_FILL_COLOR), "Fill color");
+
+    // One row per colour: the swatch, then the switch that turns it on.
+    auto add_color_row = [colorLay](int row, const QString &title, QPushButton *btn, QCheckBox *ck) {
+        QHBoxLayout *hl = new QHBoxLayout();
+        hl->setContentsMargins(0,0,0,0);
+        hl->addWidget(btn);
+        hl->addWidget(ck);
+        colorLay->addWidget(new QLabel(title), row, 0, Qt::AlignLeft);
+        colorLay->addLayout(hl, row, 1, Qt::AlignRight);
+    };
+    add_color_row(0, highTitle, bt_highColor, ck_colorLogicHigh);
+    add_color_row(1, lowTitle, bt_lowColor, ck_colorLogicLow);
+    add_color_row(2, L_S(STR_PAGE_DLG, S_ID(IDS_DLG_FILL_LOGIC_HIGH), "Shade high levels"), bt_fillColor, ck_fillLogicHigh);
+    colorLay->addWidget(bt_resetColors, 3, 0, 1, 2, Qt::AlignRight);
+    rightCol->addWidget(colorGroup);
+
+    // Picking a colour turns it on. Reset only restores the colours.
+    auto pick_color = [&dlg](QPushButton *btn, const QString &title, bool alpha) {
+        QColorDialog::ColorDialogOptions options;
+        if (alpha)
+            options |= QColorDialog::ShowAlphaChannel;
+        const QColor c = QColorDialog::getColor(color_of_button(btn), &dlg, title, options);
+        if (!c.isValid())
+            return false;
+        set_color_button(btn, c);
+        return true;
+    };
+    QObject::connect(bt_highColor, &QPushButton::clicked, [=]() {
+        if (pick_color(bt_highColor, highTitle, false))
+            ck_colorLogicHigh->setChecked(true);
+    });
+    QObject::connect(bt_lowColor, &QPushButton::clicked, [=]() {
+        if (pick_color(bt_lowColor, lowTitle, false))
+            ck_colorLogicLow->setChecked(true);
+    });
+    QObject::connect(bt_fillColor, &QPushButton::clicked, [=]() {
+        if (pick_color(bt_fillColor, fillTitle, true))
+            ck_fillLogicHigh->setChecked(true);
+    });
+    QObject::connect(bt_resetColors, &QPushButton::clicked, [=]() {
+        set_color_button(bt_highColor, DEFAULT_LOGIC_HIGH_COLOR);
+        set_color_button(bt_lowColor, DEFAULT_LOGIC_LOW_COLOR);
+        set_color_button(bt_fillColor, DEFAULT_LOGIC_FILL_COLOR);
+    });
 
     //Scope group
     QGroupBox *dsoGroup = new QGroupBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_GROUP_DSO), "Scope"));
@@ -496,7 +637,7 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     dsoLay->addWidget(ck_dsoSampleDots, 2, 1, Qt::AlignRight);
     dsoLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DSO_PERSISTENCE), "Persistence (fade-out time)")), 3, 0, Qt::AlignLeft);
     dsoLay->addWidget(spinBox_dsoPersistence, 3, 1, Qt::AlignRight);
-    lay->addWidget(dsoGroup);
+    rightCol->addWidget(dsoGroup);
 
     //UI
     QGroupBox *uiGroup = new QGroupBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_GROUP_UI), "UI"));
@@ -515,7 +656,11 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     uiLay->addWidget(ck_antialias, 3, 1, Qt::AlignRight);
     uiLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DONT_ASK_SAVE_ON_EXIT), "Do not ask to save captured data")), 4, 0, Qt::AlignLeft);
     uiLay->addWidget(ck_dontAskSaveOnExit, 4, 1, Qt::AlignRight);
-    lay->addWidget(uiGroup);
+    rightCol->addWidget(uiGroup);
+
+    // A column shorter than the other keeps its groups at the top.
+    leftCol->addStretch(1);
+    rightCol->addStretch(1);
 
     // The groups scroll when the dialog would not fit on the screen.
     QWidget *content = new QWidget();
@@ -525,7 +670,7 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scroll->setWidgetResizable(true);
     scroll->setWidget(content);
-    FitToScreenFilter fitFilter(scroll, parent);
+    FitToScreenFilter fitFilter(scroll, lay, parent);
     dlg.installEventFilter(&fitFilter);
 
     dlg.layout()->addWidget(scroll);
@@ -615,6 +760,18 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
             app.appOptions.logicChannelDivider = ck_channelDivider->isChecked();
             bAppChanged = true;
         }
+        if (app.appOptions.showTimeBar != ck_timeBar->isChecked()) {
+            app.appOptions.showTimeBar = ck_timeBar->isChecked();
+            bAppChanged = true;
+        }
+        if (app.appOptions.cursorDeltaBand != ck_cursorDeltaBand->isChecked()) {
+            app.appOptions.cursorDeltaBand = ck_cursorDeltaBand->isChecked();
+            bAppChanged = true;
+        }
+        if (app.appOptions.triggerLine != ck_triggerLine->isChecked()) {
+            app.appOptions.triggerLine = ck_triggerLine->isChecked();
+            bAppChanged = true;
+        }
         if (app.appOptions.logicThickHighLevel != ck_thickHighLevel->isChecked()) {
             app.appOptions.logicThickHighLevel = ck_thickHighLevel->isChecked();
             bAppChanged = true;
@@ -629,6 +786,30 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
         }
         if (app.appOptions.dsoSampleDots != ck_dsoSampleDots->isChecked()) {
             app.appOptions.dsoSampleDots = ck_dsoSampleDots->isChecked();
+            bAppChanged = true;
+        }
+        if (app.appOptions.colorLogicHigh != ck_colorLogicHigh->isChecked()) {
+            app.appOptions.colorLogicHigh = ck_colorLogicHigh->isChecked();
+            bAppChanged = true;
+        }
+        if (app.appOptions.colorLogicLow != ck_colorLogicLow->isChecked()) {
+            app.appOptions.colorLogicLow = ck_colorLogicLow->isChecked();
+            bAppChanged = true;
+        }
+        if (app.appOptions.fillLogicHigh != ck_fillLogicHigh->isChecked()) {
+            app.appOptions.fillLogicHigh = ck_fillLogicHigh->isChecked();
+            bAppChanged = true;
+        }
+        if (app.appOptions.logicHighColor != color_of_button(bt_highColor)) {
+            app.appOptions.logicHighColor = color_of_button(bt_highColor);
+            bAppChanged = true;
+        }
+        if (app.appOptions.logicLowColor != color_of_button(bt_lowColor)) {
+            app.appOptions.logicLowColor = color_of_button(bt_lowColor);
+            bAppChanged = true;
+        }
+        if (app.appOptions.logicFillColor != color_of_button(bt_fillColor)) {
+            app.appOptions.logicFillColor = color_of_button(bt_fillColor);
             bAppChanged = true;
         }
         if (bAppChanged){

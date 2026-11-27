@@ -204,6 +204,22 @@
         "text": "Nicht genügend Arbeitsspeicher für diese Erfassung.\nBitte verringern Sie die Anzahl der Samples."
     },
     {
+        "id": "IDS_MSG_DELETE_DATA_BEFORE_CURSOR",
+        "text": "Die erfassten Daten vor Cursor %1 löschen?"
+    },
+    {
+        "id": "IDS_MSG_DELETE_DATA_AFTER_CURSOR",
+        "text": "Die erfassten Daten nach Cursor %1 löschen?"
+    },
+    {
+        "id": "IDS_MSG_DELETE_DATA_INFO",
+        "text": "Dies kann nicht rückgängig gemacht werden. Cursor im gelöschten Teil werden entfernt. Trigger, übrige Cursor und Decoder behalten ihre Stelle in den verbleibenden Daten."
+    },
+    {
+        "id": "IDS_MSG_DELETE_DATA_NO_MEMORY",
+        "text": "Nicht genügend Arbeitsspeicher, um die Daten zu löschen. Es wurde nichts geändert."
+    },
+    {
         "id": "IDS_MSG_PACKET_ERROR",
         "text": "Paketfehler"
     },

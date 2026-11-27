@@ -1113,6 +1113,40 @@ QRectF DecodeTrace::get_rect(DecodeSetRegions type, int y, int right)
         return QRectF(0, 0, 0, 0);
 }
 
+void DecodeTrace::crop_decode_region(uint64_t first, uint64_t count)
+{
+    if (count == 0)
+        return;
+
+    const uint64_t last = count - 1;
+
+    // The region was deleted: decode everything.
+    if (_decode_end < first || _decode_start > first + last) {
+        _decode_start = 0;
+        _decode_end = last;
+        _decode_cursor1 = 0;
+        _decode_cursor2 = 0;
+        return;
+    }
+
+    // A bound in the deleted part goes, with the cursor it came from.
+    if (_decode_start >= first) {
+        _decode_start -= first;
+    }
+    else {
+        _decode_start = 0;
+        _decode_cursor1 = 0;
+    }
+
+    if (_decode_end - first <= last) {
+        _decode_end -= first;
+    }
+    else {
+        _decode_end = last;
+        _decode_cursor2 = 0;
+    }
+}
+
 void DecodeTrace::frame_ended()
 {
     const uint64_t last_samples = _session->cur_samplelimits() - 1;

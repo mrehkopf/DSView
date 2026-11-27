@@ -159,6 +159,14 @@ private:
     void paintMeasure(QPainter &p, QColor fore, QColor back);
     void paintAnnotationHover(QPainter &p, QColor fore, QColor back);
     void paintCursors(QPainter &p);
+
+    // Logic mode: shade the span between each cursor pair (1-2, 3-4, ...),
+    // under the traces. The ruler shows the time between them.
+    bool cursor_bands_shown();
+    void paintCursorBands(QPainter &p);
+
+    // Logic mode: the trigger position as a solid line with a flag.
+    void paintTriggerLine(QPainter &p, const QRect &rect);
     void paint_ref_waves(QPainter &p);
     void paintYScaleBadge(QPainter &p, QColor fore, QColor back);
 
@@ -169,9 +177,16 @@ private:
     void get_captured_progress(double &progress, int &progress100);
     void set_action(ActionType action);
 
+    // Logic mode: on a right click near a cursor line, that cursor's menu.
+    // False when no cursor is near.
+    bool show_cursor_menu_at(const QPoint &pos);
+
     void onLogicMouseRelease(QMouseEvent *event);
     void onDsoMouseRelease(QMouseEvent *event);
     void onAnalogMouseRelease(QMouseEvent *event);
+
+    // A menu to copy the text of the annotation at pos, if there is one.
+    bool show_annotation_menu(const QPoint &pos);
 
     void updateDragVelocity(QMouseEvent *event);
 

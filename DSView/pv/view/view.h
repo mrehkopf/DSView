@@ -69,6 +69,7 @@ namespace view {
 class Header;
 class DevMode;
 class Ruler;
+class TimeBar;
 class Trace;
 class Viewport;
 class LissajousFigure;
@@ -215,6 +216,14 @@ public:
     void set_scale_offset(double scale, int64_t offset);
     void set_preScale_preOffset();
 
+    /**
+     * The scale before the last set_scale_offset() or zoom(), the one
+     * set_preScale_preOffset() returns to.
+     */
+    inline double get_prescale(){
+        return _preScale;
+    }
+
     void get_traces(int type, std::vector<Trace*> &traces);
 
 	/**
@@ -259,6 +268,12 @@ public:
 
     int headerWidth();
 
+    // The height above the traces: the ruler, and the time bar when shown.
+    int get_top_margin();
+
+    // Logic mode with the time bar option on.
+    bool timebar_shown();
+
     inline Ruler* get_ruler(){
         return _ruler;
     }
@@ -297,6 +312,25 @@ public:
     }
 
     Cursor* get_cursor_by_index(int index);
+
+    /**
+     * Logic mode: whether the captured data before (or after) cursor c can
+     * be deleted now: the capture is over and there is data on that side.
+     */
+    bool can_delete_data(Cursor *c, bool before);
+
+    /**
+     * Deletes the captured data before or after cursor c, once confirmed.
+     * Cursors in the deleted part go; the other cursors, the trigger, the
+     * decoders and the view move with the data that stays.
+     */
+    void delete_data(Cursor *c, bool before);
+
+    /**
+     * The right-click menu of cursor c (its ruler label or its line),
+     * opened at global position pos.
+     */
+    void show_cursor_menu(Cursor *c, const QPoint &pos);
 
     inline Cursor* get_search_cursor(){
         return _search_cursor;
@@ -427,6 +461,7 @@ private:
     bool v_snap_enabled();
     void restore_v_scroll(int old_value, int old_content);
     void update_margins();
+    bool can_scroll_logic();
     void set_scale(double scale);
 
     void clear();
@@ -469,6 +504,15 @@ public slots:
 
     //
     void header_updated();
+
+    /**
+     * Logic mode: scroll the view, keeping the zoom, so that the first sample
+     * is at the left edge, the trigger position (the 0 of the time ruler) is
+     * in the middle, or the last sample received is at the right edge.
+     */
+    void scroll_to_begin();
+    void scroll_to_trigger();
+    void scroll_to_end();
 
     void receive_trigger(quint64 trig_pos1);
 
@@ -523,6 +567,7 @@ private:
     std::list<QWidget *>    _viewport_list;
     std::map<int, int>      _trace_view_map;
 	Ruler                   *_ruler;
+    TimeBar                 *_timebar;
 	Header                  *_header;
     DevMode                 *_devmode;
     

@@ -194,25 +194,36 @@ void LogicSignal::paint_mid_align(QPainter &p, int left, int right, QColor fore,
                                                           samples_per_pixel, _probe->index);
     assert(_cur_pulses.size() >= width);
 
-    const float line_width = AppConfig::Instance().appOptions.logicSignalLineWidth;
-    const bool thick_high = AppConfig::Instance().appOptions.logicThickHighLevel;
+    const AppOptions &opt = AppConfig::Instance().appOptions;
+    const float line_width = opt.logicSignalLineWidth;
+    const bool thick_high = opt.logicThickHighLevel;
 
     int preX = 0;
     int preY = first_sample ? high_offset : low_offset;
     int x = preX;
-    std::vector<QLine> wave_lines;
-    std::vector<QLineF> high_lines;
+    std::vector<QLine> wave_lines;      // edges, and levels in the channel colour
+    std::vector<QLine> high_lines;      // high levels in their own colour
+    std::vector<QLine> low_lines;       // low levels in their own colour
+    std::vector<QLineF> thick_lines;    // thick high levels
     std::vector<QRectF> edge_blocks;
+    std::vector<QRect> high_areas;      // the fill under high levels
 
     // With the thick high level option, high segments are collected apart and
     // painted with a wider flat-capped pen. They reach out by half the edge
     // width so they end flush with the outer side of the adjoining edges.
-    // Zero-length segments are covered by the edges and skipped.
+    // Zero-length segments are covered by the edges and skipped. Levels with
+    // a colour of their own are kept apart too; edges keep the channel colour.
     auto push_level = [&](int x0, int x1, int level) {
-        if (!thick_high || level != high_offset)
-            wave_lines.push_back(QLine(x0, level, x1, level));
+        if (level != high_offset) {
+            (opt.colorLogicLow ? low_lines : wave_lines).push_back(QLine(x0, level, x1, level));
+            return;
+        }
+        if (opt.fillLogicHigh && x1 > x0)
+            high_areas.push_back(QRect(x0, high_offset, x1 - x0, low_offset - high_offset));
+        if (!thick_high)
+            (opt.colorLogicHigh ? high_lines : wave_lines).push_back(QLine(x0, level, x1, level));
         else if (x1 > x0)
-            high_lines.push_back(QLineF(x0 - line_width / 2, level, x1 + line_width / 2, level));
+            thick_lines.push_back(QLineF(x0 - line_width / 2, level, x1 + line_width / 2, level));
     };
 
     if (_cur_edges.size() < max_togs) {
@@ -268,39 +279,58 @@ void LogicSignal::paint_mid_align(QPainter &p, int left, int right, QColor fore,
 
     QColor defaultColour = get_default_colour();
     QColor lineColour = _colour.isValid() ? _colour : (defaultColour.isValid() ? defaultColour : fore);
+    const QColor highColour = opt.colorLogicHigh ? opt.logicHighColor : lineColour;
+    const QColor lowColour = opt.colorLogicLow ? opt.logicLowColor : lineColour;
+
+    const QBrush brush = p.brush();
+
+    // The fill goes first, under the lines.
+    if (!high_areas.empty()) {
+        p.setPen(Qt::NoPen);
+        p.setBrush(opt.logicFillColor);
+        p.drawRects(high_areas.data(), high_areas.size());
+    }
 
     if (!edge_blocks.empty()) {
-        const QBrush brush = p.brush();
         p.setPen(Qt::NoPen);
         p.setBrush(lineColour);
         p.drawRects(edge_blocks.data(), edge_blocks.size());
-        p.setBrush(brush);
     }
+    p.setBrush(brush);
 
     p.setPen(QPen(lineColour, line_width));
     p.drawLines(wave_lines.data(), wave_lines.size());
 
+    if (!low_lines.empty()) {
+        p.setPen(QPen(lowColour, line_width));
+        p.drawLines(low_lines.data(), low_lines.size());
+    }
+
     if (!high_lines.empty()) {
-        QPen high_pen(lineColour, line_width + 1);
+        p.setPen(QPen(highColour, line_width));
+        p.drawLines(high_lines.data(), high_lines.size());
+    }
+
+    if (!thick_lines.empty()) {
+        QPen high_pen(highColour, line_width + 1);
         high_pen.setCapStyle(Qt::FlatCap);
         p.setPen(high_pen);
-        p.drawLines(high_lines.data(), high_lines.size());
+        p.drawLines(thick_lines.data(), thick_lines.size());
     }
 
     // Zoomed in far enough that samples are clearly apart: mark each one,
     // so the actual sample points are visible along the waveform. Size the
     // dots from the widest pen in use, so they stand out from a thick high
-    // level as much as from the low level.
-    if (AppConfig::Instance().appOptions.logicSampleDots &&
-        1.0 / samples_per_pixel >= SampleDotMinSpacing) {
+    // level as much as from the low level. Each dot takes its level's colour.
+    if (opt.logicSampleDots && 1.0 / samples_per_pixel >= SampleDotMinSpacing) {
         const double pen_width = thick_high ? line_width + 1 : line_width;
         const double dot = std::max(4.0, pen_width + SampleDotGrow);
         p.setPen(Qt::NoPen);
-        p.setBrush(lineColour);
         for (uint64_t i = start_index; i <= end_index; i++) {
             const double sx = i / samples_per_pixel - offset;
-            const double sy = _data->get_sample(i, _probe->index) ? high_offset : low_offset;
-            p.drawEllipse(QPointF(sx, sy), dot / 2, dot / 2);
+            const bool level = _data->get_sample(i, _probe->index);
+            p.setBrush(level ? highColour : lowColour);
+            p.drawEllipse(QPointF(sx, level ? high_offset : low_offset), dot / 2, dot / 2);
         }
         p.setBrush(Qt::NoBrush);
     }

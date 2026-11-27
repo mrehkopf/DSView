@@ -442,6 +442,9 @@ namespace pv
         connect(_trig_bar, SIGNAL(sig_setTheme(QString)), this, SLOT(switchTheme(QString)));
         connect(_trig_bar, SIGNAL(sig_show_lissajous(bool)), _view, SLOT(show_lissajous(bool)));
         connect(_trig_bar, &toolbars::TrigBar::sig_dso_split, _view, &view::View::set_dso_split_channels);
+        connect(_trig_bar, &toolbars::TrigBar::sig_go_begin, _view, &view::View::scroll_to_begin);
+        connect(_trig_bar, &toolbars::TrigBar::sig_go_trigger, _view, &view::View::scroll_to_trigger);
+        connect(_trig_bar, &toolbars::TrigBar::sig_go_end, _view, &view::View::scroll_to_end);
 
         // file toolbar
         connect(_file_bar, SIGNAL(sig_load_file(QString)), this, SLOT(on_load_file(QString)));
@@ -1667,10 +1670,15 @@ namespace pv
             QKeyEvent *ke = (QKeyEvent *)event;
             
             int modifier = ke->modifiers(); 
+            // [ and ] need AltGr on many keyboards, which can come with
+            // Ctrl and Alt (Windows), so they don't count as shortcuts.
+            const bool bracket = ke->key() == Qt::Key_BracketLeft
+                              || ke->key() == Qt::Key_BracketRight;
  
-            if(modifier & Qt::ControlModifier || 
+            if(!bracket &&
+               (modifier & Qt::ControlModifier || 
                modifier & Qt::ShiftModifier || 
-               modifier & Qt::AltModifier)
+               modifier & Qt::AltModifier))
             {
                 return true;
             }
@@ -1741,6 +1749,21 @@ namespace pv
             case 39:
 #endif
                 _view->zoom(-1);
+                break;
+
+            // Zoom in and out, as in GTKWave and image editors.
+            case Qt::Key_BracketRight:
+                _view->zoom(1);
+                break;
+
+            case Qt::Key_BracketLeft:
+                _view->zoom(-1);
+                break;
+
+            // The whole capture, as a right double-click in the view does.
+            case Qt::Key_F:
+                if (_device_agent->get_work_mode() == LOGIC && _view->get_view_width() > 0)
+                    _view->set_scale_offset(_view->get_maxscale(), _view->get_min_offset());
                 break;
 
             case Qt::Key_0:

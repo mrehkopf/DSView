@@ -292,3 +292,50 @@ void LangResource::release_dynamic()
         }
     }
 }
+
+QString StandardButtonTranslator::translate(const char *context, const char *source_text,
+                                            const char *disambiguation, int n) const
+{
+    (void)disambiguation;
+    (void)n;
+
+    // The texts come from QPlatformTheme, or from a platform theme's own
+    // version of them (QGnomeTheme's "&OK", ...).
+    if (context == NULL || source_text == NULL
+        || !QByteArray(context).endsWith("Theme"))
+        return QString();
+
+    struct Button {
+        const char *text;
+        const char *id;
+    };
+    static const Button buttons[] = {
+        {"OK",     S_ID(IDS_DLG_OK)},
+        {"Cancel", S_ID(IDS_DLG_CANCEL)},
+        {"Yes",    S_ID(IDS_DLG_YES)},
+        {"No",     S_ID(IDS_DLG_NO)},
+        {"Close",  S_ID(IDS_DLG_CLOSE)},
+        {"Save",   S_ID(IDS_DLG_SAVE)},
+        {"Reset",  S_ID(IDS_DLG_RESET)},
+        {"Abort",  S_ID(IDS_DLG_ABORT)},
+    };
+
+    // A leading & marks the shortcut letter, as in "&Yes".
+    QString text = QString::fromUtf8(source_text);
+    const bool shortcut = text.startsWith('&');
+    text.remove('&');
+
+    for (const Button &b : buttons) {
+        if (text == b.text) {
+            const QString t = QString::fromUtf8(
+                LangResource::Instance()->get_lang_text(STR_PAGE_DLG, b.id, b.text));
+            return shortcut ? "&" + t : t;
+        }
+    }
+    return QString();
+}
+
+bool StandardButtonTranslator::isEmpty() const
+{
+    return false;
+}

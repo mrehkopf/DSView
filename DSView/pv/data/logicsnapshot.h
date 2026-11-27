@@ -159,7 +159,34 @@ public:
 
     int get_block_index_with_sample(uint64_t sample_index, uint64_t *out_offset);
 
+    enum CropResult {
+        CropDone,
+        CropInvalid,    // nothing done: bounds not allowed
+        CropNoMemory,   // nothing done: no memory for the copy
+    };
+
+    /**
+     * Keeps only the samples [start, end) and drops the rest; what was
+     * sample start becomes sample 0. Both bounds must be multiples of 64
+     * (whole words), and end at most get_ring_sample_count(). The capture
+     * must be over and no decoder may be reading the data. The part kept
+     * is copied first, so for a while it needs memory twice; if that
+     * fails, the data stays as it was. A search reading the data sees the
+     * version change.
+     */
+    CropResult crop(uint64_t start, uint64_t end);
+
 private:
+    // Sets up empty storage for the channels ch_index, total samples long,
+    // as first_payload() does for a new capture. Throws std::bad_alloc.
+    void init_channels(const std::vector<uint16_t> &ch_index, uint64_t total);
+
+    // Copies count samples of channel sig_index from sample 'from' on, one
+    // 64-bit word (64 samples, first in bit 0) to every stride-th element of
+    // out. from and count are multiples of 64.
+    void read_words(uint64_t from, uint64_t count, int sig_index,
+                    uint64_t *out, unsigned int stride);
+
     int get_block_num_unlock();
     uint64_t get_block_size_unlock(int block_index);
     uint8_t *get_block_buf_unlock(int block_index, int sig_index, bool &sample);

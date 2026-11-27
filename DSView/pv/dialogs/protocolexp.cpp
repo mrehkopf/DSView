@@ -36,6 +36,9 @@
 #include "../data/decode/row.h"
 #include "../data/decode/annotation.h"
 #include "../view/decodetrace.h"
+#include "../view/view.h"
+#include "../view/cursor.h"
+#include <QHBoxLayout>
 #include "../data/decodermodel.h"
 #include "../config/appconfig.h"
 #include "../dsvdef.h"
@@ -53,11 +56,11 @@ using namespace pv::data::decode;
 namespace pv {
 namespace dialogs {
 
-// Quotes a CSV field (RFC 4180) when it holds a comma, a quote or a line
-// break, so that annotation texts like "a, b" stay in one column.
-static QString csv_field(const QString &field)
+// Quotes a field (RFC 4180) when it holds the separator, a quote or a
+// line break, so that annotation texts like "a, b" stay in one column.
+static QString csv_field(const QString &field, const QString &separator)
 {
-    if (field.contains(',') || field.contains('"')
+    if (field.contains(separator) || field.contains('"')
         || field.contains('\n') || field.contains('\r'))
     {
         QString quoted = field;
@@ -67,7 +70,7 @@ static QString csv_field(const QString &field)
     return field;
 }
 
-ProtocolExp::ProtocolExp(QWidget *parent, SigSession *session) :
+ProtocolExp::ProtocolExp(QWidget *parent, SigSession *session, view::View *view) :
     DSDialog(parent),
     _session(session),
     _button_box(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
@@ -75,6 +78,9 @@ ProtocolExp::ProtocolExp(QWidget *parent, SigSession *session) :
     _export_cancel(false)
 {
     _bAbleClose = false;
+    _use_range = false;
+    _range_start = 0;
+    _range_end = 0;
 
     _format_combobox = new DsComboBox(this);
     //tr
@@ -87,6 +93,57 @@ ProtocolExp::ProtocolExp(QWidget *parent, SigSession *session) :
     _flayout->setLabelAlignment(Qt::AlignLeft);
     _flayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     _flayout->addRow(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_EXPORT_FORMAT), "Export Format: "), this), _format_combobox);
+
+    // The column separator; the item data is the separator itself.
+    _separator_combobox = new DsComboBox(this);
+    _separator_combobox->addItem(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SEPARATOR_COMMA), "Comma ( , )"), QString(","));
+    _separator_combobox->addItem(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SEPARATOR_SEMICOLON), "Semicolon ( ; )"), QString(";"));
+    _separator_combobox->addItem(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SEPARATOR_TAB), "Tab"), QString("\t"));
+    _separator_combobox->addItem(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SEPARATOR_PIPE), "Pipe ( | )"), QString("|"));
+    _separator_combobox->addItem(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_SEPARATOR_SPACE), "Space"), QString(" "));
+
+    const int sep_index = _separator_combobox->findData(AppConfig::Instance().userHistory.protocolExportSeparator);
+    _separator_combobox->setCurrentIndex(sep_index >= 0 ? sep_index : 0);
+    _flayout->addRow(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_EXPORT_SEPARATOR), "Separator: "), this), _separator_combobox);
+
+    // Only the annotations that start between two cursors, listed by their
+    // numbers on the ruler; the item data is the cursor's sample.
+    _range_checkbox = new QCheckBox(this);
+    _range_from_combobox = new DsComboBox(this);
+    _range_to_combobox = new DsComboBox(this);
+
+    if (view != NULL) {
+        for (auto cursor : view->get_cursorList()) {
+            const QVariant sample = QVariant::fromValue<qulonglong>(cursor->index());
+            _range_from_combobox->addItem(QString::number(cursor->order()), sample);
+            _range_to_combobox->addItem(QString::number(cursor->order()), sample);
+        }
+    }
+
+    QWidget *range_widget = new QWidget(this);
+    QHBoxLayout *range_layout = new QHBoxLayout(range_widget);
+    range_layout->setContentsMargins(0, 0, 0, 0);
+    range_layout->addWidget(_range_checkbox);
+    range_layout->addWidget(_range_from_combobox);
+    range_layout->addWidget(new QLabel("-", this));
+    range_layout->addWidget(_range_to_combobox);
+    range_layout->addStretch(1);
+
+    if (_range_from_combobox->count() >= 2) {
+        _range_to_combobox->setCurrentIndex(1);
+        _range_from_combobox->setEnabled(false);
+        _range_to_combobox->setEnabled(false);
+        connect(_range_checkbox, &QCheckBox::toggled, this, [this](bool on) {
+            _range_from_combobox->setEnabled(on);
+            _range_to_combobox->setEnabled(on);
+        });
+    }
+    else {
+        range_widget->setEnabled(false);
+        range_widget->setToolTip(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_EXPORT_RANGE_NEED_CURSORS),
+                                     "Place at least two cursors to use this."));
+    }
+    _flayout->addRow(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_EXPORT_BETWEEN_CURSORS), "Only between cursors: "), this), range_widget);
 
     pv::data::DecoderModel* decoder_model = _session->get_decoder_model();
 
@@ -202,12 +259,32 @@ void ProtocolExp::onAccept()
         //tr
         file_name += "." + ext;
 
+    _separator = _separator_combobox->currentData().toString();
+    if (_separator.isEmpty())
+        _separator = ",";
+
+    _use_range = _range_checkbox->isEnabled() && _range_checkbox->isChecked();
+    if (_use_range) {
+        const uint64_t a = _range_from_combobox->currentData().toULongLong();
+        const uint64_t b = _range_to_combobox->currentData().toULongLong();
+        _range_start = std::min(a, b);
+        _range_end = std::max(a, b);
+    }
+
+    bool save_history = false;
     QString fname = path::GetDirectoryName(file_name);
     if (fname != app.userHistory.openDir)
     {
         app.userHistory.protocolExportPath = fname;
-        app.SaveHistory();
+        save_history = true;
     }
+    if (_separator != app.userHistory.protocolExportSeparator)
+    {
+        app.userHistory.protocolExportSeparator = _separator;
+        save_history = true;
+    }
+    if (save_history)
+        app.SaveHistory();
     _fileName = file_name;
  
     QFuture<void> future;
@@ -296,6 +373,15 @@ void ProtocolExp::save_proc()
     {
         decoder_stack->get_annotation_subset(annotations_arr[i], *row_inf_arr[i].row,
                                          0, decoder_stack->sample_count() - 1);
+
+        // Between the cursors: the annotations that start there, as the
+        // time column gives the start.
+        if (_use_range) {
+            auto &anns = annotations_arr[i];
+            anns.erase(std::remove_if(anns.begin(), anns.end(), [this](Annotation *a) {
+                           return a->start_sample() < _range_start || a->start_sample() > _range_end;
+                       }), anns.end());
+        }
         total_ann_count += (uint64_t)annotations_arr[i].size();
         sort(annotations_arr[i].begin(), annotations_arr[i].end(), compare_ann_index);  
         row_inf_arr[i].read_index = 0;
@@ -306,12 +392,12 @@ void ProtocolExp::save_proc()
 
     for (int i=0; i<row_num; i++) {
         if (i > 0 && i < row_num){
-            title_str.append(",");
+            title_str.append(_separator);
         }
-        title_str.append(csv_field(row_inf_arr[i].title));
+        title_str.append(csv_field(row_inf_arr[i].title, _separator));
     }
 
-    out << "Id," << "Time[ns]," << title_str << "\n";
+    out << "Id" << _separator << "Time[ns]" << _separator << title_str << "\n";
 
     uint64_t write_row_dex = 0;
     uint64_t write_ann_num = 0;
@@ -342,7 +428,7 @@ void ProtocolExp::save_proc()
         for (int i=0; i<row_num; i++)
         {   
             if (i > 0 && i < row_num){
-                ann_row_str.append(",");
+                ann_row_str.append(_separator);
             }
 
             if (row_inf_arr[i].read_index >= annotations_arr[i].size())
@@ -351,7 +437,7 @@ void ProtocolExp::save_proc()
             Annotation *ann = annotations_arr[i].at(row_inf_arr[i].read_index);           
 
             if (ann->start_sample() == sample_index){
-                ann_row_str.append(csv_field(ann->annotations().at(0)));
+                ann_row_str.append(csv_field(ann->annotations().at(0), _separator));
                 row_inf_arr[i].read_index++;
                 write_ann_num++;
             }
@@ -359,8 +445,8 @@ void ProtocolExp::save_proc()
 
         write_row_dex++;
 
-        out << QString::number(write_row_dex) << ","
-            << QString::number(sample_index * ns_per_sample, 'f', 2) << ","
+        out << QString::number(write_row_dex) << _separator
+            << QString::number(sample_index * ns_per_sample, 'f', 2) << _separator
             << ann_row_str << "\n";
 
         emit export_progress(write_ann_num * 100 / total_ann_count);

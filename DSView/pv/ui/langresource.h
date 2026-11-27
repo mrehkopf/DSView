@@ -25,6 +25,7 @@
 #include <map>
 #include <vector>
 #include <QString>
+#include <QTranslator>
 #include <string>
 #include "string_ids.h"
 #include <mutex>
@@ -111,5 +112,17 @@ private:
 
 #define S_ID(id) #id
 #define L_S(pid,sid,dv) (LangResource::Instance()->get_lang_text((pid), (sid), (dv)))
+
+// Gives Qt's standard dialog buttons (OK, Cancel, Yes, No, ...) DSView's own
+// texts in the current language. Qt's translations are only loaded for
+// Chinese, so the buttons were English in German. Installed once, it follows
+// language changes.
+class StandardButtonTranslator : public QTranslator
+{
+public:
+    QString translate(const char *context, const char *source_text,
+                      const char *disambiguation = nullptr, int n = -1) const override;
+    bool isEmpty() const override;
+};
 
 #endif

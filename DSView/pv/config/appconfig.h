@@ -68,6 +68,12 @@ public:
 #define APP_CONFIG_VERSION  3
 #define NO_POINT_VALUE  -10000
 
+// Default colours for the logic trace levels and the fill under high levels.
+// The greys work on light and dark backgrounds alike.
+#define DEFAULT_LOGIC_HIGH_COLOR  QColor(0x00, 0xC0, 0x00)
+#define DEFAULT_LOGIC_LOW_COLOR   QColor(0x7E, 0x7E, 0x7E)
+#define DEFAULT_LOGIC_FILL_COLOR  QColor(0x80, 0x80, 0x80, 0x40)
+
 struct AppOptions
 {   
     int   version;
@@ -94,8 +100,17 @@ struct AppOptions
     float logicSignalLineWidth;
     bool logicChannelDivider;
     bool logicThickHighLevel;
+    bool colorLogicHigh;    // high levels in logicHighColor, not the channel colour
+    bool colorLogicLow;     // low levels in logicLowColor
+    QColor logicHighColor;
+    QColor logicLowColor;
+    bool fillLogicHigh;     // shade the area under high levels in logicFillColor
+    QColor logicFillColor;  // with alpha
     bool logicSampleDots;   // dot at each sample when zoomed in far enough
     bool logicSnapVScroll;  // snap to trace tops when the scroll bar is released
+    bool showTimeBar;       // the whole capture in a bar above the ruler
+    bool cursorDeltaBand;   // logic: shade cursor pairs, with the time between them on hover
+    bool triggerLine;       // logic: the trigger as a solid line
     bool dsoSplitChannels;
     float dsoSignalLineWidth;
     bool dsoSampleDots;
@@ -142,6 +157,7 @@ struct UserHistory
   QString   sessionDir;
   QString   openDir;
   QString   protocolExportPath;
+  QString   protocolExportSeparator;
   QString   exportFormat;
   bool      showDriverHint;
 };

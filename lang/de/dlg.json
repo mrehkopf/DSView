@@ -96,6 +96,22 @@
         "text": "Abbrechen"
     },
     {
+        "id": "IDS_DLG_OK",
+        "text": "OK"
+    },
+    {
+        "id": "IDS_DLG_YES",
+        "text": "Ja"
+    },
+    {
+        "id": "IDS_DLG_NO",
+        "text": "Nein"
+    },
+    {
+        "id": "IDS_DLG_CLOSE",
+        "text": "Schließen"
+    },
+    {
         "id": "IDS_DLG_RELOAD_CALIBRATION_RESULTS",
         "text": "Vorherige Kalibrierergebnisse werden geladen... Bitte warten."
     },
@@ -242,6 +258,38 @@
     {
         "id": "IDS_DLG_EXPORT_FORMAT",
         "text": "Exportformat: "
+    },
+    {
+        "id": "IDS_DLG_EXPORT_SEPARATOR",
+        "text": "Trennzeichen: "
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_COMMA",
+        "text": "Komma ( , )"
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_SEMICOLON",
+        "text": "Semikolon ( ; )"
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_TAB",
+        "text": "Tabulator"
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_PIPE",
+        "text": "Senkrechter Strich ( | )"
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_SPACE",
+        "text": "Leerzeichen"
+    },
+    {
+        "id": "IDS_DLG_EXPORT_BETWEEN_CURSORS",
+        "text": "Nur zwischen Cursorn: "
+    },
+    {
+        "id": "IDS_DLG_EXPORT_RANGE_NEED_CURSORS",
+        "text": "Setzen Sie dafür mindestens zwei Cursor."
     },
     {
         "id": "IDS_DLG_PROTOCOL_EXPORT",
@@ -580,6 +628,14 @@
         "text": "Y-Cursor hinzufügen"
     },
     {
+        "id": "IDS_DLG_DELETE_DATA_BEFORE_CURSOR",
+        "text": "Daten vor Cursor %1 löschen"
+    },
+    {
+        "id": "IDS_DLG_DELETE_DATA_AFTER_CURSOR",
+        "text": "Daten nach Cursor %1 löschen"
+    },
+    {
         "id": "IDS_DLG_AUTO_ROLL",
         "text": "Auto (Roll)"
     },
@@ -634,6 +690,14 @@
     {
         "id": "IDS_DLG_DECODE_DURATION",
         "text": "Dauer: "
+    },
+    {
+        "id": "IDS_DLG_COPY_ANNOTATION",
+        "text": "Text kopieren"
+    },
+    {
+        "id": "IDS_DLG_COPY_ANNOTATION_WITH_ROW",
+        "text": "Mit Zeilennamen kopieren"
     },
     {
         "id": "IDS_DLG_SAMPLES_MEAS",
@@ -742,6 +806,30 @@
     {
         "id": "IDS_DLG_GROUP_LOGIC",
         "text": "Logikanalysator"
+    },
+    {
+        "id": "IDS_DLG_GROUP_LOGIC_COLORS",
+        "text": "Farben der Logikkanäle"
+    },
+    {
+        "id": "IDS_DLG_HIGH_LEVEL_COLOR",
+        "text": "Farbe für High-Pegel"
+    },
+    {
+        "id": "IDS_DLG_LOW_LEVEL_COLOR",
+        "text": "Farbe für Low-Pegel"
+    },
+    {
+        "id": "IDS_DLG_FILL_LOGIC_HIGH",
+        "text": "High-Pegel hinterlegen"
+    },
+    {
+        "id": "IDS_DLG_FILL_COLOR",
+        "text": "Füllfarbe"
+    },
+    {
+        "id": "IDS_DLG_RESET_COLORS",
+        "text": "Farben zurücksetzen"
     },
     {
         "id": "IDS_DLG_GROUP_DSO",
@@ -1630,5 +1718,17 @@
     {
         "id": "IDS_DLG_SRCH_HELP_MATCH_WINDOWS",
         "text": "Zeitfenster schließen beide Enden ein. Beginnen Sie eines bei 1sa, um den Treffer selbst auszunehmen."
+    },
+    {
+        "id": "IDS_DLG_TIME_BAR",
+        "text": "Zeitleiste anzeigen"
+    },
+    {
+        "id": "IDS_DLG_CURSOR_DELTA_BAND",
+        "text": "Cursorpaare hinterlegen (1-2, 3-4, ...)"
+    },
+    {
+        "id": "IDS_DLG_TRIGGER_LINE",
+        "text": "Triggerposition hervorheben"
     }
 ]

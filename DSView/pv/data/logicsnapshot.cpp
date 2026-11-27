@@ -24,6 +24,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
+#include <algorithm>
+#include <new>
  
 #include "logicsnapshot.h"
 #include "../dsvdef.h"
@@ -304,6 +306,7 @@ void LogicSnapshot::append_cross_payload(const sr_datafeed_logic &logic)
                 lbp = malloc(LeafBlockSpace);
                 if (lbp == NULL){
                     dsv_err("LogicSnapshot::append_cross_payload, Malloc memory failed!");
+                    _memory_failed = true;
                     return;
                 }
                 _ch_data[_ch_fraction][index0].lbp[index1] = lbp;
@@ -357,6 +360,7 @@ void LogicSnapshot::append_cross_payload(const sr_datafeed_logic &logic)
         lbp = malloc(LeafBlockSpace);
         if (lbp == NULL){
             dsv_err("LogicSnapshot::append_cross_payload, Malloc memory failed!");
+            _memory_failed = true;
             return;
         }
         _ch_data[fill_chan_index][index0].lbp[index1] = lbp;
@@ -400,6 +404,7 @@ void LogicSnapshot::append_cross_payload(const sr_datafeed_logic &logic)
                 lbp = malloc(LeafBlockSpace);
                 if (lbp == NULL){
                     dsv_err("LogicSnapshot::append_cross_payload, Malloc memory failed!");
+                    _memory_failed = true;
                     return;
                 }
                 _ch_data[fill_chan_index][index0].lbp[index1] = lbp;
@@ -430,6 +435,7 @@ void LogicSnapshot::append_cross_payload(const sr_datafeed_logic &logic)
                 lbp = malloc(LeafBlockSpace);
                 if (lbp == NULL){
                     dsv_err("LogicSnapshot::append_cross_payload, Malloc memory failed!");
+                    _memory_failed = true;
                     return;
                 }
                 _ch_data[fill_chan_index][index0].lbp[index1] = lbp;
@@ -456,6 +462,7 @@ void LogicSnapshot::append_cross_payload(const sr_datafeed_logic &logic)
         lbp = malloc(LeafBlockSpace);
         if (lbp == NULL){
             dsv_err("LogicSnapshot::append_cross_payload, Malloc memory failed!");
+            _memory_failed = true;
             return;
         }
         _ch_data[_ch_fraction][index0].lbp[index1] = lbp;
@@ -1555,6 +1562,173 @@ int LogicSnapshot::get_block_index_with_sample(uint64_t sample_index, uint64_t *
     }
 
     return block_index;
+}
+
+void LogicSnapshot::init_channels(const std::vector<uint16_t> &ch_index, uint64_t total)
+{
+    std::lock_guard<std::mutex> lock(_mutex);
+
+    free_data();
+
+    _ch_index = ch_index;
+    _channel_num = ch_index.size();
+    _total_sample_count = total;
+
+    // One root node to spare, as in first_payload(): as soon as the last
+    // leaf block of a node fills, append_cross_payload() moves on to the
+    // next node.
+    const uint64_t rootnode_size = (total + RootNodeSamples - 1) / RootNodeSamples + 1;
+
+    struct RootNode empty;
+    empty.tog = 0;
+    empty.first = 0;
+    empty.last = 0;
+    memset(empty.lbp, 0, sizeof(empty.lbp));
+
+    for (unsigned int i = 0; i < _channel_num; i++)
+        _ch_data.push_back(std::vector<struct RootNode>(rootnode_size, empty));
+
+    init_all();
+    _last_ended = false;
+    _lst_free_block_index = 0;
+
+    for (unsigned int i = 0; i < _channel_num; i++) {
+        _last_sample[i] = 0;
+        _last_calc_count[i] = 0;
+        _cur_ref_block_indexs[i].root_index = 0;
+        _cur_ref_block_indexs[i].lbp_index = 0;
+    }
+}
+
+void LogicSnapshot::read_words(uint64_t from, uint64_t count, int sig_index,
+                               uint64_t *out, unsigned int stride)
+{
+    const int block_num = get_block_num();
+    uint64_t done = 0;
+
+    while (done < count)
+    {
+        uint64_t offset = 0;
+        const int block = get_block_index_with_sample(from + done, &offset);
+        uint64_t avail = 0;
+
+        if (block < block_num) {
+            const uint64_t size = get_block_size(block) * 8;
+            avail = size - min(offset, size);
+        }
+
+        if (avail == 0) {
+            // Past the data: cannot happen for a valid range, but never spin.
+            for (; done < count; done += Scale)
+                out[done / Scale * stride] = 0;
+            break;
+        }
+
+        // A block without edges is not stored, only its level.
+        bool level = false;
+        const uint64_t *buf = (const uint64_t*)get_block_buf(block, sig_index, level);
+        const uint64_t fill = level ? ~0ULL : 0ULL;
+        const uint64_t n = min(avail, count - done);
+
+        for (uint64_t i = 0; i < n / Scale; i++)
+            out[(done / Scale + i) * stride] = buf ? buf[offset / Scale + i] : fill;
+
+        done += n;
+    }
+}
+
+LogicSnapshot::CropResult LogicSnapshot::crop(uint64_t start, uint64_t end)
+{
+    std::vector<uint16_t> ch_index;
+    uint64_t count = 0;
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+        ch_index = _ch_index;
+        count = _ring_sample_count;
+    }
+
+    if (ch_index.empty() || start >= end || end > count
+        || start % Scale != 0 || end % Scale != 0)
+        return CropInvalid;
+
+    const uint64_t keep = end - start;
+    const unsigned int chans = ch_index.size();
+
+    // Fed through the capture path, a chunk at a time, so the copy builds
+    // its mipmaps and drops blocks without edges as a capture does. A chunk
+    // is chans x 256 KiB.
+    const uint64_t chunk_samples = LeafBlockSamples / 8;
+    std::vector<uint64_t> buf;
+    LogicSnapshot cropped;
+    bool failed = false;
+
+    try {
+        buf.resize(chunk_samples / Scale * chans);
+        cropped.init_channels(ch_index, keep);
+    }
+    catch (const std::bad_alloc&) {
+        failed = true;
+    }
+
+    for (uint64_t pos = 0; !failed && pos < keep; pos += chunk_samples)
+    {
+        const uint64_t n = min(chunk_samples, keep - pos);
+
+        // LA_CROSS_DATA: for every 64 samples, one word per channel in turn.
+        for (unsigned int c = 0; c < chans; c++)
+            read_words(start + pos, n, ch_index[c], buf.data() + c, chans);
+
+        sr_datafeed_logic logic;
+        memset(&logic, 0, sizeof(logic));
+        logic.format = LA_CROSS_DATA;
+        logic.length = n / 8 * chans;
+        logic.unitsize = 1;
+        logic.data = buf.data();
+        cropped.append_payload(logic);
+
+        // A block that could not be allocated is missing from the copy.
+        failed = cropped.memory_failed();
+    }
+
+    if (failed) {
+        dsv_err("LogicSnapshot::crop, Malloc memory failed!");
+        // The destructor leaves the blocks alone.
+        cropped.free_data();
+        return CropNoMemory;
+    }
+
+    cropped.capture_ended();
+
+    std::lock_guard<std::mutex> lock(_mutex);
+
+    // A search on another thread stops at the next read.
+    _data_version++;
+
+    // Frees the old blocks, and those kept back for a decoder.
+    free_data();
+
+    _ch_data.swap(cropped._ch_data);
+    _ch_index = ch_index;
+    _channel_num = chans;
+    _total_sample_count = cropped._total_sample_count;
+    _sample_count = cropped._sample_count;
+    _ring_sample_count = cropped._ring_sample_count;
+    _loop_offset = 0;
+    _byte_fraction = 0;
+    _ch_fraction = 0;
+    _dest_ptr = NULL;
+    _lst_free_block_index = 0;
+    _last_ended = true;
+
+    for (unsigned int i = 0; i < chans; i++) {
+        _last_sample[i] = cropped._last_sample[i];
+        _last_calc_count[i] = 0;
+        _cur_ref_block_indexs[i].root_index = 0;
+        _cur_ref_block_indexs[i].lbp_index = 0;
+    }
+
+    // cropped holds no blocks now.
+    return CropDone;
 }
 
 } // namespace data

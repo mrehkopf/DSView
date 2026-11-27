@@ -267,6 +267,10 @@ bool bHighScale = true;
 	app.ApplyTheme(false); // Select the style before creating windows; MainWindow applies the QSS.
 	LangResource::Instance()->Load(app.frameOptions.language);
 
+	// Qt's standard dialog buttons in DSView's language
+	StandardButtonTranslator buttonTranslator;
+	a.installTranslator(&buttonTranslator);
+
 	if (app.appOptions.ableSaveLog){
 		dsv_log_enalbe_logfile(app.appOptions.appendLogMode);
 

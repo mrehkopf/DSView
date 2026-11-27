@@ -311,6 +311,7 @@ set(DSView_SOURCES
     DSView/pv/view/timemarker.cpp
     DSView/pv/view/signal.cpp
     DSView/pv/view/ruler.cpp
+    DSView/pv/view/timebar.cpp
     DSView/pv/view/logicsignal.cpp
     DSView/pv/view/header.cpp
     DSView/pv/view/cursor.cpp
@@ -441,6 +442,7 @@ set(DSView_HEADERS
     DSView/pv/view/view.h
     DSView/pv/view/timemarker.h
     DSView/pv/view/ruler.h
+    DSView/pv/view/timebar.h
     DSView/pv/view/header.h
     DSView/pv/view/cursor.h
     DSView/pv/toolbars/trigbar.h

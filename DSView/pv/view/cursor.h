@@ -77,8 +77,28 @@ public:
     void paint_label(QPainter &p, const QRect &rect,
         unsigned int prefix, bool has_hoff, bool show_samples);
 
+    /**
+     * Paints a marker such as the trigger 'T' on the ruler. A marker without
+     * a time in its box (has_hoff false) keeps its box below labels_bottom,
+     * the lowest pixel row of the ruler's time labels, so that it does not
+     * cover them. -1: no limit.
+     */
     void paint_fix_label(QPainter &p, const QRect &rect,
-        unsigned int prefix, QChar label, QColor color, bool has_hoff, bool show_samples);
+        unsigned int prefix, QChar label, QColor color, bool has_hoff, bool show_samples,
+        int labels_bottom = -1);
+
+    /**
+     * Measures the label for get_label_rect(). Call before laying out labels.
+     */
+    void prepare_label(QPainter &p, bool show_samples);
+
+    /**
+     * A compact label shows only the cursor number. The ruler uses it where
+     * the labels of nearby cursors would overlap.
+     */
+    inline void set_label_compact(bool compact){
+        _compact = compact;
+    }
 
 public: 
 	inline uint64_t get_key(){
@@ -91,9 +111,12 @@ public:
 
 private:
 	void compute_text_size(QPainter &p, const QString &text);
+    QString label_text(bool show_samples);
 
 private:
 	QSizeF 		_text_size;
+    int         _number_width;
+    bool        _compact;
 };
 
 } // namespace view

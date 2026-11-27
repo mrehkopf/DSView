@@ -616,6 +616,76 @@ namespace pv
         return _view_data->get_logic()->get_ring_sample_count() * 1.0 / cur_snap_samplerate();
     }
 
+    bool SigSession::logic_crop_range(uint64_t &start, uint64_t &end)
+    {
+        if (_device_agent.have_instance() == false
+            || _device_agent.get_work_mode() != LOGIC
+            || is_working() || _is_saving || !have_view_data())
+            return false;
+
+        const uint64_t count = _view_data->get_logic()->get_ring_sample_count();
+
+        start -= start % 64;
+        end = std::min(end, count);
+        if (end % 64 != 0)
+            end = std::min(end + 64 - end % 64, count);
+
+        // The snapshot copies whole words. Data that ends inside a word
+        // (captures end on one) could not keep its end, so it isn't cropped.
+        return start < end && !(start == 0 && end == count) && end % 64 == 0;
+    }
+
+    data::LogicSnapshot::CropResult SigSession::crop_logic_data(uint64_t &start, uint64_t &end)
+    {
+        if (!logic_crop_range(start, end))
+            return data::LogicSnapshot::CropInvalid;
+
+        // The decoders read the data that is about to be replaced.
+        clear_all_decode_task2();
+
+        const data::LogicSnapshot::CropResult result = _view_data->get_logic()->crop(start, end);
+        const bool cropped = result == data::LogicSnapshot::CropDone;
+
+        if (cropped)
+        {
+            const uint64_t kept = end - start;
+
+            // The timeline is the data kept.
+            _view_data->_cur_samplelimits = kept;
+            _capture_data->_cur_samplelimits = kept;
+
+            uint64_t &trig = _view_data->_trig_pos;
+            if (_trigger_flag && trig >= start && trig < end) {
+                trig -= start;
+            }
+            else {
+                // The trigger was deleted: the data has none now.
+                trig = 0;
+                _trigger_flag = false;
+            }
+        }
+
+        // Decode again, over what is there now.
+        clear_decode_result();
+
+        for (auto de : _decode_traces)
+        {
+            if (cropped)
+                de->crop_decode_region(start, end - start);
+
+            de->decoder()->set_capture_end_flag(true);
+            de->frame_ended();
+            add_decode_task(de);
+        }
+
+        // The search results and measurements are cleared.
+        if (cropped)
+            _callback->trigger_message(DSV_MSG_DATA_POOL_CHANGED);
+
+        data_updated();
+        return result;
+    }
+
     double SigSession::cur_view_time()
     {
         return _device_agent.get_time_base() * DS_CONF_DSO_HDIVS * 1.0 / SR_SEC(1);

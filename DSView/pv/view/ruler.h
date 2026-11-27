@@ -33,6 +33,7 @@ namespace pv {
 namespace view {
 
 class TimeMarker;
+class Cursor;
 class View;
 
 //the rule panel on the top
@@ -90,9 +91,26 @@ private:
 	 */
 	void draw_hover_mark(QPainter &p);
 
+    /**
+     * Logic mode, cursor pair bands on: while the mouse is over the waveform
+     * between a pair of cursors (1-2, 3-4, ...), the time between them in a
+     * box between their labels, or beside them where it doesn't fit.
+     */
+    void draw_cursor_delta(QPainter &p);
+
     void draw_cursor_sel(QPainter &p);
 
+    /**
+     * Draws the cursor labels. Labels that would overlap are drawn compact
+     * (the cursor number only); the one under the mouse or being dragged is
+     * drawn in full, on top.
+     */
+    void paint_cursor_labels(QPainter &p, unsigned int prefix, bool has_hoff, bool show_samples);
+
     int in_cursor_sel_rect(QPointF pos);
+
+    // The cursor whose label is at pos, or NULL.
+    Cursor* cursor_label_at(const QPoint &pos);
 
     QRectF get_cursor_sel_rect(int index);
 
@@ -107,6 +125,7 @@ private:
     int _cursor_sel_x;
 
 	TimeMarker *_grabbed_marker;
+    Cursor *_front_label; // the label drawn in full on top; only compared, never dereferenced
 
     double _min_period;
 

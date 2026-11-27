@@ -24,10 +24,13 @@
 #include <assert.h>
 #include <math.h>
 #include <limits.h>
+#include <algorithm>
 #include <cmath>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QStyleOption>
+#include <QCursor>
+#include <vector>
 #include "cursor.h"
 #include "view.h"
 #include "viewport.h"
@@ -92,6 +95,7 @@ Ruler::Ruler(View &parent) :
     _cursor_go_visible(false),
     _cursor_sel_x(-1),
     _grabbed_marker(NULL),
+    _front_label(NULL),
     _hitCursor(false),
     _curs_moved(false)
 {
@@ -161,6 +165,10 @@ QString Ruler::format_time(double t, int prefix,
     char format[15];
     QString units = SIPrefixes[prefix] + "s";
     double v = (t * multiplier) / 1000000.0;
+    // A value that rounds to zero is "+0.00", not "-0.00": the tick at the
+    // trigger is often a hair below zero after the floating point steps.
+    if (fabs(v) < 0.5 * pow(10.0, -(int)precision))
+        v = 0.0;
     if(v >= 0) {
         *(b++) = '+';
     }
@@ -259,6 +267,11 @@ void Ruler::paintEvent(QPaintEvent*)
         draw_logic_tick_mark(p);
 
     p.setRenderHint(QPainter::Antialiasing, true);
+
+    if (session->get_device()->get_work_mode() == LOGIC) {
+        draw_cursor_delta(p);
+    }
+
 	// Draw the hover mark
 	draw_hover_mark(p);
 
@@ -307,11 +320,22 @@ void Ruler::mousePressEvent(QMouseEvent *event)
 
         if (!_cursor_sel_visible && cursor_list.size()) {
             _view.show_cursors(true);
-            auto i = cursor_list.begin();
 
-            while (i != cursor_list.end()) {
+            // The label drawn on top gets the click first.
+            std::vector<Cursor*> hit_order;
+            for (auto c : cursor_list) {
+                if (c == _front_label)
+                    hit_order.insert(hit_order.begin(), c);
+                else
+                    hit_order.push_back(c);
+            }
+            auto i = hit_order.begin();
+
+            while (i != hit_order.end()) {
                 const QRect cursor_rect((*i)->get_label_rect(rect(), visible));
                 if ((*i)->get_close_rect(cursor_rect).contains(event->pos())) {
+                    if (*i == _front_label)
+                        _front_label = NULL;
                     _view.del_cursor(*i);
 
                     if (cursor_list.empty()) {
@@ -333,6 +357,26 @@ void Ruler::mousePressEvent(QMouseEvent *event)
             }
         }
     }
+}
+
+Cursor* Ruler::cursor_label_at(const QPoint &pos)
+{
+    // In the order a left click hits them: the label drawn on top first.
+    std::vector<Cursor*> hit_order;
+    for (auto c : _view.get_cursorList()) {
+        if (c == _front_label)
+            hit_order.insert(hit_order.begin(), c);
+        else
+            hit_order.push_back(c);
+    }
+
+    for (auto c : hit_order) {
+        bool visible;
+        const QRect r = c->get_label_rect(rect(), visible);
+        if (visible && r.contains(pos))
+            return c;
+    }
+    return NULL;
 }
 
 void Ruler::mouseReleaseEvent(QMouseEvent *event)
@@ -403,6 +447,19 @@ void Ruler::mouseReleaseEvent(QMouseEvent *event)
     }
 
     if (event->button() & Qt::RightButton) {
+        // On a cursor's label (logic mode): that cursor's menu, to delete
+        // the data before or after it.
+        Cursor *labelled = NULL;
+        if (!_cursor_sel_visible && !_cursor_go_visible && _view.cursors_shown()
+            && _view.session().get_device()->get_work_mode() == LOGIC)
+            labelled = cursor_label_at(event->pos());
+
+        if (labelled != NULL) {
+            _view.show_cursor_menu(labelled, mapToGlobal(event->pos()));
+            update();
+            return;
+        }
+
         if (!_cursor_sel_visible) {
             if (!_cursor_go_visible) {
                 _cursor_sel_x = event->pos().x();
@@ -574,16 +631,12 @@ void Ruler::draw_logic_tick_mark(QPainter &p)
     } while (x < rect().right());
 
     // Draw the cursors
-    auto &cursor_list = _view.get_cursorList();
     bool bWorkStoped = _view.session().is_stopped_status();
-
-    for (auto cursor : cursor_list)
-    {
-        cursor->paint_label(p, rect(), prefix, bWorkStoped, isShowSamples);
-    }
+    paint_cursor_labels(p, prefix, bWorkStoped, isShowSamples);
 
     if (_view.trig_cursor_shown()) {
-        _view.get_trig_cursor()->paint_fix_label(p, rect(), prefix, 'T', _view.get_trig_cursor()->get_color(), false, isShowSamples);
+        _view.get_trig_cursor()->paint_fix_label(p, rect(), prefix, 'T', _view.get_trig_cursor()->get_color(), false, isShowSamples,
+                                                 2 * ValueMargin + text_height - 1);
     }
     if (_view.search_cursor_shown()) {
         _view.get_search_cursor()->paint_fix_label(p, rect(), prefix, 'S', _view.get_search_cursor()->get_color(), true, isShowSamples);
@@ -688,22 +741,82 @@ void Ruler::draw_osc_tick_mark(QPainter &p)
     } while (x < rect().right());
 
     // Draw the cursors
-    auto &cursor_list = _view.get_cursorList();
-
-    if (!cursor_list.empty()) {
-        bool bWorkStoped = _view.session().is_stopped_status();
-
-        for (auto cursor : cursor_list) {
-            cursor->paint_label(p, rect(), prefix, bWorkStoped, false);
-        }
-    }
+    bool bWorkStoped = _view.session().is_stopped_status();
+    paint_cursor_labels(p, prefix, bWorkStoped, false);
     
     if (_view.trig_cursor_shown()) {
-        _view.get_trig_cursor()->paint_fix_label(p, rect(), prefix, 'T', _view.get_trig_cursor()->get_color(), false, false);
+        _view.get_trig_cursor()->paint_fix_label(p, rect(), prefix, 'T', _view.get_trig_cursor()->get_color(), false, false,
+                                                 2 * ValueMargin + text_height - 1);
     }
     if (_view.search_cursor_shown()) {
         _view.get_search_cursor()->paint_fix_label(p, rect(), prefix, 'S', _view.get_search_cursor()->get_color(), true, false);
     }
+}
+
+void Ruler::paint_cursor_labels(QPainter &p, unsigned int prefix, bool has_hoff, bool show_samples)
+{
+    const int LabelGap = 2;
+
+    auto &cursor_list = _view.get_cursorList();
+    if (cursor_list.empty()) {
+        _front_label = NULL;
+        return;
+    }
+
+    const QPoint mouse = underMouse() ? mapFromGlobal(QCursor::pos()) : QPoint(-1, -1);
+
+    // Full-size labels first, to find the ones that would overlap.
+    std::vector<std::pair<Cursor*, QRect>> labels;
+    for (auto cursor : cursor_list) {
+        bool visible;
+        cursor->set_label_compact(false);
+        cursor->prepare_label(p, show_samples);
+        const QRect r = cursor->get_label_rect(rect(), visible, has_hoff);
+        if (visible)
+            labels.push_back(std::make_pair(cursor, r));
+    }
+
+    for (size_t i = 0; i < labels.size(); i++) {
+        for (size_t j = i + 1; j < labels.size(); j++) {
+            if (labels[i].second.adjusted(-LabelGap, 0, LabelGap, 0).intersects(labels[j].second)) {
+                labels[i].first->set_label_compact(true);
+                labels[j].first->set_label_compact(true);
+            }
+        }
+    }
+
+    // The label being dragged, or under the mouse, is drawn in full on top.
+    // Once expanded, it stays so while the mouse is anywhere on it.
+    Cursor *front = NULL;
+    for (auto &l : labels) {
+        if (l.first == _grabbed_marker)
+            front = l.first;
+    }
+    if (front == NULL && _front_label != NULL) {
+        for (auto &l : labels) {
+            if (l.first == _front_label && l.second.contains(mouse))
+                front = l.first;
+        }
+    }
+    if (front == NULL) {
+        for (auto &l : labels) {
+            bool visible;
+            if (l.first->get_label_rect(rect(), visible, has_hoff).contains(mouse)) {
+                front = l.first;
+                break;
+            }
+        }
+    }
+    _front_label = front;
+    if (front != NULL)
+        front->set_label_compact(false);
+
+    for (auto &l : labels) {
+        if (l.first != front)
+            l.first->paint_label(p, rect(), prefix, has_hoff, show_samples);
+    }
+    if (front != NULL)
+        front->paint_label(p, rect(), prefix, has_hoff, show_samples);
 }
 
 void Ruler::draw_hover_mark(QPainter &p)
@@ -807,6 +920,164 @@ QRectF Ruler::get_cursor_sel_rect(int index)
 void Ruler::hover_point_changed()
 {
 	update();
+}
+
+void Ruler::draw_cursor_delta(QPainter &p)
+{
+    const int Gap = 4;
+
+    Viewport *viewport = _view.get_time_view();
+    const QPoint hover = _view.hover_point();
+    const uint64_t samplerate = _view.session().cur_snap_samplerate();
+
+    if (!AppConfig::Instance().appOptions.cursorDeltaBand || !_view.cursors_shown()
+        || viewport == NULL || !viewport->underMouse() || samplerate == 0)
+        return;
+
+    // The pair whose span the mouse is in; the narrowest where spans overlap.
+    const bool has_hoff = _view.session().is_stopped_status();
+    auto &cursor_list = _view.get_cursorList();
+    auto i = cursor_list.begin();
+    Cursor *pair[2] = {NULL, NULL};
+    double x1 = 0, x2 = 0;
+
+    while (i != cursor_list.end()) {
+        Cursor *c1 = *i++;
+        if (i == cursor_list.end())
+            break;
+        Cursor *c2 = *i++;
+
+        double a = _view.index2pixel(c1->index(), has_hoff);
+        double b = _view.index2pixel(c2->index(), has_hoff);
+        if (a > b) {
+            std::swap(a, b);
+            std::swap(c1, c2);
+        }
+        if (hover.x() < a || hover.x() > b || a == b)
+            continue;
+        if (pair[0] == NULL || b - a < x2 - x1) {
+            pair[0] = c1;
+            pair[1] = c2;
+            x1 = a;
+            x2 = b;
+        }
+    }
+
+    if (pair[0] == NULL)
+        return;
+
+    const uint64_t i1 = pair[0]->index();
+    const uint64_t i2 = pair[1]->index();
+    const int64_t delta = (i2 > i1) ? (int64_t)(i2 - i1) : (int64_t)(i1 - i2);
+    if (delta == 0)
+        return;
+
+    // Named after the pair, lower number first.
+    const int o1 = min(pair[0]->order(), pair[1]->order());
+    const int o2 = max(pair[0]->order(), pair[1]->order());
+    QString time = format_real_time(delta, samplerate);
+    if (time.startsWith('+'))
+        time.remove(0, 1);
+    const QString text = QString("%1-%2: %3t %4  (%5)")
+                             .arg(o1).arg(o2)
+                             .arg(QChar(0x0394)) // Greek capital delta
+                             .arg(time)
+                             .arg(format_real_freq(delta, samplerate));
+
+    // As tall as a cursor label, at the same height.
+    const QFontMetrics fm = p.fontMetrics();
+    const int box_w = fm.boundingRect(text).width() + 2 * View::LabelPadding.width() + 4;
+    const int box_h = fm.height() + 2 * View::LabelPadding.height();
+    const int top = height() - box_h - Cursor::Offset - Cursor::ArrowSize;
+
+    // Between the two labels, in the free stretch closest to the middle of
+    // the span's visible part; otherwise beside the pair, right or left. A
+    // place that covers no other cursor's label comes first.
+    bool visible;
+    const QRect r1 = pair[0]->get_label_rect(rect(), visible, has_hoff);
+    const double left_edge = visible ? max((double)r1.right(), x1) : x1;
+    const double left_outer = visible ? min((double)r1.left(), x1) : x1;
+    const QRect r2 = pair[1]->get_label_rect(rect(), visible, has_hoff);
+    const double right_edge = visible ? min((double)r2.left(), x2) : x2;
+    const double right_outer = visible ? max((double)r2.right(), x2) : x2;
+
+    const double in_left = max(left_edge + Gap, 2.0);
+    const double in_right = min(right_edge - Gap, (double)width() - 2);
+
+    // The other labels, as spans along the ruler, sorted.
+    std::vector<std::pair<double, double>> others;
+    for (auto c : cursor_list) {
+        if (c == pair[0] || c == pair[1])
+            continue;
+        const QRect r = c->get_label_rect(rect(), visible, has_hoff);
+        if (visible)
+            others.push_back(std::make_pair((double)r.left() - Gap, (double)r.right() + Gap));
+    }
+    std::sort(others.begin(), others.end());
+
+    auto covers = [&](double l) {
+        for (auto &o : others) {
+            if (l < o.second && l + box_w > o.first)
+                return true;
+        }
+        return false;
+    };
+
+    double left = -1;
+
+    if (in_right - in_left >= box_w) {
+        // The stretches between the other labels inside the span.
+        const double centre = (in_left + in_right) / 2;
+        double best = -1;
+        double start = in_left;
+        for (size_t k = 0; k <= others.size(); k++) {
+            const double end = (k < others.size()) ? min(others[k].first, in_right) : in_right;
+            if (end - start >= box_w) {
+                const double l = max(start, min(centre - box_w / 2.0, end - box_w));
+                if (best < 0 || fabs(l + box_w / 2.0 - centre) < fabs(best + box_w / 2.0 - centre))
+                    best = l;
+            }
+            if (k < others.size())
+                start = max(start, others[k].second);
+        }
+        left = best;
+    }
+
+    if (left < 0) {
+        const double sides[2] = {right_outer + Gap, left_outer - Gap - box_w};
+        for (int k = 0; k < 2 && left < 0; k++) {
+            if (sides[k] >= 2 && sides[k] + box_w <= width() - 2 && !covers(sides[k]))
+                left = sides[k];
+        }
+    }
+
+    // Nowhere free: between the labels if it fits there, else beside them,
+    // else in the middle of the span.
+    if (left < 0 && in_right - in_left >= box_w)
+        left = (in_left + in_right - box_w) / 2;
+    if (left < 0 && right_outer + Gap + box_w <= width() - 2)
+        left = right_outer + Gap;
+    if (left < 0 && left_outer - Gap - box_w >= 2)
+        left = left_outer - Gap - box_w;
+    if (left < 0)
+        left = max(2.0, min((x1 + x2 - box_w) / 2, (double)width() - box_w - 2));
+
+    const QRectF box(floor(left) + 0.5, top + 0.5, box_w, box_h);
+
+    // In the colour of the pair's band.
+    QColor edge = GetColorByCursorOrder(o1);
+    edge.setAlpha(255);
+    QColor fill = palette().color(backgroundRole());
+    fill.setAlpha(235);
+    QColor fore = palette().color(foregroundRole());
+
+    p.save();
+    p.setPen(QPen(edge, 1.5));
+    p.setBrush(fill);
+    p.drawRoundedRect(box, 4, 4);
+    p.setPen(fore);
+    p.drawText(box, Qt::AlignCenter, text);
+    p.restore();
 }
 
 double Ruler::get_min_period()

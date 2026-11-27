@@ -111,6 +111,18 @@ static void setFiled(const char *key, QSettings &st, float f)
     st.setValue(key, f);
 }
 
+static void getFiled(const char *key, QSettings &st, QColor &f, const QColor &dv)
+{
+    f = QColor(st.value(key, "").toString());
+    if (!f.isValid())
+        f = dv;
+}
+
+static void setFiled(const char *key, QSettings &st, const QColor &f)
+{
+    st.setValue(key, f.name(QColor::HexArgb));
+}
+
 ///------ app
 static void _loadApp(AppOptions &o, QSettings &st)
 {
@@ -139,7 +151,16 @@ static void _loadApp(AppOptions &o, QSettings &st)
     getFiled("logicSignalLineWidth", st, o.logicSignalLineWidth, 1.0f);
     getFiled("logicChannelDivider", st, o.logicChannelDivider, true);
     getFiled("logicThickHighLevel", st, o.logicThickHighLevel, false);
+    getFiled("colorLogicHigh", st, o.colorLogicHigh, false);
+    getFiled("colorLogicLow", st, o.colorLogicLow, false);
+    getFiled("logicHighColor", st, o.logicHighColor, DEFAULT_LOGIC_HIGH_COLOR);
+    getFiled("logicLowColor", st, o.logicLowColor, DEFAULT_LOGIC_LOW_COLOR);
+    getFiled("fillLogicHigh", st, o.fillLogicHigh, false);
+    getFiled("logicFillColor", st, o.logicFillColor, DEFAULT_LOGIC_FILL_COLOR);
     getFiled("logicSampleDots", st, o.logicSampleDots, true);
+    getFiled("showTimeBar", st, o.showTimeBar, true);
+    getFiled("cursorDeltaBand", st, o.cursorDeltaBand, true);
+    getFiled("triggerLine", st, o.triggerLine, true);
     getFiled("logicSnapVScroll", st, o.logicSnapVScroll, true);
     getFiled("dsoSplitChannels", st, o.dsoSplitChannels, false);
     getFiled("dsoSignalLineWidth", st, o.dsoSignalLineWidth, 1.0f);
@@ -217,7 +238,16 @@ static void _saveApp(AppOptions &o, QSettings &st)
     setFiled("logicSignalLineWidth", st, o.logicSignalLineWidth);
     setFiled("logicChannelDivider", st, o.logicChannelDivider);
     setFiled("logicThickHighLevel", st, o.logicThickHighLevel);
+    setFiled("colorLogicHigh", st, o.colorLogicHigh);
+    setFiled("colorLogicLow", st, o.colorLogicLow);
+    setFiled("logicHighColor", st, o.logicHighColor);
+    setFiled("logicLowColor", st, o.logicLowColor);
+    setFiled("fillLogicHigh", st, o.fillLogicHigh);
+    setFiled("logicFillColor", st, o.logicFillColor);
     setFiled("logicSampleDots", st, o.logicSampleDots);
+    setFiled("showTimeBar", st, o.showTimeBar);
+    setFiled("cursorDeltaBand", st, o.cursorDeltaBand);
+    setFiled("triggerLine", st, o.triggerLine);
     setFiled("logicSnapVScroll", st, o.logicSnapVScroll);
     setFiled("dsoSplitChannels", st, o.dsoSplitChannels);
     setFiled("dsoSignalLineWidth", st, o.dsoSignalLineWidth);
@@ -323,6 +353,7 @@ static void _loadHistory(UserHistory &o, QSettings &st)
     getFiled("sessionDir", st, o.sessionDir, "");
     getFiled("openDir", st, o.openDir, "");
     getFiled("protocolExportPath", st, o.protocolExportPath, "");
+    getFiled("protocolExportSeparator", st, o.protocolExportSeparator, ",");
     getFiled("exportFormat", st, o.exportFormat, "");
     getFiled("showDriverHint", st, o.showDriverHint, true);
     st.endGroup();
@@ -338,6 +369,7 @@ static void _saveHistory(UserHistory &o, QSettings &st)
     setFiled("sessionDir", st, o.sessionDir);
     setFiled("openDir", st, o.openDir);
     setFiled("protocolExportPath", st, o.protocolExportPath);
+    setFiled("protocolExportSeparator", st, o.protocolExportSeparator);
     setFiled("exportFormat", st, o.exportFormat);
     setFiled("showDriverHint", st, o.showDriverHint);
     st.endGroup();

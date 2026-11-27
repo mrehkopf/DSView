@@ -96,6 +96,22 @@
         "text": "Cancel"
     },
     {
+        "id": "IDS_DLG_OK",
+        "text": "OK"
+    },
+    {
+        "id": "IDS_DLG_YES",
+        "text": "Yes"
+    },
+    {
+        "id": "IDS_DLG_NO",
+        "text": "No"
+    },
+    {
+        "id": "IDS_DLG_CLOSE",
+        "text": "Close"
+    },
+    {
         "id": "IDS_DLG_RELOAD_CALIBRATION_RESULTS",
         "text": "Reloading the previous calibration results... Please wait a moment."
     },
@@ -242,6 +258,38 @@
     {
         "id": "IDS_DLG_EXPORT_FORMAT",
         "text": "Export Format: "
+    },
+    {
+        "id": "IDS_DLG_EXPORT_SEPARATOR",
+        "text": "Separator: "
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_COMMA",
+        "text": "Comma ( , )"
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_SEMICOLON",
+        "text": "Semicolon ( ; )"
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_TAB",
+        "text": "Tab"
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_PIPE",
+        "text": "Pipe ( | )"
+    },
+    {
+        "id": "IDS_DLG_SEPARATOR_SPACE",
+        "text": "Space"
+    },
+    {
+        "id": "IDS_DLG_EXPORT_BETWEEN_CURSORS",
+        "text": "Only between cursors: "
+    },
+    {
+        "id": "IDS_DLG_EXPORT_RANGE_NEED_CURSORS",
+        "text": "Place at least two cursors to use this."
     },
     {
         "id": "IDS_DLG_PROTOCOL_EXPORT",
@@ -580,6 +628,14 @@
         "text": "Add Y-cursor"
     },
     {
+        "id": "IDS_DLG_DELETE_DATA_BEFORE_CURSOR",
+        "text": "Delete data before cursor %1"
+    },
+    {
+        "id": "IDS_DLG_DELETE_DATA_AFTER_CURSOR",
+        "text": "Delete data after cursor %1"
+    },
+    {
         "id": "IDS_DLG_AUTO_ROLL",
         "text": "Auto(Roll)"
     },
@@ -634,6 +690,14 @@
     {
         "id": "IDS_DLG_DECODE_DURATION",
         "text": "Duration: "
+    },
+    {
+        "id": "IDS_DLG_COPY_ANNOTATION",
+        "text": "Copy annotation text"
+    },
+    {
+        "id": "IDS_DLG_COPY_ANNOTATION_WITH_ROW",
+        "text": "Copy with row name"
     },
     {
         "id": "IDS_DLG_SAMPLES_MEAS",
@@ -742,6 +806,30 @@
     {
         "id": "IDS_DLG_GROUP_LOGIC",
         "text": "Logic Analyzer"
+    },
+    {
+        "id": "IDS_DLG_GROUP_LOGIC_COLORS",
+        "text": "Logic trace colors"
+    },
+    {
+        "id": "IDS_DLG_HIGH_LEVEL_COLOR",
+        "text": "High level color"
+    },
+    {
+        "id": "IDS_DLG_LOW_LEVEL_COLOR",
+        "text": "Low level color"
+    },
+    {
+        "id": "IDS_DLG_FILL_LOGIC_HIGH",
+        "text": "Shade high levels"
+    },
+    {
+        "id": "IDS_DLG_FILL_COLOR",
+        "text": "Fill color"
+    },
+    {
+        "id": "IDS_DLG_RESET_COLORS",
+        "text": "Reset colors"
     },
     {
         "id": "IDS_DLG_GROUP_DSO",
@@ -1630,5 +1718,17 @@
     {
         "id": "IDS_DLG_SRCH_HELP_MATCH_WINDOWS",
         "text": "Time windows include both ends. Start one at 1sa to leave out the match itself."
+    },
+    {
+        "id": "IDS_DLG_TIME_BAR",
+        "text": "Show time bar"
+    },
+    {
+        "id": "IDS_DLG_CURSOR_DELTA_BAND",
+        "text": "Shade cursor pairs (1-2, 3-4, ...)"
+    },
+    {
+        "id": "IDS_DLG_TRIGGER_LINE",
+        "text": "Highlight trigger position"
     }
 ]

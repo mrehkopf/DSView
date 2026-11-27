@@ -41,6 +41,9 @@
 #include <math.h>
 #include <QWheelEvent>
 #include <QScrollBar>
+#include <QMenu>
+#include <QClipboard>
+#include <QGuiApplication>
 
 #include "../config/appconfig.h"
 #include "../dsvdef.h"
@@ -216,6 +219,10 @@ void Viewport::doPaint()
 
     int mode = _view.session().get_device()->get_work_mode();
 
+    // Under the traces.
+    if (cursor_bands_shown())
+        paintCursorBands(p);
+
     if (mode == LOGIC || _view.session().is_instant())
     {
         if (_view.session().is_init_status())
@@ -288,6 +295,63 @@ void Viewport::paintCursors(QPainter &p)
                 cursor->paint(p, xrect, 0, _view.session().is_stopped_status());
         }
     }
+}
+
+bool Viewport::cursor_bands_shown()
+{
+    return _type == TIME_VIEW
+        && AppConfig::Instance().appOptions.cursorDeltaBand
+        && _view.cursors_shown()
+        && _view.session().get_device()->get_work_mode() == LOGIC
+        && _view.session().cur_snap_samplerate() > 0;
+}
+
+void Viewport::paintCursorBands(QPainter &p)
+{
+    const bool has_hoff = _view.session().is_stopped_status();
+    auto &cursor_list = _view.get_cursorList();
+    auto i = cursor_list.begin();
+
+    while (i != cursor_list.end()) {
+        Cursor *c1 = *i++;
+        if (i == cursor_list.end())
+            break;
+        Cursor *c2 = *i++;
+
+        double x1 = _view.index2pixel(c1->index(), has_hoff);
+        double x2 = _view.index2pixel(c2->index(), has_hoff);
+        if (x1 > x2)
+            std::swap(x1, x2);
+        if (x2 < 0 || x1 > width())
+            continue;
+
+        QColor colour = Ruler::GetColorByCursorOrder(c1->order());
+        colour.setAlpha(36);
+        p.fillRect(QRectF(x1, 0, x2 - x1, height()), colour);
+    }
+}
+
+void Viewport::paintTriggerLine(QPainter &p, const QRect &rect)
+{
+    const double x = _view.index2pixel(_view.get_trig_cursor()->index(), false);
+    if (x < 0 || x > rect.right())
+        return;
+
+    p.save();
+    // A solid line, with a small flag at the top, stands out from the
+    // dashed cursor and guide lines.
+    QPen pen(View::Red, 1.5);
+    pen.setCosmetic(true);
+    p.setPen(pen);
+    p.drawLine(QPointF(x, 0), QPointF(x, rect.bottom()));
+
+    const QPointF flag[] = {
+        QPointF(x - 5, 0), QPointF(x + 5, 0), QPointF(x, 6)
+    };
+    p.setPen(Qt::NoPen);
+    p.setBrush(View::Red);
+    p.drawPolygon(flag, 3);
+    p.restore();
 }
 
 void Viewport::paintYScaleBadge(QPainter &p, QColor fore, QColor back)
@@ -581,7 +645,11 @@ void Viewport::paintSignals(QPainter &p, QColor fore, QColor back)
 
     if (_type == TIME_VIEW) {
         if (_view.trig_cursor_shown()) {
-            _view.get_trig_cursor()->paint(p, xrect, 0, false);
+            if (AppConfig::Instance().appOptions.triggerLine
+                && _view.session().get_device()->get_work_mode() == LOGIC)
+                paintTriggerLine(p, xrect);
+            else
+                _view.get_trig_cursor()->paint(p, xrect, 0, false);
         }
         if (_view.search_cursor_shown()) {
             const int64_t searchX = _view.index2pixel(_view.get_search_cursor()->index());
@@ -1439,9 +1507,11 @@ void Viewport::onLogicMouseRelease(QMouseEvent *event)
         case LOGIC_ZOOM:
         {
             // A drag of a pixel or two is a shaky right click, not a zoom
-            // into a window that narrow.
+            // into a window that narrow. A right click on a cursor opens
+            // its menu, on an annotation it offers to copy its text.
             const int ClickMaxDrag = 2;
-            if (abs(event->pos().x() - _mouse_down_point.x()) > ClickMaxDrag) {
+            const bool click = abs(event->pos().x() - _mouse_down_point.x()) <= ClickMaxDrag;
+            if (!click) {
                 int64_t newOffset = _view.x_offset() + (min(event->pos().x(), _mouse_down_point.x()));
                 const double newScale = max(min(_view.scale() * abs(event->pos().x() - _mouse_down_point.x()) / _view.get_view_width(),
                                                 _view.get_maxscale()), _view.get_minscale());
@@ -1450,12 +1520,40 @@ void Viewport::onLogicMouseRelease(QMouseEvent *event)
                     _view.set_scale_offset(newScale, newOffset);
             }
             set_action(NO_ACTION);
+            if (click && event->button() == Qt::RightButton) {
+                if (!show_cursor_menu_at(event->pos()))
+                    show_annotation_menu(event->pos());
+            }
             break;
         }
         case LOGIC_MOVE:
         default:
             break;
     }
+}
+
+bool Viewport::show_cursor_menu_at(const QPoint &pos)
+{
+    if (!_view.cursors_shown())
+        return false;
+
+    // The nearest cursor line within reach.
+    Cursor *near = NULL;
+    int64_t best = HitCursorMargin + 1;
+
+    for (auto c : _view.get_cursorList()) {
+        const int64_t d = qAbs((int64_t)_view.index2pixel(c->index()) - pos.x());
+        if (d < best) {
+            best = d;
+            near = c;
+        }
+    }
+
+    if (near == NULL)
+        return false;
+
+    _view.show_cursor_menu(near, QCursor::pos());
+    return true;
 }
 
 void Viewport::onDsoMouseRelease(QMouseEvent *event)
@@ -2914,6 +3012,31 @@ void Viewport::show_contextmenu(const QPoint& pos)
         _cur_preY = pos.y();
         _cmenu->exec(QCursor::pos());
     }
+}
+
+bool Viewport::show_annotation_menu(const QPoint &pos)
+{
+    AnnotationHover ann;
+
+    for (auto t : _view.session().get_decode_signals()) {
+        if (!t->annotation_at(pos, ann))
+            continue;
+
+        QMenu menu(this);
+        QAction *copy = menu.addAction(
+            L_S(STR_PAGE_DLG, S_ID(IDS_DLG_COPY_ANNOTATION), "Copy annotation text"));
+        QAction *copy_row = menu.addAction(
+            L_S(STR_PAGE_DLG, S_ID(IDS_DLG_COPY_ANNOTATION_WITH_ROW), "Copy with row name"));
+
+        // The longest of the annotation's texts, as in the hover popup.
+        QAction *chosen = menu.exec(QCursor::pos());
+        if (chosen == copy)
+            QGuiApplication::clipboard()->setText(ann.text);
+        else if (chosen == copy_row)
+            QGuiApplication::clipboard()->setText(ann.row_title + ": " + ann.text);
+        return true;
+    }
+    return false;
 }
 
 void Viewport::reset_yscale()

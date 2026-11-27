@@ -41,8 +41,24 @@ if(SNAPSHOT_TEST_ASAN)
     target_link_options(rootnode-test PRIVATE -fsanitize=address)
 endif()
 
+add_executable(crop-test crop.cpp
+    ${SNAPSHOT_TREE}/pv/data/logicsnapshot.cpp ${SNAPSHOT_TREE}/pv/data/snapshot.cpp)
+target_include_directories(crop-test PRIVATE
+    ${SNAPSHOT_TREE} ${REPO_DIR}/libsigrok4DSL ${REPO_DIR}/common ${GLIB_INCLUDE_DIRS})
+target_link_libraries(crop-test PRIVATE Qt${QT_VERSION_MAJOR}::Core ${GLIB_LIBRARIES})
+target_compile_features(crop-test PRIVATE cxx_std_14)
+target_compile_options(crop-test PRIVATE -UNDEBUG -D_GLIBCXX_ASSERTIONS)
+if(SNAPSHOT_TEST_ASAN)
+    target_compile_options(crop-test PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+    target_compile_definitions(crop-test PRIVATE SNAPSHOT_TEST_ASAN)
+    target_link_options(crop-test PRIVATE -fsanitize=address)
+endif()
+
 # One process per case: an overrun aborts, and the other cases should still run
 enable_testing()
 foreach(name one-node two-nodes mid-row short-of-node reuse loop)
     add_test(NAME rootnode-${name} COMMAND rootnode-test ${name})
+endforeach()
+foreach(name middle head tail block node loop invalid no-memory)
+    add_test(NAME crop-${name} COMMAND crop-test ${name})
 endforeach()
