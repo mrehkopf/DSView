@@ -875,6 +875,106 @@ err:
 	return SRD_ERR;
 }
 
+/* The letter get_term_type() reads as this term type. */
+static const char *term_letter(int type)
+{
+	switch (type) {
+	case SRD_TERM_HIGH:
+		return "h";
+	case SRD_TERM_LOW:
+		return "l";
+	case SRD_TERM_RISING_EDGE:
+		return "r";
+	case SRD_TERM_FALLING_EDGE:
+		return "f";
+	case SRD_TERM_EITHER_EDGE:
+		return "e";
+	case SRD_TERM_NO_EDGE:
+		return "n";
+	default:
+		return NULL;
+	}
+}
+
+/**
+ * Check whether a condition (a dict) equals the terms of a condition in the
+ * current list, as create_term_list() would build them. Errs on the side
+ * of "different": anything create_term_list() would treat specially
+ * (subclasses, errors) is reported as different and gets parsed.
+ */
+static gboolean condition_equals_terms(PyObject *py_dict, const GSList *terms)
+{
+	Py_ssize_t pos = 0;
+	PyObject *py_key, *py_value;
+	const struct srd_term *term;
+	const char *s;
+	long channel;
+	unsigned long long count;
+
+	if (!PyDict_Check(py_dict))
+		return FALSE;
+
+	while (PyDict_Next(py_dict, &pos, &py_key, &py_value)) {
+		if (!terms)
+			return FALSE;
+		term = terms->data;
+		terms = terms->next;
+
+		if (PyLong_CheckExact(py_key)) {
+			if (term->type == SRD_TERM_SKIP || !PyUnicode_CheckExact(py_value))
+				return FALSE;
+			channel = PyLong_AsLong(py_key);
+			if (channel == -1 && PyErr_Occurred()) {
+				PyErr_Clear();
+				return FALSE;
+			}
+			if (channel != term->channel)
+				return FALSE;
+			/* Decoders write the single letter; anything longer
+			 * that get_term_type() would also take gets parsed. */
+			if (!(s = term_letter(term->type))
+					|| PyUnicode_CompareWithASCIIString(py_value, s) != 0)
+				return FALSE;
+		} else if (PyUnicode_CheckExact(py_key)) {
+			if (term->type != SRD_TERM_SKIP || !PyLong_CheckExact(py_value))
+				return FALSE;
+			count = PyLong_AsUnsignedLongLong(py_value);
+			if (count == (unsigned long long)-1 && PyErr_Occurred()) {
+				PyErr_Clear();
+				return FALSE;
+			}
+			if (count != term->num_samples_to_skip)
+				return FALSE;
+		} else {
+			return FALSE;
+		}
+	}
+
+	return terms == NULL;
+}
+
+/**
+ * Check whether the conditions passed to wait() equal the current
+ * condition list. Decoders mostly wait for the same conditions again and
+ * again; parsing them anew each time (allocating every term) costs more
+ * than the sample scan for decoders that wait on many channels.
+ *
+ * @param py_conditionlist A list of dicts.
+ */
+static gboolean conditions_unchanged(const struct srd_decoder_inst *di,
+		PyObject *py_conditionlist)
+{
+	const GSList *l = di->condition_list;
+	Py_ssize_t i, n = PyList_Size(py_conditionlist);
+
+	for (i = 0; i < n; i++, l = l->next) {
+		if (!l || !condition_equals_terms(PyList_GetItem(py_conditionlist, i), l->data))
+			return FALSE;
+	}
+
+	return l == NULL;
+}
+
 /**
  * Replace the current condition list with the new one.
  *
@@ -930,12 +1030,17 @@ static int set_new_condition_list(struct srd_decoder_inst *di, PyObject *args)
 		num_conditions = PyList_Size(py_conditionlist);
 		if (num_conditions == 0)
 			goto ret_9999; /* The PD invoked self.wait([]). */
+		if (conditions_unchanged(di, py_conditionlist))
+			goto unchanged;
         Py_IncRef(py_conditionlist);
 
 	} else if (PyDict_Check(py_conds)) {
 		/* 'py_conds' is a dict. */
 		if (PyDict_Size(py_conds) == 0)
 			goto ret_9999; /* The PD invoked self.wait({}). */
+		if (di->condition_list && !di->condition_list->next
+				&& condition_equals_terms(py_conds, di->condition_list->data))
+			goto unchanged;
 		/* Make a list and put the dict in there for convenience. */
 		py_conditionlist = PyList_New(1);
 		Py_IncRef(py_conds);
@@ -967,15 +1072,25 @@ static int set_new_condition_list(struct srd_decoder_inst *di, PyObject *args)
         if ((ret = create_term_list(py_dict, &term_list, di->abs_cur_matched)) < 0)
 			break;
 
-		/* Add the new condition to the PD instance's condition list. */
-		di->condition_list = g_slist_append(di->condition_list, term_list);
+		/* Add the new condition to the PD instance's condition list
+		 * (prepended, reversed below: appending walks the list). */
+		di->condition_list = g_slist_prepend(di->condition_list, term_list);
 	}
+	di->condition_list = g_slist_reverse(di->condition_list);
 
 	Py_DecRef(py_conditionlist);
 
 	PyGILState_Release(gstate);
 
 	return ret;
+
+unchanged:
+	/* The same conditions as last time: keep the parsed ones (and the
+	 * scan compiled from them), start their skip terms over. */
+	condition_list_reset_skips(di);
+	PyGILState_Release(gstate);
+
+	return SRD_OK;
 
 err:
 	PyGILState_Release(gstate);
@@ -1013,6 +1128,17 @@ static int set_skip_condition(struct srd_decoder_inst *di, uint64_t count)
 
 	struct srd_term *term;
 	GSList *term_list = NULL;
+
+	/* The same single skip term as last time: keep it, start it over. */
+	if (di->condition_list && !di->condition_list->next
+			&& (term_list = di->condition_list->data) && !term_list->next) {
+		term = term_list->data;
+		if (term->type == SRD_TERM_SKIP && term->num_samples_to_skip == count) {
+			condition_list_reset_skips(di);
+			return SRD_OK;
+		}
+	}
+	term_list = NULL;
 
 	condition_list_free(di);
 

@@ -252,6 +252,8 @@ struct srd_decoder_annotation_row {
 	GSList *ann_classes;
 };
 
+struct srd_match_prog;
+
 struct srd_decoder_inst {
 	struct srd_decoder *decoder;
 	struct srd_session *sess;
@@ -267,6 +269,9 @@ struct srd_decoder_inst {
 	 *  Type is srd_term* of GSList*
 	*/
 	GSList *condition_list;
+
+	/** The conditions compiled for the word-wise scan (match.c), or NULL. */
+	struct srd_match_prog *match_prog;
 
 	/** Array of booleans denoting which conditions matched. */
     uint64_t match_array;
