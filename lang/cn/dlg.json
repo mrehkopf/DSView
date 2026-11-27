@@ -96,6 +96,22 @@
         "text": "取消"
     },
     {
+        "id": "IDS_DLG_OK",
+        "text": "确定"
+    },
+    {
+        "id": "IDS_DLG_YES",
+        "text": "是"
+    },
+    {
+        "id": "IDS_DLG_NO",
+        "text": "否"
+    },
+    {
+        "id": "IDS_DLG_CLOSE",
+        "text": "关闭"
+    },
+    {
         "id": "IDS_DLG_RELOAD_CALIBRATION_RESULTS",
         "text": "重新加载上次校准结果...请稍候"
     },

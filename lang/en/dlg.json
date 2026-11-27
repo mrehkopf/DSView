@@ -96,6 +96,22 @@
         "text": "Cancel"
     },
     {
+        "id": "IDS_DLG_OK",
+        "text": "OK"
+    },
+    {
+        "id": "IDS_DLG_YES",
+        "text": "Yes"
+    },
+    {
+        "id": "IDS_DLG_NO",
+        "text": "No"
+    },
+    {
+        "id": "IDS_DLG_CLOSE",
+        "text": "Close"
+    },
+    {
         "id": "IDS_DLG_RELOAD_CALIBRATION_RESULTS",
         "text": "Reloading the previous calibration results... Please wait a moment."
     },
