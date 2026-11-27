@@ -77,15 +77,17 @@ public:
     }
 };
 
-// Makes the scroll area shorter when the dialog would be taller than the
-// free area of its screen, so that OK and Cancel stay reachable on small or
-// highly scaled screens. This runs on the dialog's show event: the layouts
-// are set up by then, and the dialog is centred on screen afterwards.
+// Fits the dialog to the free area of its screen, so that OK and Cancel
+// stay reachable on small or highly scaled screens: the two columns go one
+// under the other when they are wider than the screen, and the scroll area
+// gets shorter when the dialog is taller. This runs on the dialog's show
+// event: the layouts are set up by then, and the dialog is centred on screen
+// afterwards.
 class FitToScreenFilter : public QObject
 {
 public:
-    FitToScreenFilter(QScrollArea *scroll, QWidget *screenRef)
-        : _scroll(scroll), _screenRef(screenRef)
+    FitToScreenFilter(QScrollArea *scroll, QBoxLayout *columns, QWidget *screenRef)
+        : _scroll(scroll), _columns(columns), _screenRef(screenRef)
     {
     }
 
@@ -120,6 +122,13 @@ private:
             avail -= dlg->style()->pixelMetric(QStyle::PM_TitleBarHeight, NULL, dlg);
         }
         relayout(dlg);
+
+        if (dlg->width() > screen->availableGeometry().width()
+            && _columns->direction() != QBoxLayout::TopToBottom){
+            _columns->setDirection(QBoxLayout::TopToBottom);
+            relayout(dlg);
+        }
+
         if (dlg->height() <= avail){
             return;
         }
@@ -153,6 +162,7 @@ private:
     }
 
     QScrollArea *_scroll;
+    QBoxLayout  *_columns;
     QWidget     *_screenRef;
 };
 
@@ -259,9 +269,20 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     DSDialog dlg(parent, true, true);
     dlg.setTitle(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DISPLAY_OPTIONS), "Display options"));
 
-    QVBoxLayout *lay = new QVBoxLayout();
+    // Two columns: the logic analyzer on the left, the other groups on the
+    // right. FitToScreenFilter puts them one under the other on a narrow
+    // screen.
+    QVBoxLayout *leftCol = new QVBoxLayout();
+    QVBoxLayout *rightCol = new QVBoxLayout();
+    for (QVBoxLayout *col : {leftCol, rightCol}){
+        col->setContentsMargins(0,0,0,0);
+        col->setSpacing(8);
+    }
+    QBoxLayout *lay = new QBoxLayout(QBoxLayout::LeftToRight);
     lay->setContentsMargins(0,10,0,20);
     lay->setSpacing(8);
+    lay->addLayout(leftCol);
+    lay->addLayout(rightCol);
 
     //show config
     AppConfig &app = AppConfig::Instance(); 
@@ -527,7 +548,7 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
         + logicLay->contentsMargins().left()
         + logicLay->contentsMargins().right()
         + 1 );
-    lay->addWidget(logicGroup);
+    leftCol->addWidget(logicGroup);
 
     // Logic trace colours: each level can keep the channel colour or take
     // its own, and the area under high levels can be shaded.
@@ -570,7 +591,7 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     add_color_row(1, lowTitle, bt_lowColor, ck_colorLogicLow);
     add_color_row(2, L_S(STR_PAGE_DLG, S_ID(IDS_DLG_FILL_LOGIC_HIGH), "Shade high levels"), bt_fillColor, ck_fillLogicHigh);
     colorLay->addWidget(bt_resetColors, 3, 0, 1, 2, Qt::AlignRight);
-    lay->addWidget(colorGroup);
+    rightCol->addWidget(colorGroup);
 
     // Picking a colour turns it on. Reset only restores the colours.
     auto pick_color = [&dlg](QPushButton *btn, const QString &title, bool alpha) {
@@ -616,7 +637,7 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     dsoLay->addWidget(ck_dsoSampleDots, 2, 1, Qt::AlignRight);
     dsoLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DSO_PERSISTENCE), "Persistence (fade-out time)")), 3, 0, Qt::AlignLeft);
     dsoLay->addWidget(spinBox_dsoPersistence, 3, 1, Qt::AlignRight);
-    lay->addWidget(dsoGroup);
+    rightCol->addWidget(dsoGroup);
 
     //UI
     QGroupBox *uiGroup = new QGroupBox(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_GROUP_UI), "UI"));
@@ -635,7 +656,11 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     uiLay->addWidget(ck_antialias, 3, 1, Qt::AlignRight);
     uiLay->addWidget(new QLabel(L_S(STR_PAGE_DLG, S_ID(IDS_DLG_DONT_ASK_SAVE_ON_EXIT), "Do not ask to save captured data")), 4, 0, Qt::AlignLeft);
     uiLay->addWidget(ck_dontAskSaveOnExit, 4, 1, Qt::AlignRight);
-    lay->addWidget(uiGroup);
+    rightCol->addWidget(uiGroup);
+
+    // A column shorter than the other keeps its groups at the top.
+    leftCol->addStretch(1);
+    rightCol->addStretch(1);
 
     // The groups scroll when the dialog would not fit on the screen.
     QWidget *content = new QWidget();
@@ -645,7 +670,7 @@ bool ApplicationParamDlg::ShowDlg(QWidget *parent)
     scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scroll->setWidgetResizable(true);
     scroll->setWidget(content);
-    FitToScreenFilter fitFilter(scroll, parent);
+    FitToScreenFilter fitFilter(scroll, lay, parent);
     dlg.installEventFilter(&fitFilter);
 
     dlg.layout()->addWidget(scroll);
