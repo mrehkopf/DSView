@@ -313,6 +313,25 @@ public:
 
     Cursor* get_cursor_by_index(int index);
 
+    /**
+     * Logic mode: whether the captured data before (or after) cursor c can
+     * be deleted now: the capture is over and there is data on that side.
+     */
+    bool can_delete_data(Cursor *c, bool before);
+
+    /**
+     * Deletes the captured data before or after cursor c, once confirmed.
+     * Cursors in the deleted part go; the other cursors, the trigger, the
+     * decoders and the view move with the data that stays.
+     */
+    void delete_data(Cursor *c, bool before);
+
+    /**
+     * The right-click menu of cursor c (its ruler label or its line),
+     * opened at global position pos.
+     */
+    void show_cursor_menu(Cursor *c, const QPoint &pos);
+
     inline Cursor* get_search_cursor(){
         return _search_cursor;
     }

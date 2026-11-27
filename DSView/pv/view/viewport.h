@@ -177,6 +177,10 @@ private:
     void get_captured_progress(double &progress, int &progress100);
     void set_action(ActionType action);
 
+    // Logic mode: on a right click near a cursor line, that cursor's menu.
+    // False when no cursor is near.
+    bool show_cursor_menu_at(const QPoint &pos);
+
     void onLogicMouseRelease(QMouseEvent *event);
     void onDsoMouseRelease(QMouseEvent *event);
     void onAnalogMouseRelease(QMouseEvent *event);

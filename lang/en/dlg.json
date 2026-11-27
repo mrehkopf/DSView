@@ -612,6 +612,14 @@
         "text": "Add Y-cursor"
     },
     {
+        "id": "IDS_DLG_DELETE_DATA_BEFORE_CURSOR",
+        "text": "Delete data before cursor %1"
+    },
+    {
+        "id": "IDS_DLG_DELETE_DATA_AFTER_CURSOR",
+        "text": "Delete data after cursor %1"
+    },
+    {
         "id": "IDS_DLG_AUTO_ROLL",
         "text": "Auto(Roll)"
     },

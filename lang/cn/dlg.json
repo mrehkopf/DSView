@@ -616,6 +616,14 @@
         "text": "添加Y轴光标"
     },
     {
+        "id": "IDS_DLG_DELETE_DATA_BEFORE_CURSOR",
+        "text": "删除光标 %1 之前的数据"
+    },
+    {
+        "id": "IDS_DLG_DELETE_DATA_AFTER_CURSOR",
+        "text": "删除光标 %1 之后的数据"
+    },
+    {
         "id": "IDS_DLG_AUTO_ROLL",
         "text": "自动(Roll)"
     },

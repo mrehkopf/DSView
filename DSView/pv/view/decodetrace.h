@@ -158,6 +158,13 @@ public:
      **/
     void frame_ended();
 
+    /**
+     * The data was cropped: it now starts at what was sample first and is
+     * count samples long. Moves the decode region with it, or sets it to
+     * the whole data if it was deleted.
+     */
+    void crop_decode_region(uint64_t first, uint64_t count);
+
     int get_progress();
 
 	void* get_key_handel();

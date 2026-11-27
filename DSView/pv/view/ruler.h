@@ -109,6 +109,9 @@ private:
 
     int in_cursor_sel_rect(QPointF pos);
 
+    // The cursor whose label is at pos, or NULL.
+    Cursor* cursor_label_at(const QPoint &pos);
+
     QRectF get_cursor_sel_rect(int index);
 
 private slots:

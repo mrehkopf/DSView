@@ -37,6 +37,13 @@ includes the Qt 6 port and the UI and driver improvements from
 - **Identify:** blink a DSLogic's or DSCope's LED red and green for two
   seconds, to see which device is which. The button is in the **Options**
   dialog and, for each stacked analyzer, in the Stacking dialog.
+- **Delete data before or after a cursor:** in logic mode, right-click a
+  cursor's label on the ruler or its line over the waveform. DSView asks
+  first, as this can't be undone. The trigger, the other cursors and the
+  decoders' sample ranges move with the data, and cursors in the deleted part
+  are removed. Without the trigger, times count from the first sample. The cut
+  falls on a whole word of 64 samples. From
+  [lucapandolfini/DSView](https://github.com/lucapandolfini/DSView).
 - **Control interface:** scripts and AI agents can set up the analyzer and its
   trigger, run captures, decode protocols, look at the captured data (edges,
   levels, measurements, searches), export VCD or CSV, and save or open

@@ -509,6 +509,24 @@ public:
 
     double get_logic_data_view_time();
 
+    /**
+     * Logic mode, capture stopped: keeps the samples [start, end) of the
+     * data on view and deletes the rest. The bounds are first rounded
+     * outwards to whole words of 64 samples, so every sample asked for
+     * stays, and are passed back as used. The timeline shrinks to the data
+     * kept, the trigger moves with it (or is gone if it was deleted), and
+     * the decoders run again. CropInvalid when there is nothing to delete
+     * or the data cannot be changed now; CropNoMemory leaves the data as it
+     * was.
+     */
+    data::LogicSnapshot::CropResult crop_logic_data(uint64_t &start, uint64_t &end);
+
+    /**
+     * The bounds crop_logic_data() would use for [start, end), rounded as
+     * it does them, and whether it would delete anything now.
+     */
+    bool logic_crop_range(uint64_t &start, uint64_t &end);
+
     int64_t get_ring_sample_count();
 
     inline bool dso_data_is_out_off_range(){

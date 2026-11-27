@@ -1507,8 +1507,8 @@ void Viewport::onLogicMouseRelease(QMouseEvent *event)
         case LOGIC_ZOOM:
         {
             // A drag of a pixel or two is a shaky right click, not a zoom
-            // into a window that narrow. A right click on an annotation
-            // offers to copy its text.
+            // into a window that narrow. A right click on a cursor opens
+            // its menu, on an annotation it offers to copy its text.
             const int ClickMaxDrag = 2;
             const bool click = abs(event->pos().x() - _mouse_down_point.x()) <= ClickMaxDrag;
             if (!click) {
@@ -1520,14 +1520,40 @@ void Viewport::onLogicMouseRelease(QMouseEvent *event)
                     _view.set_scale_offset(newScale, newOffset);
             }
             set_action(NO_ACTION);
-            if (click && event->button() == Qt::RightButton)
-                show_annotation_menu(event->pos());
+            if (click && event->button() == Qt::RightButton) {
+                if (!show_cursor_menu_at(event->pos()))
+                    show_annotation_menu(event->pos());
+            }
             break;
         }
         case LOGIC_MOVE:
         default:
             break;
     }
+}
+
+bool Viewport::show_cursor_menu_at(const QPoint &pos)
+{
+    if (!_view.cursors_shown())
+        return false;
+
+    // The nearest cursor line within reach.
+    Cursor *near = NULL;
+    int64_t best = HitCursorMargin + 1;
+
+    for (auto c : _view.get_cursorList()) {
+        const int64_t d = qAbs((int64_t)_view.index2pixel(c->index()) - pos.x());
+        if (d < best) {
+            best = d;
+            near = c;
+        }
+    }
+
+    if (near == NULL)
+        return false;
+
+    _view.show_cursor_menu(near, QCursor::pos());
+    return true;
 }
 
 void Viewport::onDsoMouseRelease(QMouseEvent *event)
